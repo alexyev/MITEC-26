@@ -23,9 +23,14 @@ The main view says "Simulated · Illustrative values".
 
 ## Build schedule (spec section 3.4)
 
+- The build starts at the center of the site and advances east and west at the same pace (decision D5).
+  Both faces are straight north-south fronts, and every lane row advances evenly.
+  This is the only build the demo shows.
+- One base stands at the site center.
 - 200 units per day, so about 400 build days for 80,000 units.
 - A unit is commissioned 9 days after it is placed.
-- Machines and crews work in a zone of 300 m ahead of the build front.
+- Machines and crews work in a zone of 300 m ahead of the build front, on each face.
+- With 9 days from placing to commissioning, each face has an edge zone of about 900 units (half of 9 x 200).
 - Day numbers start at 1.
   A unit placed on day d is counted as placed on day d and commissioned on day d + 9.
 
@@ -68,6 +73,7 @@ The main view says "Simulated · Illustrative values".
 
 - The routing model is simplified: neighbor hellos every 1 s, a neighbor is down after 3 missed hellos, local repair at once, then a route update flood at 0.02 s per hop.
   Real mesh protocols (for example 802.11s or B.A.T.M.A.N.) work in a similar way, but the demo does not model them exactly.
+- The scenario uses the center base, and the watched source is 1.5 km east of it (decision D9).
 - The watched source sends a packet every 0.2 s.
   This is sped up for visibility.
 - The maintenance swap time of 15 minutes is a placeholder.

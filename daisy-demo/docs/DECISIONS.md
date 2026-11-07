@@ -27,12 +27,19 @@ The block grid is centered in the site.
 `columnCorridorX[col]` is the gap after unit column `col` (the 2 m gap, or the road center after the last unit of a block).
 For `laneAxis = 'NS'` the names are kept but the values are world x (lane corridors) and world y (column corridors).
 
-## D5 - Front coordinate (T1.2)
+## D5 - Front coordinate and the center-out build (T1.2, revised)
 
-Each build order maps every unit to a scalar `frontKey` in meters: x for west to east, y for south to north, distance from the origin for from-base, and distance along the build path for the block serpentine.
-Units are built in `frontKey` order, so a front is a single number per day.
+Each build order maps every unit to a scalar `frontKey` in meters, and units are built in `frontKey` order, so a front is a single number per day.
+The default order is `centerOut`, by decision of the team: this is the only demo we plan to show, so the base sits at the center of the site and the build advances east and west at the same pace.
+This overrides spec sections 3.4 and 8.2 where they disagree.
+For `centerOut` the key is the east-west distance of the unit from the center line of the unit grid.
+The distinct unit x values are paired from the outside in, and both columns of a pair get the same key, so mirrored columns tie exactly.
+Ties are broken by y (south first) and then by unit id (west first), so the build alternates west, east inside every lane row.
+Each face is therefore a straight north-south front: after every completed column pair all lane rows have advanced by the same number of units, and the two faces never differ by more than one unit.
+The other keys are kept but nothing new supports them: x for west to east, y for south to north, distance from the origin for from-base, and distance along the build path for the block serpentine.
 The serpentine goes block by block (rows of blocks alternate direction) and inside a block from the start side to the end side.
-For `fromBase` the origin defaults to the middle of the west edge (the "1 base (west)" preset).
+One base at the site center (the `center` base preset, `BASE.defaultPreset`) is the default wherever a default base is chosen, and the `fromBase` origin also defaults to the site center.
+The block grid is centered in the site (D3), but the trailing 2 m gap of the last block puts the center line of the unit centers 1 m west of the site center; the build uses the unit grid's center line.
 
 ## D6 - Placed day numbering (T1.2)
 
@@ -45,7 +52,16 @@ The acceptance rule allows only 0, 1, 2 and math constants in `src/engine/`.
 The mulberry32 constants live in `src/config/defaults.ts` (`MULBERRY32`) and are passed in, so `rng.ts` has no other literals.
 `tests/engineConstants.test.ts` scans `src/engine/` for other numeric literals.
 
-## D8 - Result.zones for non-x build orders (T1.2)
+## D8 - Result.zones has two faces (T1.2, revised)
 
-`Result.zones` is copied as written in the spec (x coordinates).
-`Fronts` in `schedule.ts` carries a `kind` (`x`, `y`, `radial`, `path`) so later workers can draw the other build orders.
+`Result.zones` is `{ west, east }`, and each face has `commissionFrontX`, `buildFrontX` and `workZoneEndX` in world x.
+This replaces the single west-to-east fronts of spec section 9.
+`faceZonesAt(schedule, day)` in `schedule.ts` produces it from the scalar fronts: west values are `centerX - front` and east values are `centerX + front`.
+The edge zone of spec section 7.1 now exists on both faces, and each face holds about half of `placeToCommissionDays x unitsPerDay` units.
+`faceZonesAt` refuses the single-front build orders; `Fronts` still carries a `kind` for them.
+
+## D9 - Single-failure scenario with a center base (spec 8.2)
+
+The scenario uses the default base preset (one base at the site center) instead of `west1`.
+Spec 8.2 puts the watched source about 2 km east of the base, but with the base at the center the east face is only about 1.9 km long.
+The source is set to 1.5 km east of the base, so the 800 m x 400 m window around it stays inside the site.

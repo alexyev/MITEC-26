@@ -27,7 +27,7 @@ export const UNIT_HEIGHT_M = 2.9;
 
 /** Build schedule (spec 3.4). */
 export const BUILD: BuildConfig = {
-  order: 'westToEast',
+  order: 'centerOut',
   unitsPerDay: 200,
   placeToCommissionDays: 9,
   frontWorkZoneM: 300,
@@ -45,10 +45,14 @@ export const MODULE = {
   obstructionMaxUnits: 3,
 };
 
+export type BasePresetId = 'west1' | 'westEast2' | 'corners4' | 'center';
+
 /** Bases (spec 4.3, 6.4). */
 export const BASE = {
   rangeFactor: 1.5,
   maxBases: 6,
+  /** Base preset used wherever a default base is chosen: one base at the site center (decision D5). */
+  defaultPreset: 'center' as BasePresetId,
   presets: {
     west1: [{ fx: 0, fy: 0.5 }],
     westEast2: [

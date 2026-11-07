@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { BUILD } from '../src/config/defaults';
-import { buildSchedule, frontsAt, zonesAt } from '../src/engine/schedule';
+import { buildSchedule, faceZonesAt, frontsAt, zonesAt } from '../src/engine/schedule';
 import { generateSite } from '../src/engine/site';
 import type { BuildOrder } from '../src/engine/types';
 import { Zone } from '../src/engine/types';
 
 const site = generateSite();
-const ORDERS: BuildOrder[] = ['westToEast', 'southToNorth', 'fromBase', 'blockSerpentine'];
+const ORDERS: BuildOrder[] = [
+  'centerOut',
+  'westToEast',
+  'southToNorth',
+  'fromBase',
+  'blockSerpentine',
+];
 
 describe('buildSchedule', () => {
   for (const order of ORDERS) {
@@ -79,6 +85,124 @@ describe('buildSchedule', () => {
       });
     });
   }
+
+  describe('centerOut (default)', () => {
+    const s = buildSchedule(site);
+    const ux = (i: number) => site.centers[2 * i];
+
+    it('is the default order and starts at the center line of the site', () => {
+      expect(BUILD.order).toBe('centerOut');
+      expect(s.frontKind).toBe('centerX');
+      // The block grid is centered in the site (D3); its trailing 2 m gap puts the unit centers 1 m west.
+      expect(Math.abs(s.centerX - site.widthM / 2)).toBeLessThanOrEqual(1.01);
+      // Day 1 builds only units next to the center line: the two innermost unit columns.
+      let west = 0;
+      let east = 0;
+      for (let i = 0; i < site.count; i++) {
+        if (s.placedDay[i] !== 1) continue;
+        expect(Math.abs(ux(i) - s.centerX)).toBeLessThan(site.unitPitchM);
+        if (ux(i) < s.centerX) west++;
+        else east++;
+      }
+      expect(west).toBe(BUILD.unitsPerDay / 2);
+      expect(east).toBe(BUILD.unitsPerDay / 2);
+    });
+
+    it('moves both faces outward symmetrically as the day advances', () => {
+      let prev = faceZonesAt(s, 0);
+      for (let day = 1; day <= s.lastDay; day += 5) {
+        const z = faceZonesAt(s, day);
+        const c = s.centerX;
+        expect(z.west.buildFrontX).toBeLessThanOrEqual(prev.west.buildFrontX);
+        expect(z.east.buildFrontX).toBeGreaterThanOrEqual(prev.east.buildFrontX);
+        expect(c - z.west.buildFrontX).toBeCloseTo(z.east.buildFrontX - c, 6);
+        expect(c - z.west.commissionFrontX).toBeCloseTo(z.east.commissionFrontX - c, 6);
+        // Order on each face from the center outward: commission front, build front, work-zone end.
+        expect(z.west.commissionFrontX).toBeGreaterThanOrEqual(z.west.buildFrontX);
+        expect(z.west.buildFrontX - z.west.workZoneEndX).toBeCloseTo(BUILD.frontWorkZoneM, 6);
+        expect(z.east.commissionFrontX).toBeLessThanOrEqual(z.east.buildFrontX);
+        expect(z.east.workZoneEndX - z.east.buildFrontX).toBeCloseTo(BUILD.frontWorkZoneM, 6);
+        prev = z;
+      }
+      const end = faceZonesAt(s, s.buildDays);
+      expect(end.west.buildFrontX).toBeLessThan(site.widthM * 0.1);
+      expect(end.east.buildFrontX).toBeGreaterThan(site.widthM * 0.9);
+    });
+
+    it('places exactly the units within the build front on both faces', () => {
+      const day = 120;
+      const z = faceZonesAt(s, day);
+      for (let i = 0; i < site.count; i += 37) {
+        const x = ux(i);
+        const inside = x >= z.west.buildFrontX - 1e-3 && x <= z.east.buildFrontX + 1e-3;
+        if (s.placedDay[i] <= day) expect(inside).toBe(true);
+        const strictlyInside = x > z.west.buildFrontX + 1e-3 && x < z.east.buildFrontX - 1e-3;
+        if (strictlyInside) expect(s.placedDay[i]).toBeLessThanOrEqual(day);
+      }
+    });
+
+    it('advances every lane row evenly: each face is a straight north-south front', () => {
+      // At the end of a full column pair every lane row has the same number of placed units per face.
+      const pairDays = (2 * site.rows) / BUILD.unitsPerDay;
+      for (const pairs of [3, 10, 40]) {
+        const placed = pairs * 2 * site.rows;
+        if (placed % BUILD.unitsPerDay !== 0) continue;
+        const day = placed / BUILD.unitsPerDay;
+        const perRowWest = new Int32Array(site.rows);
+        const perRowEast = new Int32Array(site.rows);
+        for (let i = 0; i < site.count; i++) {
+          if (s.placedDay[i] > day) continue;
+          if (ux(i) < s.centerX) perRowWest[site.unitRow[i]]++;
+          else perRowEast[site.unitRow[i]]++;
+        }
+        expect(new Set(perRowWest)).toEqual(new Set([pairs]));
+        expect(new Set(perRowEast)).toEqual(new Set([pairs]));
+      }
+      expect(pairDays).toBeGreaterThan(1);
+      // Within a day the build alternates west and east, so the faces never differ by more than one unit.
+      for (let day = 1; day <= s.buildDays; day += 11) {
+        let west = 0;
+        let east = 0;
+        for (let i = 0; i < site.count; i++) {
+          if (s.placedDay[i] > day) continue;
+          if (ux(i) < s.centerX) west++;
+          else east++;
+        }
+        expect(Math.abs(west - east)).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it('has an edge zone on each face of about half of placeToCommissionDays x unitsPerDay', () => {
+      const half = (BUILD.placeToCommissionDays * BUILD.unitsPerDay) / 2;
+      for (const day of [20, 150, 300]) {
+        const zones = zonesAt(s, day);
+        let west = 0;
+        let east = 0;
+        for (let i = 0; i < site.count; i++) {
+          if (zones[i] !== Zone.EdgeZone) continue;
+          if (ux(i) < s.centerX) west++;
+          else east++;
+        }
+        expect(Math.abs(west - half)).toBeLessThanOrEqual(1);
+        expect(Math.abs(east - half)).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it('refuses face zones for single-front orders', () => {
+      expect(() =>
+        faceZonesAt(buildSchedule(site, { ...BUILD, order: 'westToEast' }), 1),
+      ).toThrow();
+    });
+  });
+
+  it('fromBase defaults to an origin at the site center', () => {
+    const s = buildSchedule(site, { ...BUILD, order: 'fromBase' });
+    const first = s.buildOrderIds[0];
+    expect(Math.abs(site.centers[2 * first] - site.widthM / 2)).toBeLessThan(site.unitPitchM);
+    expect(Math.abs(site.centers[2 * first + 1] - site.heightM / 2)).toBeLessThan(
+      site.rowPitchM * 2,
+    );
+  });
 
   it('westToEast fronts are x coordinates that sweep the width of the site', () => {
     const s = buildSchedule(site, { ...BUILD, order: 'westToEast' });

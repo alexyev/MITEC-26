@@ -1,0 +1,61 @@
+{
+  "verified": false,
+  "currency": "USD",
+  "presets": {
+    "mesh5": {
+      "rangeRefM": 300,
+      "tiers": [
+        { "minQty": 1, "unitPrice": 900 },
+        { "minQty": 100, "unitPrice": 780 },
+        { "minQty": 1000, "unitPrice": 650 },
+        { "minQty": 10000, "unitPrice": 540 }
+      ],
+      "rangeScaling": { "mode": "power", "exponent": 0.5 },
+      "rangePricePoints": []
+    },
+    "halow": {
+      "rangeRefM": 500,
+      "tiers": [
+        { "minQty": 1, "unitPrice": 250 },
+        { "minQty": 100, "unitPrice": 210 },
+        { "minQty": 1000, "unitPrice": 170 },
+        { "minQty": 10000, "unitPrice": 140 }
+      ],
+      "rangeScaling": { "mode": "power", "exponent": 0.5 },
+      "rangePricePoints": []
+    },
+    "lora": {
+      "rangeRefM": 1500,
+      "tiers": [
+        { "minQty": 1, "unitPrice": 120 },
+        { "minQty": 100, "unitPrice": 95 },
+        { "minQty": 1000, "unitPrice": 75 },
+        { "minQty": 10000, "unitPrice": 60 }
+      ],
+      "rangeScaling": { "mode": "power", "exponent": 0.5 },
+      "rangePricePoints": []
+    },
+    "ble": {
+      "rangeRefM": 80,
+      "tiers": [
+        { "minQty": 1, "unitPrice": 40 },
+        { "minQty": 100, "unitPrice": 30 },
+        { "minQty": 1000, "unitPrice": 22 },
+        { "minQty": 10000, "unitPrice": 16 }
+      ],
+      "rangeScaling": { "mode": "power", "exponent": 0.5 },
+      "rangePricePoints": []
+    }
+  },
+  "perModule": {
+    "cornerBracketAndCable": 35,
+    "antennaSet": 40,
+    "installLabor": 60,
+    "batteryBridge": 80
+  },
+  "base": { "unitPrice": 8000, "powerW": 200 },
+  "tempFrontRelay": { "unitPrice": 1500, "powerW": 6, "reusable": true },
+  "sparesPct": 5,
+  "contingencyPct": 10,
+  "tierMode": "allUnits"
+}

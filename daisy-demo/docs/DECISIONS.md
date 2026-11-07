@@ -66,6 +66,31 @@ The scenario uses the default base preset (one base at the site center) instead 
 Spec 8.2 puts the watched source about 2 km east of the base, but with the base at the center the east face is only about 1.9 km long.
 The source is set to 1.5 km east of the base, so the 800 m x 400 m window around it stays inside the site.
 
+## D10 - Less is more (T1.3)
+
+The dashboard shows only what works.
+Menus, panels and controls without a function are hidden instead of shown as empty placeholders.
+The map is the dominant element: it fills the page under a slim header.
+The controls, metrics and chart panels of spec section 10.2 come back as their features arrive, and they are collapsed or on demand by default rather than always visible.
+For T1.3 the only control is the build-day slider (spec 10.2), floating at the bottom of the map; the header buttons (Scenarios, Pricing, About) are hidden until they do something.
+The "Simulated · Illustrative values" badge stays visible (spec 0.4).
+Later work follows the same rule: add a control only together with its function, and prefer an overlay or a collapsed panel over a new always-visible one.
+
+## D11 - Exowatt theme (T1.3)
+
+The theme follows exowatt.com, inspected in the browser; where it conflicts with spec section 10.1, the Exowatt look wins.
+
+- Page background: warm tan `#EAE8E3`.
+  Light cards are white; dark cards are near-black `#0E0E0E`, like Exowatt's product imagery.
+- Text: ink `#1D1D1D` for headings, `#434343` for body, labels `#8A8780`.
+- Brand: orange `#FF7212`, with an orange to red-orange gradient (`#FF7212` to `#E8452C`) for emphasis.
+- Font: Helvetica Neue (Arial fallback), weight 500 for headings, slightly negative letter spacing; small uppercase labels with wide letter spacing.
+- Shape: large card radius (24 px) and pill-shaped controls; floating controls on the map use a dark translucent glass, like the Exowatt navigation bar.
+- The map is a dark card so the unit states read clearly: commissioned units are brand orange, placed units are grey, not-placed units are dark outlines.
+- State colors stay distinct from the brand orange: failure red `#E5383B`, healthy teal `#1D9E75`, battery and temporary amber `#F5B82E` (spec 10.1 had `#EF9F27`, too close to the brand orange), and base purple `#6F63E0` (spec 10.1 had `#534AB7`, too dark on the black map).
+
+All colors are CSS variables in `src/ui/theme.css`; the map reads its colors from them.
+
 ## D12 - Map rendering (T1.3)
 
 The unit layer is Canvas 2D.

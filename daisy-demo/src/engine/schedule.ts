@@ -151,6 +151,11 @@ export function frontsAt(schedule: Schedule, day: number): Fronts {
     edgeZoneCount: placedCount - commissionedCount,
     buildFront,
     commissionFront: keyAtCount(commissionedCount),
+    commissionFrontPartial:
+      commissionedCount > 0 &&
+      commissionedCount < total &&
+      schedule.frontKey[schedule.buildOrderIds[commissionedCount]] ===
+        keyAtCount(commissionedCount),
     workZoneEnd: buildFront + schedule.frontWorkZoneM,
   };
 }

@@ -1,20 +1,13 @@
-// Zustand store for UI state. Phase 0 holds only the selected bottom tab; engine state arrives with the worker (T2.5).
+// Zustand store for UI state. T1.3 holds the selected build day; engine state arrives with the worker (T2.5).
 import { create } from 'zustand';
-
-export const BOTTOM_TABS = [
-  'Failure curve',
-  'Cost vs range',
-  'Edge over time',
-  'Compare A/B',
-] as const;
-export type BottomTab = (typeof BOTTOM_TABS)[number];
+import { UI } from '../config/defaults';
 
 interface UiState {
-  bottomTab: BottomTab;
-  setBottomTab: (tab: BottomTab) => void;
+  buildDay: number;
+  setBuildDay: (day: number) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  bottomTab: BOTTOM_TABS[0],
-  setBottomTab: (bottomTab) => set({ bottomTab }),
+  buildDay: UI.initialBuildDay,
+  setBuildDay: (buildDay) => set({ buildDay }),
 }));

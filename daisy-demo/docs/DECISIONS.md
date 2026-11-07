@@ -65,3 +65,17 @@ The edge zone of spec section 7.1 now exists on both faces, and each face holds 
 The scenario uses the default base preset (one base at the site center) instead of `west1`.
 Spec 8.2 puts the watched source about 2 km east of the base, but with the base at the center the east face is only about 1.9 km long.
 The source is set to 1.5 km east of the base, so the 800 m x 400 m window around it stays inside the site.
+
+## D12 - Map rendering (T1.3)
+
+The unit layer is Canvas 2D.
+When zoomed out it draws a pre-rendered raster of all units at 1.5 px per meter, kept as a mip pyramid (each level half the previous one) so the strong downscale at fit does not show moire.
+Above 1.6 device pixels per meter it draws the visible units as vectors, one path per unit state.
+The raster is re-rendered only when the build day changes.
+Panning and zooming change only the view, which lives outside React and is drawn on animation frames.
+This holds at least 50 fps with 80,000 units, so the unit layer does not need WebGL.
+
+The fronts are drawn as dashed north-south lines at the outer edge of the front unit column, and the zones span the height of the unit grid.
+A front usually runs through a partly finished column pair.
+The build front is at the outer edge of the partly placed column.
+The edge zone starts at the inner edge of a partly commissioned column (`Fronts.commissionFrontPartial`), so every placed but unpowered unit is inside the edge zone.

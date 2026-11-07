@@ -200,6 +200,11 @@ export interface Fronts {
   buildFront: number;
   /** Front coordinate of the last commissioned unit. */
   commissionFront: number;
+  /**
+   * True when the next unit to commission has the same front coordinate as the last commissioned one,
+   * so the commission front runs through a partly commissioned column (for 'centerOut', a column pair).
+   */
+  commissionFrontPartial: boolean;
   /** buildFront + frontWorkZoneM. */
   workZoneEnd: number;
 }

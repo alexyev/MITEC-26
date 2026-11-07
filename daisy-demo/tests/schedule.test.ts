@@ -188,6 +188,16 @@ describe('buildSchedule', () => {
       }
     });
 
+    it('flags a commission front that runs through a partly commissioned column pair', () => {
+      const pair = 2 * site.rows;
+      for (let day = BUILD.placeToCommissionDays + 1; day < s.buildDays; day += 3) {
+        const f = frontsAt(s, day);
+        expect(f.commissionFrontPartial).toBe(f.commissionedCount % pair !== 0);
+      }
+      expect(frontsAt(s, 0).commissionFrontPartial).toBe(false);
+      expect(frontsAt(s, s.lastDay).commissionFrontPartial).toBe(false);
+    });
+
     it('refuses face zones for single-front orders', () => {
       expect(() =>
         faceZonesAt(buildSchedule(site, { ...BUILD, order: 'westToEast' }), 1),

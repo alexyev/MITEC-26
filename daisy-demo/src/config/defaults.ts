@@ -19,6 +19,9 @@ export const SITE: SiteConfig = {
   acreM2: 4046.8564224,
 };
 
+/** Allowed relative deviation of the generated unit count from the target (spec T1.1: within 2%). */
+export const SITE_COUNT_TOLERANCE = 0.02;
+
 /** Unit height is an assumption (spec 3.1). */
 export const UNIT_HEIGHT_M = 2.9;
 

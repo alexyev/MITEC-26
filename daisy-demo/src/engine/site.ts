@@ -1,6 +1,6 @@
 // Site layout generator (spec 3.1-3.3): aligned lanes, columns, block grid, roads and corridor coordinates.
 // Works in a lane frame (u along the lane axis, v across lanes) and maps to world x/y at the end.
-import { SITE } from '../config/defaults';
+import { SITE, SITE_COUNT_TOLERANCE } from '../config/defaults';
 import type { Rect, Site, SiteConfig } from './types';
 
 export function generateSite(config: SiteConfig = SITE): Site {
@@ -146,11 +146,12 @@ export function generateSite(config: SiteConfig = SITE): Site {
     roads.push(toRect(startU, roadV, totalBlocksU, config.roadWidthM));
   }
 
-  const errPct = (Math.abs(count - config.targetUnits) / config.targetUnits) * 100;
-  if (errPct > 2)
+  const errFraction = Math.abs(count - config.targetUnits) / config.targetUnits;
+  if (errFraction > SITE_COUNT_TOLERANCE) {
     warnings.push(
-      `Unit count ${count} is ${errPct.toFixed(1)}% from target ${config.targetUnits}.`,
+      `Unit count ${count} differs from target ${config.targetUnits} by more than ${SITE_COUNT_TOLERANCE}.`,
     );
+  }
 
   return {
     laneAxis: config.laneAxis,

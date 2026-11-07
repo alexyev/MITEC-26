@@ -138,10 +138,14 @@ export interface Site {
 // Schedule (spec section 3.4)
 // ---------------------------------------------------------------------------
 
-export type BuildOrder = 'westToEast' | 'southToNorth' | 'fromBase' | 'blockSerpentine';
+export type BuildOrder =
+  'centerOut' | 'westToEast' | 'southToNorth' | 'fromBase' | 'blockSerpentine';
 
-/** What the scalar front coordinate measures for a build order. */
-export type FrontKind = 'x' | 'y' | 'radial' | 'path';
+/**
+ * What the scalar front coordinate measures for a build order. 'centerX' is the east-west distance
+ * from the site's center line (the same value on the west and the east face).
+ */
+export type FrontKind = 'centerX' | 'x' | 'y' | 'radial' | 'path';
 
 export interface BuildConfig {
   order: BuildOrder;
@@ -168,9 +172,12 @@ export interface Schedule {
   placedDay: Int32Array;
   /** Day on which unit i is commissioned = placedDay + placeToCommissionDays. */
   commissionDay: Int32Array;
+  /** World x of the north-south center line that 'centerOut' advances away from (center of the unit grid). */
+  centerX: number;
   /**
-   * Front coordinate of every unit in meters: x for 'westToEast', y for 'southToNorth', distance to
-   * the origin for 'fromBase', distance along the build path for 'blockSerpentine'.
+   * Front coordinate of every unit in meters: east-west distance from `centerX` for 'centerOut', x for
+   * 'westToEast', y for 'southToNorth', distance to the origin for 'fromBase', distance along the build
+   * path for 'blockSerpentine'.
    */
   frontKey: Float64Array;
   /** Unit ids in build order. */
@@ -193,8 +200,29 @@ export interface Fronts {
   buildFront: number;
   /** Front coordinate of the last commissioned unit. */
   commissionFront: number;
+  /**
+   * True when the next unit to commission has the same front coordinate as the last commissioned one,
+   * so the commission front runs through a partly commissioned column (for 'centerOut', a column pair).
+   */
+  commissionFrontPartial: boolean;
   /** buildFront + frontWorkZoneM. */
   workZoneEnd: number;
+}
+
+/** Fronts of one face of a 'centerOut' build, as world x in meters. */
+export interface FaceZones {
+  /** x of the outermost commissioned unit on this face (the inner edge of the edge zone). */
+  commissionFrontX: number;
+  /** x of the outermost placed unit on this face (the outer edge of the edge zone). */
+  buildFrontX: number;
+  /** End of the work zone: `frontWorkZoneM` beyond the build front, away from the center. */
+  workZoneEndX: number;
+}
+
+/** Zones of a 'centerOut' build: the west face moves toward -x and the east face toward +x. */
+export interface BuildZones {
+  west: FaceZones;
+  east: FaceZones;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,7 +274,8 @@ export interface Result {
     bottleneck: Uint8Array;
   };
   unitsServed: Uint8Array;
-  zones: { commissionFrontX: number; buildFrontX: number; workZoneEndX: number }; // or polygons for other build orders
+  /** Both faces of the center-out build (decision D8; replaces the single west-to-east fronts of spec 9). */
+  zones: BuildZones;
   kpis: {
     modules: number;
     denserEdgeModules: number;

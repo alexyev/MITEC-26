@@ -1,84 +1,25 @@
-import { BOTTOM_TABS, useUiStore } from '../state/store';
+import { UI } from '../config/defaults';
+import { BuildDay } from './BuildDay';
+import { MapView } from './map/MapView';
 
-const CONTROL_SECTIONS: [string, string][] = [
-  ['Preset', '4 buttons'],
-  ['Range', 'log slider'],
-  ['Placement specs', 'N, M, spacing, auto-tune'],
-  ['Edge toggles', 'battery bridge, front relays, denser edge'],
-  ['Build day', 'slider, play, order'],
-  ['Bases', 'presets'],
-  ['Failure tools', 'click, area, random, reset'],
-  ['Designs', 'save A / save B'],
-];
-
-const METRIC_SECTIONS = [
-  'Modules / density',
-  'Cost',
-  'Power',
-  'Resilience',
-  'Capacity',
-  'Build edge',
-  'Current failures',
-];
-
+// Less is more (decision D10): only what works is on screen. The controls, metrics and chart panels of
+// spec 10.2 return, collapsed by default, once they have content.
 export function App() {
-  const bottomTab = useUiStore((s) => s.bottomTab);
-  const setBottomTab = useUiStore((s) => s.setBottomTab);
-
   return (
     <div className="app">
       <header className="header">
+        <img className="mark" src="/favicon.svg" alt="" width={22} height={22} />
         <h1>Lane-radio network demo</h1>
         <span className="badge">Simulated · Illustrative values</span>
         <span className="spacer" />
-        <button type="button">Scenarios ▾</button>
-        <button type="button">Pricing</button>
-        <button type="button">About</button>
+        <a className="apex" href={UI.apexUrl}>
+          {UI.apexLabel}
+        </a>
       </header>
-
-      <aside className="panel panel-controls" aria-label="Controls">
-        <div className="panel-body">
-          {CONTROL_SECTIONS.map(([title, hint]) => (
-            <div className="section" key={title}>
-              <div className="label">{title}</div>
-              <div className="hint">{hint}</div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <main className="panel panel-map" aria-label="Map">
-        <div className="map-placeholder">
-          Map placeholder - units, modules, links, bases and zones arrive in T1.3
-        </div>
+      <main className="stage" aria-label="Map">
+        <MapView />
+        <BuildDay />
       </main>
-
-      <aside className="panel panel-metrics" aria-label="Metrics">
-        <div className="panel-body">
-          {METRIC_SECTIONS.map((title) => (
-            <div className="section" key={title}>
-              <div className="label">{title}</div>
-            </div>
-          ))}
-        </div>
-      </aside>
-
-      <section className="panel panel-bottom" aria-label="Charts">
-        <div className="tabs" role="tablist">
-          {BOTTOM_TABS.map((tab) => (
-            <button
-              type="button"
-              role="tab"
-              key={tab}
-              aria-selected={tab === bottomTab}
-              onClick={() => setBottomTab(tab)}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-        <div className="map-placeholder">{bottomTab} - placeholder</div>
-      </section>
     </div>
   );
 }

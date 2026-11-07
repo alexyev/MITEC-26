@@ -27,7 +27,7 @@ export const UNIT_HEIGHT_M = 2.9;
 
 /** Build schedule (spec 3.4). */
 export const BUILD: BuildConfig = {
-  order: 'westToEast',
+  order: 'centerOut',
   unitsPerDay: 200,
   placeToCommissionDays: 9,
   frontWorkZoneM: 300,
@@ -45,10 +45,14 @@ export const MODULE = {
   obstructionMaxUnits: 3,
 };
 
+export type BasePresetId = 'west1' | 'westEast2' | 'corners4' | 'center';
+
 /** Bases (spec 4.3, 6.4). */
 export const BASE = {
   rangeFactor: 1.5,
   maxBases: 6,
+  /** Base preset used wherever a default base is chosen: one base at the site center (decision D5). */
+  defaultPreset: 'center' as BasePresetId,
   presets: {
     west1: [{ fx: 0, fy: 0.5 }],
     westEast2: [
@@ -158,4 +162,34 @@ export const UI = {
   metricsWidthPx: 320,
   bottomHeightPx: 200,
   headerHeightPx: 48,
+  /** Build day shown when the demo opens: mid-build, so both faces and their zones are visible. */
+  initialBuildDay: 120,
+  /** Link to the apex domain in the header (Part C of the T1.3 brief). */
+  apexUrl: 'https://alexanderyevchenko.com',
+  apexLabel: 'alexanderyevchenko.com',
+};
+
+/** Map view (spec 10.3, T1.3). Colors live in src/ui/theme.css. */
+export const MAP = {
+  /** Resolution of the pre-rendered unit layer in pixels per meter. */
+  rasterPxPerM: 1.5,
+  /** Smallest level of the raster pyramid, in pixels across the site. */
+  rasterMinLevelPx: 512,
+  /** Above this many device pixels per meter the units are drawn as vectors (visible units only). */
+  vectorAbovePxPerM: 1.6,
+  /** Zoom limits: the minimum is a fraction of the fit scale; the maximum is in CSS pixels per meter. */
+  minZoomOfFit: 0.6,
+  maxPxPerM: 40,
+  /** Zoom factor per 100 px of wheel delta, and per click on a zoom button. */
+  wheelZoomPer100Px: 1.25,
+  buttonZoom: 1.6,
+  /** Padding around the site when fitting, in CSS pixels (room for the overlays). */
+  fitPaddingPx: { top: 64, right: 24, bottom: 96, left: 24 },
+  /** Target length of the scale bar in CSS pixels. */
+  scaleBarTargetPx: 120,
+  /** Hatch spacing of the zone overlays in CSS pixels, and the dash pattern of the fronts. */
+  hatchSpacingPx: 7,
+  frontDashPx: [6, 5],
+  /** Half size of the base marker in CSS pixels. */
+  baseMarkerPx: 9,
 };

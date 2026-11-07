@@ -1,6 +1,7 @@
 // Pre-set scenarios (spec section 8.2): fixed setup, routing model and timeline of "Single radio failure".
 // The step table is data here so the packet simulation and the player UI use the same numbers.
-import { ROUTING } from './defaults';
+import { BASE, ROUTING } from './defaults';
+import type { BasePresetId } from './defaults';
 import type { PresetId } from '../engine/types';
 
 export interface ScenarioStep {
@@ -19,9 +20,10 @@ export interface ScenarioDef {
   setup: {
     presetId: PresetId;
     rangeM: number;
-    basesPreset: 'west1' | 'westEast2' | 'corners4' | 'center';
+    basesPreset: BasePresetId;
     buildDay: 'last';
     seed: number;
+    /** Distance of the watched source east of the base, in meters. */
     watchedDistanceFromBaseM: number;
     windowM: { w: number; h: number };
   };
@@ -40,10 +42,12 @@ export const SCENARIOS: Record<string, ScenarioDef> = {
     setup: {
       presetId: 'mesh5',
       rangeM: 300,
-      basesPreset: 'west1',
+      // One base at the site center (decision D5). Spec 8.2 says 2 km east of a west base; with the base
+      // at the center the east face is only about 1.9 km long, so the source sits 1.5 km east (D9).
+      basesPreset: BASE.defaultPreset,
       buildDay: 'last',
       seed: 41207,
-      watchedDistanceFromBaseM: 2000,
+      watchedDistanceFromBaseM: 1500,
       windowM: { w: 800, h: 400 },
     },
     routing: ROUTING,

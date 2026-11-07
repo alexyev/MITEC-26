@@ -1,26 +1,54 @@
 // Build schedule (spec 3.4): placed and commissioned day per unit, build and commission fronts, zones per day.
 // Every build order maps units to a scalar front coordinate in meters, so a front is one number per day.
 import { BUILD } from '../config/defaults';
-import type { BuildConfig, BuildOrder, FrontKind, Fronts, Schedule, Site } from './types';
+import type {
+  BuildConfig,
+  BuildOrder,
+  BuildZones,
+  FrontKind,
+  Fronts,
+  Schedule,
+  Site,
+} from './types';
 import { Zone } from './types';
 
 export interface ScheduleOptions {
-  /** Origin for the 'fromBase' order in world meters. Default: middle of the west edge. */
+  /** Origin for the 'fromBase' order in world meters. Default: the site center (the default base, D5). */
   origin?: { x: number; y: number };
 }
 
 const FRONT_KIND: Record<BuildOrder, FrontKind> = {
+  centerOut: 'centerX',
   westToEast: 'x',
   southToNorth: 'y',
   fromBase: 'radial',
   blockSerpentine: 'path',
 };
 
+/**
+ * East-west distance of every unit from the center line of the unit grid (decision D5).
+ * The distinct unit x values are paired from the outside in (first with last, second with second to
+ * last, ...) and both members of a pair get half their distance, so mirrored columns have exactly the
+ * same key and the west and east faces advance at the same pace.
+ */
+function centerDistances(site: Site): { distance: Float64Array; centerX: number } {
+  const distance = new Float64Array(site.count);
+  if (site.count === 0) return { distance, centerX: site.widthM / 2 };
+  const xs = Array.from(new Set(Array.from({ length: site.count }, (_, i) => site.centers[2 * i])));
+  xs.sort((a, b) => a - b);
+  const last = xs.length - 1;
+  const halfSpan = new Map<number, number>();
+  xs.forEach((x, k) => halfSpan.set(x, Math.abs(xs[last - k] - x) / 2));
+  for (let i = 0; i < site.count; i++) distance[i] = halfSpan.get(site.centers[2 * i]) ?? 0;
+  return { distance, centerX: (xs[0] + xs[last]) / 2 };
+}
+
 /** Front coordinate (primary sort key) and tie-break (secondary key) of every unit for an order. */
 function frontKeys(
   site: Site,
   order: BuildOrder,
   origin: { x: number; y: number },
+  centerDistance: Float64Array,
 ): { key: Float64Array; tie: Float64Array } {
   const key = new Float64Array(site.count);
   const tie = new Float64Array(site.count);
@@ -29,6 +57,12 @@ function frontKeys(
     const x = site.centers[2 * i];
     const y = site.centers[2 * i + 1];
     switch (order) {
+      case 'centerOut':
+        // Mirrored units on the two faces tie on (distance, y); the final id tie-break puts the west
+        // unit first, so the build alternates west, east in every lane row.
+        key[i] = centerDistance[i];
+        tie[i] = y;
+        break;
       case 'westToEast':
         key[i] = x;
         tie[i] = y;
@@ -64,8 +98,9 @@ export function buildSchedule(
   build: BuildConfig = BUILD,
   options: ScheduleOptions = {},
 ): Schedule {
-  const origin = options.origin ?? { x: 0, y: site.heightM / 2 };
-  const { key, tie } = frontKeys(site, build.order, origin);
+  const origin = options.origin ?? { x: site.widthM / 2, y: site.heightM / 2 };
+  const { distance, centerX } = centerDistances(site);
+  const { key, tie } = frontKeys(site, build.order, origin, distance);
 
   const ids = new Int32Array(site.count);
   for (let i = 0; i < site.count; i++) ids[i] = i;
@@ -88,6 +123,7 @@ export function buildSchedule(
     frontWorkZoneM: build.frontWorkZoneM,
     placedDay,
     commissionDay,
+    centerX,
     frontKey: key,
     buildOrderIds: ids,
     buildDays,
@@ -115,7 +151,36 @@ export function frontsAt(schedule: Schedule, day: number): Fronts {
     edgeZoneCount: placedCount - commissionedCount,
     buildFront,
     commissionFront: keyAtCount(commissionedCount),
+    commissionFrontPartial:
+      commissionedCount > 0 &&
+      commissionedCount < total &&
+      schedule.frontKey[schedule.buildOrderIds[commissionedCount]] ===
+        keyAtCount(commissionedCount),
     workZoneEnd: buildFront + schedule.frontWorkZoneM,
+  };
+}
+
+/**
+ * World x of the commission front, build front and work-zone end on the west and the east face for a
+ * day (`Result.zones`, decision D8). Only the 'centerOut' order has two faces.
+ */
+export function faceZonesAt(schedule: Schedule, day: number): BuildZones {
+  if (schedule.frontKind !== 'centerX') {
+    throw new Error(`Face zones need the centerOut build order, not ${schedule.order}.`);
+  }
+  const f = frontsAt(schedule, day);
+  const c = schedule.centerX;
+  return {
+    west: {
+      commissionFrontX: c - f.commissionFront,
+      buildFrontX: c - f.buildFront,
+      workZoneEndX: c - f.workZoneEnd,
+    },
+    east: {
+      commissionFrontX: c + f.commissionFront,
+      buildFrontX: c + f.buildFront,
+      workZoneEndX: c + f.workZoneEnd,
+    },
   };
 }
 

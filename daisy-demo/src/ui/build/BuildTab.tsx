@@ -1,6 +1,6 @@
 // Build & failure tab (spec 9, D70): the play model built from the center out, a radio failure mid-build traced
 // through a frontier robot's data, the rest of the build, then "Your turn", where any radio can fail.
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { forwardedAt, hopsAt, queueAt, type SimChange } from '../../engine/packetSim';
@@ -24,8 +24,11 @@ import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
 import { usePlayer } from '../player/usePlayer';
 import type { Machine } from '../../engine/machines';
-import { unitStatusAt } from '../../engine/playModel';
-import { BuildMap } from './BuildMap';
+import { RadioBuild, unitStatusAt } from '../../engine/playModel';
+import type { Viewport } from '../map/viewport';
+import { featuredRadio } from '../scene3d/featured';
+import { useCornerView } from '../scene3d/useCornerView';
+import { BuildMap, fitWithCoverage, type BuildMapPin } from './BuildMap';
 import { BuildReadout } from './BuildReadout';
 import { CostChip } from './CostChip';
 import type { BuildHit } from './draw';
@@ -44,6 +47,10 @@ const LEGEND: LegendItem[] = [
 ];
 
 const steps = PLAY_TIMELINE.steps;
+
+/** The radio the "Take me there" pin flies to (D121). */
+const FEATURED_RADIO = featuredRadio(PLAY_MODEL);
+const mapViewport = (w: number, h: number) => fitWithCoverage(PLAY_MODEL, w, h);
 
 interface Pointer {
   x: number;
@@ -198,7 +205,9 @@ function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProp
 
 export function BuildTab() {
   const resetInputs = useBuildStore((s) => s.resetInputs);
-  const player = usePlayer(steps, { onRestart: resetInputs });
+  const corner = useCornerView();
+  // While the 3D view is up, Space and the arrows belong to it, not to the walkthrough underneath.
+  const player = usePlayer(steps, { onRestart: resetInputs, keyboard: corner.visit === null });
   const userChanges = useBuildStore((s) => s.userChanges);
   const hover = useBuildStore((s) => s.hover);
   const setHover = useBuildStore((s) => s.setHover);
@@ -233,6 +242,37 @@ export function BuildTab() {
     [setHover],
   );
 
+  // Flying down to a radio's corner (D120): the walkthrough pauses where it is, and plays on afterwards.
+  const openCorner = useCallback(
+    (from: Viewport) => {
+      setHover(null);
+      corner.open({ radio: FEATURED_RADIO, from, scene, resume: player.playing });
+      player.pause();
+    },
+    [corner, scene, player, setHover],
+  );
+  const lastVisit = useRef(corner.visit);
+  useEffect(() => {
+    const was = lastVisit.current;
+    lastVisit.current = corner.visit;
+    if (was && !corner.visit && was.resume) player.play();
+  }, [corner.visit, player]);
+
+  // The pin shows once its radio is built, and steps aside while that radio is failed: the 3D view is
+  // there to show its four beams, and a failed radio's labels need the space above it.
+  const pin: BuildMapPin | null =
+    FEATURED_RADIO >= 0 &&
+    scene.radioBuild[FEATURED_RADIO] !== RadioBuild.None &&
+    scene.failed[FEATURED_RADIO] !== 1 &&
+    (corner.visit === null || corner.loading)
+      ? {
+          radio: FEATURED_RADIO,
+          loading: corner.loading,
+          onOpen: openCorner,
+          onIntent: corner.prefetch,
+        }
+      : null;
+
   const card = hover ? hoverCardFor(hover, scene, userChanges, t, pointer) : null;
   const anyFailed = scene.failed.some((f, i) => f === 1 && i < PLAY_MODEL.radios.length);
   const stepId = steps[player.stepIndex]?.id ?? '';
@@ -246,7 +286,19 @@ export function BuildTab() {
         hover={hover}
         onHover={onHover}
         onClickRadio={onClickRadio}
+        pin={pin}
       />
+      {corner.visit && corner.View ? (
+        <corner.View
+          model={PLAY_MODEL}
+          graph={PLAY_GRAPH}
+          scene={corner.visit.scene}
+          radio={corner.visit.radio}
+          from={corner.visit.from}
+          mapViewport={mapViewport}
+          onExit={corner.close}
+        />
+      ) : null}
       <Panel corner="tl" title="Build & failure">
         <Section label="Try it" data-tour="try-it">
           <p className="build-hint">Click a radio to fail it. Click it again to repair it.</p>

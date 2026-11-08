@@ -121,6 +121,8 @@ export interface TourFacts {
   uplink: string;
   uplinkHops: number;
   failed: string;
+  /** The radio the Build map's "Take me there" pin flies to in 3D (D121). */
+  cornerRadio: string;
   missedHellos: number;
 }
 
@@ -215,7 +217,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'replay',
       title: 'That is the tour',
-      body: 'Replay it any time from the ? button. The name at the top left opens the home page.',
+      body: `Replay it any time from the ? button. The name at the top left opens the home page. On the ${f.buildTab} map, Take me there flies down to radio ${f.cornerRadio}'s corner module in 3D.`,
       targets: ['tour', 'brand'],
       merge: true,
       tab: 'build',

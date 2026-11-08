@@ -8,6 +8,7 @@ import { getSiteModel } from '../../state/model';
 import { PLAY_MODEL, PLAY_TIMELINE } from '../../state/build';
 import { TABS, type TabId } from '../../state/store';
 import { speedLabel } from '../player/speed';
+import { featuredRadio } from '../scene3d/featured';
 import { formatHours, formatInt, formatTimes, formatUsd } from '../survey/format';
 import { utvKitCost } from '../survey/utvKit';
 import { whyUtv } from '../survey/whyUtv';
@@ -44,6 +45,7 @@ export function tourFacts(): TourFacts {
     uplink: PLAY_MODEL.radios[watchedRadio].label,
     uplinkHops: scenario.route.length - 1,
     failed: PLAY_MODEL.radios[failedRadio].label,
+    cornerRadio: PLAY_MODEL.radios[featuredRadio(PLAY_MODEL)].label,
     missedHellos: ROUTING.missedHellosToDown,
   };
   return facts;

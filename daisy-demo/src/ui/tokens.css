@@ -90,6 +90,22 @@
   --tour-ring: rgba(255, 255, 255, 0.92); /* The ring around a tour target */
   --callout-w: 320px; /* The tour callout: a panel's width, so it fits beside the map's fit area */
 
+  /* The 3D view of a radio's corner (D120): the site in daylight. Story colors keep their meaning there. */
+  --c-scene-unit: #e2702a; /* The P3's paint, Exowatt orange */
+  --c-scene-steel: #a7adb3; /* Galvanized steel: the lens tracker, the bracket arm, the mast */
+  --c-scene-dark: #33363a; /* Corner castings, pile caps, door gear, cable */
+  --c-scene-lens: #c9dde3; /* Fresnel lens acrylic */
+  --c-scene-module: #e6e8ea; /* The corner module's enclosure and antenna radomes */
+  --c-scene-ground: #d2b089; /* Desert sand */
+  --c-scene-graded: #c8a982; /* The graded site around the lanes */
+  --c-scene-pad: #b5a690; /* The built-up base pad: compacted gravel */
+  --c-scene-scrub: #7d7a4e; /* Creosote and bursage */
+  --c-scene-sky: #3d7bc4; /* The sky at the zenith */
+  --c-scene-horizon: #e7d9c4; /* Haze at the horizon */
+  --c-scene-sun: #fff1dc; /* Sunlight */
+  --c-scene-shade: #8fa6c2; /* Skylight in the shade */
+  --scene-label-bg: rgba(14, 17, 22, 0.78); /* A label in the 3D view, over a bright scene */
+
   /* Motion (spec 6.7). */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-hover: 120ms;
@@ -97,6 +113,7 @@
   --dur-panel: 280ms;
   --dur-home: 720ms; /* Into and out of the home screen; HOME.transitionMs mirrors it */
   --dur-home-fade: 720ms;
+  --dur-scene-fade: 420ms; /* The 2D map and the 3D view crossfade; SCENE3D.motion.crossfadeMs mirrors it */
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -106,5 +123,6 @@
     --dur-panel: 0ms;
     --dur-home: 0ms;
     --dur-home-fade: 200ms; /* HOME.reducedTransitionMs: a plain crossfade */
+    --dur-scene-fade: 0ms; /* Reduced motion cuts between the map and the 3D view */
   }
 }

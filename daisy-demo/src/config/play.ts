@@ -7,6 +7,18 @@ export interface CellRef {
   row: number;
 }
 
+/** Equipment marks drawn for a frontier phase. */
+export type EquipmentGlyph = 'dozer' | 'pileRig' | 'trencher' | 'carrier' | 'crane' | 'crew';
+
+/** One construction phase at the build frontier (D49). */
+export interface FrontierPhase {
+  id: 'grading' | 'foundations' | 'trenching' | 'placement' | 'connection';
+  label: string;
+  /** What is at work, for the hover card. */
+  equipment: string;
+  glyphs: EquipmentGlyph[];
+}
+
 export interface PlayConfig {
   /** Radio cells across (east-west) and down (north-south); one radio per cell. */
   cellCols: number;
@@ -27,6 +39,12 @@ export interface PlayConfig {
   buildStepS: number;
   /** Build steps from placing a unit to its radio switching on. */
   commissionLagSteps: number;
+  /**
+   * Construction phases at the frontier, outermost first: each takes one build step per lane, the
+   * placement phase is the step a lane's units are placed, and connection lasts until the radio is on.
+   * Illustrative, after the team's research of the challenge video; Exowatt has not published a method.
+   */
+  frontierPhases: FrontierPhase[];
   /** Each connected radio sends one packet per interval. */
   packetIntervalS: number;
   /** Playback time per hop ("Packets slowed for visibility"). */
@@ -65,6 +83,18 @@ export const PLAY: PlayConfig = {
   coverageSampleM: 2,
   buildStepS: 0.7,
   commissionLagSteps: 2,
+  frontierPhases: [
+    { id: 'grading', label: 'Grading', equipment: 'Dozer', glyphs: ['dozer'] },
+    { id: 'foundations', label: 'Foundations', equipment: 'Pile rig', glyphs: ['pileRig'] },
+    { id: 'trenching', label: 'Trenching', equipment: 'Trencher', glyphs: ['trencher'] },
+    {
+      id: 'placement',
+      label: 'Placement',
+      equipment: 'Carrier and crane',
+      glyphs: ['carrier', 'crane'],
+    },
+    { id: 'connection', label: 'Connection', equipment: 'Crew', glyphs: ['crew'] },
+  ],
   packetIntervalS: 1.0,
   hopS: 0.15,
   queueFlushIntervalS: 0.05,
@@ -125,4 +155,16 @@ export const PLAY_VIEW = {
   yardAlpha: 0.35,
   /** Half size of the base marker; larger than on the full-site map, since the base has its own yard. */
   baseMarkerPx: 7,
+  /** Frontier layers (D49): band tint, how far machines stay from the lane ends, the carrier's trail. */
+  phaseBandAlpha: 0.08,
+  equipmentMarginM: 12,
+  equipmentTrailM: 18,
+  /** Equipment marks: half size in CSS px (the glyphs are drawn on a grid of +-glyphHalfUnits), and the online dot. */
+  equipmentPx: 6,
+  glyphHalfUnits: 6,
+  onlineDotPx: 2,
+  /** Phase labels above the east face: row height, gap above the coverage, leader alpha. */
+  phaseLabelRowPx: 14,
+  phaseLabelGapPx: 6,
+  phaseLeaderAlpha: 0.5,
 };

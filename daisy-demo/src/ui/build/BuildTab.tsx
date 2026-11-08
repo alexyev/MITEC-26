@@ -20,6 +20,7 @@ import type { HoverCardProps, LegendItem } from '../kit/types';
 import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
 import { usePlayer } from '../player/usePlayer';
+import { lanePhaseAt, PHASE_PLANNED, phaseLive } from '../../engine/playModel';
 import { BuildMap } from './BuildMap';
 import { BuildReadout } from './BuildReadout';
 import { sceneAt, type Scene } from './scene';
@@ -31,7 +32,7 @@ const LEGEND: LegendItem[] = [
   { token: 'data', label: 'Data and its route', shape: 'line' },
   { token: 'fail', label: 'Failed radio', shape: 'cross' },
   { token: 'fail', label: 'Cut off', shape: 'ring' },
-  { token: 'work', label: 'Radio not on yet', shape: 'dot' },
+  { token: 'work', label: 'Work in progress', shape: 'dot' },
   { token: 'unit', label: 'P3 unit', shape: 'square' },
   { token: 'base', label: 'Base', shape: 'square' },
 ];
@@ -51,6 +52,7 @@ function hoverCardFor(
   t: number,
   pointer: Pointer,
 ): HoverCardProps {
+  if (id >= PLAY_GRAPH.nodeCount) return unitCard(id - PLAY_GRAPH.nodeCount, scene, pointer);
   const live = simAt(user, t);
   const sim = live.result;
   const net = scene.network;
@@ -80,7 +82,7 @@ function hoverCardFor(
   const queue = scene.traffic ? queueAt(sim, id, t) : 0;
   let subtitle: string;
   if (failed) subtitle = 'Failed · no signal';
-  else if (scene.radioBuild[id] !== 2) subtitle = 'Waiting for power';
+  else if (scene.radioBuild[id] !== 2) subtitle = 'Waiting for power · not on yet';
   else if (net.cutOff[id]) subtitle = 'Cut off · no route to the base';
   else
     subtitle = `Online · ${net.routing.hops[id]} ${net.routing.hops[id] === 1 ? 'hop' : 'hops'} to base`;
@@ -111,6 +113,33 @@ function hoverCardFor(
     subtitle,
     rows,
     hint: isDown ? 'Click to repair' : 'Click to fail',
+  };
+}
+
+/** The hover card of a unit: which frontier phase its lane is in (D49). */
+function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProps {
+  const unit = PLAY_MODEL.units[unitId];
+  const phases = PLAY_MODEL.config.frontierPhases;
+  const phase = lanePhaseAt(PLAY_MODEL, unit.lane, scene.step);
+  let subtitle: string;
+  if (phase === PHASE_PLANNED) subtitle = 'Planned';
+  else if (phase === phaseLive(PLAY_MODEL)) subtitle = 'Live · powered';
+  else subtitle = `${phases[phase].label} · ${phases[phase].equipment.toLowerCase()} at work`;
+  const inFrontier = phase !== PHASE_PLANNED && phase < phases.length;
+  return {
+    ...pointer,
+    title: `P3 #${(unitId + 1).toLocaleString('en-US')}`,
+    subtitle,
+    rows: inFrontier
+      ? [
+          {
+            label: 'Frontier phase',
+            value: `${phase + 1} of ${phases.length}`,
+            pct: ((phase + 1) / phases.length) * 100,
+            token: 'work',
+          },
+        ]
+      : [],
   };
 }
 

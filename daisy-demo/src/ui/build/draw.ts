@@ -1,7 +1,7 @@
 // Canvas drawing of the play-model map (spec 5, 6.7, 9): units, coverage union, links, routes, packets,
 // radios, the base, queue badges and the failure marks. Colors come from tokens.css only.
-import { MAP, ROUTING } from '../../config/defaults';
-import { PLAY, PLAY_VIEW } from '../../config/play';
+import { MAP, ROUTING, UI } from '../../config/defaults';
+import { PLAY, PLAY_VIEW, type EquipmentGlyph } from '../../config/play';
 import type { Graph } from '../../engine/network';
 import { RadioBuild, type PlayModel } from '../../engine/playModel';
 import { canvasFont, cssVar, type MapColors } from '../kit/tokens';
@@ -31,6 +31,18 @@ export interface DrawOptions {
   /** Offscreen canvas for the coverage edge. */
   scratch: HTMLCanvasElement;
   dpr: number;
+}
+
+/** How far the coverage reaches past the section edges, in meters (x and y). */
+export function coverageSpill(model: PlayModel): { x: number; y: number } {
+  const r = PLAY.coverageRadiusM;
+  let x = 0;
+  let y = 0;
+  for (const radio of model.radios) {
+    x = Math.max(x, r - radio.x, radio.x + r - model.widthM);
+    y = Math.max(y, r - radio.y, radio.y + r - model.heightM);
+  }
+  return { x, y };
 }
 
 const easeOut = (x: number) => 1 - (1 - x) * (1 - x);
@@ -101,6 +113,28 @@ export function drawScene(
   ctx.stroke();
   ctx.globalAlpha = 1;
 
+  // Frontier layers (D49): a faint work tint on every lane under construction, outside the base yard.
+  ctx.globalAlpha = PLAY_VIEW.phaseBandAlpha;
+  ctx.fillStyle = c.work;
+  ctx.beginPath();
+  for (const f of scene.frontier) {
+    const x0 = f.lane * model.lanePitchM;
+    const x1 = x0 + model.lanePitchM;
+    const besideYard = x0 < yard.x + yard.w && x1 > yard.x;
+    const spans = besideYard
+      ? [
+          [0, yard.y],
+          [yard.y + yard.h, model.heightM],
+        ]
+      : [[0, model.heightM]];
+    for (const [y0, y1] of spans) {
+      const a = worldToScreen(v, x0, y1);
+      ctx.rect(a.sx, a.sy, model.lanePitchM * s, (y1 - y0) * s);
+    }
+  }
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
   // Units stand with their long side north-south.
   const uw = model.unitSizeXM * s;
   const ud = model.unitSizeYM * s;
@@ -168,6 +202,17 @@ export function drawScene(
     ctx.globalAlpha = 1;
   }
 
+  // Frontier equipment, with a blue online dot inside radio coverage.
+  for (const e of scene.equipment) {
+    const p = worldToScreen(v, e.x, e.y);
+    drawGlyph(ctx, e.glyph, p.sx, p.sy, c);
+    if (e.online) {
+      const k = PLAY_VIEW.equipmentPx;
+      dot(ctx, p.sx + k, p.sy - k, PLAY_VIEW.onlineDotPx + 1, c.halo);
+      dot(ctx, p.sx + k, p.sy - k, PLAY_VIEW.onlineDotPx, c.data);
+    }
+  }
+
   // Packets.
   ctx.beginPath();
   for (const d of scene.packets) {
@@ -226,6 +271,8 @@ export function drawScene(
     const p = px(opt.hover);
     ring(ctx, p.sx, p.sy, PLAY_VIEW.hoverRingPx, c.base, PLAY_VIEW.radioHaloPx);
   }
+
+  drawPhaseLabels(ctx, v, model, scene, c);
 
   // Labels: missed hellos next to a failed radio, queue badges next to waiting radios.
   ctx.font = canvasFont(11, 600);
@@ -384,3 +431,124 @@ function badge(
   ctx.textAlign = 'center';
   ctx.fillText(text, left + w / 2, top + h / 2 + 1 / 2);
 }
+
+/**
+ * Small uppercase phase labels above the east face, one row per layer, each on a hairline leader down to
+ * its lane. Labels read rightward from their leader; near the right edge they flip to read leftward.
+ */
+function drawPhaseLabels(
+  ctx: CanvasRenderingContext2D,
+  v: Viewport,
+  model: PlayModel,
+  scene: Scene,
+  c: DrawColors,
+): void {
+  const mid = (model.lanes - 1) / 2;
+  const east = scene.frontier.filter((f) => f.lane >= mid).sort((a, b) => a.lane - b.lane);
+  if (east.length === 0) return;
+  ctx.font = canvasFont(11, 500);
+  ctx.letterSpacing = cssVar('--label-tracking');
+  const top = worldToScreen(v, 0, model.heightM).sy;
+  const base = worldToScreen(v, 0, model.heightM + coverageSpill(model).y).sy;
+  const labels = east.map((f) => {
+    const text = model.config.frontierPhases[f.phase].label.toUpperCase();
+    const x = worldToScreen(v, (f.lane + 1 / 2) * model.lanePitchM, 0).sx;
+    return { text, x, w: ctx.measureText(text).width };
+  });
+  const right = v.width - UI.mapFitPaddingPx.right + PLAY_VIEW.labelGapPx;
+  const flip = labels.some((l) => l.x + PLAY_VIEW.labelGapPx / 2 + l.w > right);
+  // Rows go up from the coverage edge; the label nearest its text side sits highest, so no leader crosses text.
+  const ordered = flip ? labels.slice().reverse() : labels;
+  ordered.forEach((l, i) => {
+    const row = ordered.length - 1 - i;
+    const y = base - PLAY_VIEW.phaseLabelGapPx - row * PLAY_VIEW.phaseLabelRowPx;
+    ctx.globalAlpha = PLAY_VIEW.phaseLeaderAlpha;
+    ctx.strokeStyle = c.work;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(l.x) + 1 / 2, y);
+    ctx.lineTo(Math.round(l.x) + 1 / 2, top);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = c.text2;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = flip ? 'right' : 'left';
+    const gap = PLAY_VIEW.labelGapPx / 2;
+    ctx.fillText(l.text, flip ? l.x - gap : l.x + gap, y);
+  });
+  ctx.letterSpacing = '0px';
+}
+
+/** An equipment mark: a small side view in the work color on a dark halo, centered on (x, y). */
+function drawGlyph(
+  ctx: CanvasRenderingContext2D,
+  glyph: EquipmentGlyph,
+  x: number,
+  y: number,
+  c: DrawColors,
+): void {
+  const k = PLAY_VIEW.equipmentPx / PLAY_VIEW.glyphHalfUnits;
+  const shapes = GLYPHS[glyph];
+  for (const pass of [0, 1]) {
+    const color = pass === 0 ? c.halo : c.work;
+    const extra = pass === 0 ? PLAY_VIEW.radioHaloPx * 2 : 0;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const sh of shapes) {
+      ctx.beginPath();
+      if (sh.kind === 'rect') {
+        ctx.roundRect(x + sh.x * k, y + sh.y * k, sh.w * k, sh.h * k, k);
+        if (pass === 0) {
+          ctx.lineWidth = extra;
+          ctx.stroke();
+        }
+        ctx.fill();
+      } else if (sh.kind === 'dot') {
+        ctx.arc(x + sh.x * k, y + sh.y * k, sh.r * k, 0, Math.PI * 2);
+        if (pass === 0) {
+          ctx.lineWidth = extra;
+          ctx.stroke();
+        }
+        ctx.fill();
+      } else {
+        ctx.moveTo(x + sh.x0 * k, y + sh.y0 * k);
+        ctx.lineTo(x + sh.x1 * k, y + sh.y1 * k);
+        ctx.lineWidth = sh.w * k + extra;
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+type Shape =
+  | { kind: 'rect'; x: number; y: number; w: number; h: number }
+  | { kind: 'dot'; x: number; y: number; r: number }
+  | { kind: 'line'; x0: number; y0: number; x1: number; y1: number; w: number };
+
+/** Glyphs on a 12 x 12 grid centered on the machine (side views: blade, mast, boom, crew). */
+const GLYPHS: Record<EquipmentGlyph, Shape[]> = {
+  dozer: [
+    { kind: 'rect', x: -5, y: -3, w: 8, h: 6 },
+    { kind: 'line', x0: 5, y0: -3, x1: 5, y1: 4, w: 2 },
+  ],
+  pileRig: [
+    { kind: 'rect', x: -5, y: 1, w: 10, h: 4 },
+    { kind: 'line', x0: 0, y0: 1, x1: 0, y1: -6, w: 2 },
+  ],
+  trencher: [
+    { kind: 'rect', x: -6, y: -3, w: 8, h: 6 },
+    { kind: 'line', x0: 2, y0: 0, x1: 6, y1: 5, w: 2 },
+  ],
+  carrier: [{ kind: 'rect', x: -6, y: -2, w: 12, h: 4 }],
+  crane: [
+    { kind: 'rect', x: -4, y: 1, w: 8, h: 4 },
+    { kind: 'line', x0: -1, y0: 1, x1: 5, y1: -6, w: 2 },
+  ],
+  crew: [
+    { kind: 'dot', x: -4, y: 0, r: 2 },
+    { kind: 'dot', x: 0, y: 0, r: 2 },
+    { kind: 'dot', x: 4, y: 0, r: 2 },
+  ],
+};

@@ -1,5 +1,5 @@
 // Play model of the Build & failure tab (spec 9.1, 9.2): north-south lanes of P3 units on a 9 x 5 radio grid,
-// the base in its own yard at the center, and the center-out build step of every unit and radio (D46).
+// the base in its own yard at the center, and the build step and frontier phase of every lane (D46, D49).
 import { SITE } from '../config/defaults';
 import { PLAY, type PlayConfig } from '../config/play';
 import type { Rect, SiteConfig } from './types';
@@ -64,12 +64,14 @@ export interface PlayModel {
   unitsPerLane: number;
   units: PlayUnit[];
   radios: PlayRadio[];
+  /** Unit id of every lane slot (`lane * unitsPerLane + pos`), -1 in the base yard. */
+  unitSlot: Int32Array;
   /** Radio id of every cell (row-major), -1 for the base cell. */
   cellRadio: Int32Array;
   base: PlayBase;
   /** Number of steps that place units (one lane pair each). */
   placeSteps: number;
-  /** The step on which the last radio switches on; the build is complete from here. */
+  /** The step on which the last lane goes live; the build is complete from here. */
   lastStep: number;
 }
 
@@ -92,6 +94,17 @@ export const RadioBuild = { None: 0, Placed: 1, On: 2 } as const;
  */
 function laneStep(lane: number, lanes: number): number {
   return Math.ceil(Math.abs(lane - (lanes - 1) / 2) - 1 / 2) + 1;
+}
+
+/**
+ * Build steps of frontier work before a lane's units are placed: the phases outside the placement phase.
+ * The first build step grades the middle lane, so the placement of a lane comes this many steps later.
+ */
+function placementLead(config: PlayConfig): number {
+  return Math.max(
+    0,
+    config.frontierPhases.findIndex((p) => p.id === 'placement'),
+  );
 }
 
 export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SITE): PlayModel {
@@ -124,7 +137,7 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
         pos,
         x: (lane + 1 / 2) * lanePitchM,
         y: (pos + 1 / 2) * unitPitchM,
-        placedStep: laneStep(lane, lanes),
+        placedStep: laneStep(lane, lanes) + placementLead(config),
       });
     }
   }
@@ -177,7 +190,7 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
     yard: { x: baseCol * cellWidthM, y: baseRow * cellHeightM, w: cellWidthM, h: cellHeightM },
   };
 
-  const placeSteps = laneStep(0, lanes);
+  const placeSteps = laneStep(0, lanes) + placementLead(config);
   return {
     config,
     widthM: lanes * lanePitchM,
@@ -192,10 +205,12 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
     unitsPerLane,
     units,
     radios,
+    unitSlot: slot,
     cellRadio,
     base,
     placeSteps,
-    lastStep: Math.max(placeSteps, ...radios.map((r) => r.onStep)),
+    // Every lane goes live (powered) commissionLagSteps after its placement, radio or not.
+    lastStep: Math.max(placeSteps + config.commissionLagSteps, ...radios.map((r) => r.onStep)),
   };
 }
 
@@ -233,6 +248,46 @@ export function buildStateAt(model: PlayModel, step: number): BuildState {
     }
   }
   return { step, unitPlaced, radioState, placedUnits, onRadios };
+}
+
+/** Phase of a lane before any frontier work. */
+export const PHASE_PLANNED = -1;
+
+/** Phase index of a lane at a build step: PHASE_PLANNED, an index into `frontierPhases`, or `phaseLive`. */
+export function lanePhaseAt(model: PlayModel, lane: number, step: number): number {
+  const { frontierPhases: phases, commissionLagSteps: lag } = model.config;
+  const lead = placementLead(model.config);
+  const placed = laneStep(lane, model.lanes) + lead;
+  const d = step - placed;
+  if (d < -lead) return PHASE_PLANNED;
+  if (d < 0) return lead + d;
+  if (d === 0) return lead;
+  if (d < lag && lead + 1 < phases.length) return lead + 1;
+  return phaseLive(model);
+}
+
+/** The phase index of a finished lane: one past the frontier phases. */
+export function phaseLive(model: PlayModel): number {
+  return model.config.frontierPhases.length;
+}
+
+/** A frontier lane: its phase and which face it is on (-1 west, 1 east, 0 the middle lane). */
+export interface FrontierLane {
+  lane: number;
+  phase: number;
+  face: number;
+}
+
+/** Lanes under frontier work at a build step, from the center outward on each face. */
+export function frontierAt(model: PlayModel, step: number): FrontierLane[] {
+  const out: FrontierLane[] = [];
+  const mid = (model.lanes - 1) / 2;
+  for (let lane = 0; lane < model.lanes; lane++) {
+    const phase = lanePhaseAt(model, lane, step);
+    if (phase === PHASE_PLANNED || phase === phaseLive(model)) continue;
+    out.push({ lane, phase, face: Math.sign(lane - mid) });
+  }
+  return out;
 }
 
 /** Build step shown at a time since the build started (one step every `buildStepS`). */

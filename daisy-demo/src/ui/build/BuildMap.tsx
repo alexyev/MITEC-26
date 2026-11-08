@@ -7,8 +7,8 @@ import { PLAY, PLAY_VIEW } from '../../config/play';
 import type { Graph } from '../../engine/network';
 import type { PlayModel } from '../../engine/playModel';
 import { prefersReducedMotion, readColorTokens } from '../kit/tokens';
-import { fitViewport, worldToScreen, type Viewport } from '../map/viewport';
-import { drawScene, readDrawColors, type DrawColors } from './draw';
+import { fitViewport, screenToWorld, worldToScreen, type Viewport } from '../map/viewport';
+import { coverageSpill, drawScene, readDrawColors, type DrawColors } from './draw';
 import type { Scene } from './scene';
 
 export interface BuildMapProps {
@@ -19,18 +19,6 @@ export interface BuildMapProps {
   /** Node under the pointer (a radio, the base, or null) and the pointer in map pixels. */
   onHover: (id: number | null, x: number, y: number) => void;
   onClickRadio: (radio: number) => void;
-}
-
-/** How far the coverage reaches past the section edges, in meters (x and y). */
-function coverageSpill(model: PlayModel): { x: number; y: number } {
-  const r = PLAY.coverageRadiusM;
-  let x = 0;
-  let y = 0;
-  for (const radio of model.radios) {
-    x = Math.max(x, r - radio.x, radio.x + r - model.widthM);
-    y = Math.max(y, r - radio.y, radio.y + r - model.heightM);
-  }
-  return { x, y };
 }
 
 /** Fit the section and its coverage edge, centered on the section, between the panels. */
@@ -105,7 +93,14 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
         bestD = d;
       }
     }
-    return best;
+    if (best !== null) return best;
+    // Otherwise the unit slot under the pointer (the lane strip by the unit pitch), for its phase.
+    const w = screenToWorld(viewport, x, y);
+    if (w.x < 0 || w.y < 0 || w.x >= model.widthM || w.y >= model.heightM) return null;
+    const lane = Math.floor(w.x / model.lanePitchM);
+    const pos = Math.floor(w.y / model.unitPitchM);
+    const unit = model.unitSlot[lane * model.unitsPerLane + pos];
+    return unit >= 0 ? graph.nodeCount + unit : null;
   };
 
   const local = (e: ReactPointerEvent) => {
@@ -123,7 +118,7 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
     if (id !== null && id !== graph.baseId) onClickRadio(id);
   };
 
-  const clickable = hover !== null && hover !== graph.baseId;
+  const clickable = hover !== null && hover < graph.baseId;
   let ticket = null;
   if (scene.ticket && viewport) {
     const p = worldToScreen(viewport, graph.x[scene.ticket.radio], graph.y[scene.ticket.radio]);

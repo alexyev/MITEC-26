@@ -1,6 +1,6 @@
 // The Build & failure scene at time t (spec 9.2 to 9.7): build state, network, packets, queues, routes and
 // stress-test numbers, all computed from the inputs and t, never accumulated frame by frame (spec rule 6).
-import { PLAY, PLAY_WALK } from '../../config/play';
+import { PLAY, PLAY_VIEW, PLAY_WALK, type EquipmentGlyph } from '../../config/play';
 import { computeNetwork, type Graph, type NetworkState } from '../../engine/network';
 import {
   failedAt,
@@ -15,7 +15,14 @@ import {
   type SimResult,
   type SimStats,
 } from '../../engine/packetSim';
-import { buildStateAt, buildStepAt, RadioBuild, type PlayModel } from '../../engine/playModel';
+import {
+  buildStateAt,
+  buildStepAt,
+  frontierAt,
+  RadioBuild,
+  type FrontierLane,
+  type PlayModel,
+} from '../../engine/playModel';
 import type { BuildTimeline } from './walkthrough';
 
 export interface FailureView {
@@ -29,8 +36,25 @@ export interface FailureView {
   affected: { source: number; oldPath: number[] }[];
 }
 
+/** One machine or crew at the frontier, in world meters. */
+export interface Equipment {
+  glyph: EquipmentGlyph;
+  phase: number;
+  lane: number;
+  x: number;
+  y: number;
+  /** Inside the coverage of a connected radio or the base. */
+  online: boolean;
+}
+
 export interface Scene {
   t: number;
+  /** Build step, and the progress through it (0 to 1) for the equipment's motion. */
+  step: number;
+  stepFrac: number;
+  /** Lanes under frontier work (D49). */
+  frontier: FrontierLane[];
+  equipment: Equipment[];
   unitPlaced: Uint8Array;
   /** RadioBuild per radio. */
   radioBuild: Uint8Array;
@@ -74,6 +98,10 @@ export function sceneAt(
   t: number,
 ): Scene {
   const step = buildStepAt(model, t - timeline.buildStartS);
+  const stepFrac =
+    step >= model.lastStep
+      ? 0
+      : Math.min(1, Math.max(0, (t - timeline.buildStartS) / PLAY.buildStepS - step));
   const { unitPlaced, radioState } = buildStateAt(model, step);
   const radioOnS = new Float64Array(model.radios.length).fill(Infinity);
   for (const r of model.radios) {
@@ -160,8 +188,15 @@ export function sceneAt(
     };
   }
 
+  const frontier = frontierAt(model, step);
+  const equipment = frontierEquipment(model, graph, network, frontier, stepFrac);
+
   return {
     t,
+    step,
+    stepFrac,
+    frontier,
+    equipment,
     unitPlaced,
     radioBuild: radioState,
     radioOnS,
@@ -178,4 +213,51 @@ export function sceneAt(
     watchedExtraHops: watchedHops >= 0 ? watchedHops - healthyHops : null,
     ticket,
   };
+}
+
+/**
+ * The machines of every frontier lane. Each drives the length of its lane once per build step, south to
+ * north or back, alternating by lane and phase; lanes beside the base yard work only north of the yard.
+ */
+function frontierEquipment(
+  model: PlayModel,
+  graph: Graph,
+  network: NetworkState,
+  frontier: FrontierLane[],
+  frac: number,
+): Equipment[] {
+  const out: Equipment[] = [];
+  const yard = model.base.yard;
+  const margin = PLAY_VIEW.equipmentMarginM;
+  for (const f of frontier) {
+    const x = (f.lane + 1 / 2) * model.lanePitchM;
+    const besideYard = x > yard.x && x < yard.x + yard.w;
+    const y0 = (besideYard ? yard.y + yard.h : 0) + margin;
+    const y1 = model.heightM - margin;
+    const northward = (f.lane + f.phase) % 2 === 0;
+    const along = northward ? frac : 1 - frac;
+    const glyphs = model.config.frontierPhases[f.phase].glyphs;
+    glyphs.forEach((glyph, i) => {
+      // A second machine of the same phase (the carrier behind the crane) trails the first.
+      const trail = i * PLAY_VIEW.equipmentTrailM * (northward ? -1 : 1);
+      const y = Math.min(y1, Math.max(y0, y0 + (y1 - y0) * along + trail));
+      out.push({
+        glyph,
+        phase: f.phase,
+        lane: f.lane,
+        x,
+        y,
+        online: inCoverage(graph, network, x, y),
+      });
+    });
+  }
+  return out;
+}
+
+function inCoverage(graph: Graph, network: NetworkState, x: number, y: number): boolean {
+  for (let id = 0; id < graph.nodeCount; id++) {
+    if (!network.connected[id]) continue;
+    if (Math.hypot(graph.x[id] - x, graph.y[id] - y) <= PLAY.coverageRadiusM) return true;
+  }
+  return false;
 }

@@ -35,6 +35,8 @@ export function buildTimeline(
   const failedRadio = cellRadioId(model, PLAY.preset.failedCell.col, PLAY.preset.failedCell.row);
   const watchedRadio = cellRadioId(model, PLAY.preset.watchedCell.col, PLAY.preset.watchedCell.row);
   const buildS = buildDurationS(model) + PLAY_WALK.buildHoldS;
+  // The build step shows the frontier layers; the power step starts when the first radio switches on.
+  const firstRadioS = Math.min(...model.radios.map((r) => r.onStep)) * PLAY.buildStepS;
   const buildStartS = PLAY_WALK.sectionS;
   const dataStartS = buildStartS + buildS + PLAY_WALK.coverageS;
   const failS = presetFailS(graph, failedRadio, dataStartS + PLAY_WALK.dataS);
@@ -52,8 +54,14 @@ export function buildTimeline(
     {
       id: 'build',
       label: 'Build',
-      caption: 'Units go in from the center out. Each radio switches on once its unit has power.',
-      durationS: buildS,
+      caption: 'Work moves out from the center in layers: grade, piles, trench, place, connect.',
+      durationS: firstRadioS,
+    },
+    {
+      id: 'power',
+      label: 'Power',
+      caption: 'Each radio switches on once its unit has power, so the frontier stays online.',
+      durationS: buildS - firstRadioS,
     },
     {
       id: 'coverage',

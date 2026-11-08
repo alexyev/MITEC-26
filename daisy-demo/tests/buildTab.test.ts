@@ -16,6 +16,7 @@ describe('Build & failure walkthrough (T4.4)', () => {
     expect(tl.steps.map((s) => s.id)).toEqual([
       'section',
       'build',
+      'power',
       'coverage',
       'data',
       'failure',

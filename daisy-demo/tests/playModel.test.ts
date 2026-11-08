@@ -6,12 +6,18 @@ import {
   buildPlayModel,
   buildStateAt,
   buildStepAt,
+  frontierAt,
+  lanePhaseAt,
+  PHASE_PLANNED,
+  phaseLive,
   radioAt,
 } from '../src/engine/playModel';
 
 const model = buildPlayModel();
 const { base } = model;
 const yardUnits = PLAY.unitsPerCell * PLAY.lanesPerCell;
+const phaseIds = PLAY.frontierPhases.map((p) => p.id);
+const lead = phaseIds.indexOf('placement');
 
 describe('buildPlayModel (T4.1)', () => {
   it('has 27 north-south lanes of 20 units, less the base yard, and 44 radios plus the base', () => {
@@ -77,12 +83,14 @@ describe('buildPlayModel (T4.1)', () => {
       const mirror = radioAt(model, PLAY.cellCols - 1 - r.cellCol, r.cellRow);
       expect(mirror?.onStep).toBe(r.onStep);
     }
-    expect(model.placeSteps).toBe(14);
-    // Step 1 places the middle lane, then each step one lane on each side.
-    const first = new Set(model.units.filter((u) => u.placedStep === 1).map((u) => u.lane));
-    expect(first).toEqual(new Set([13]));
-    const second = new Set(model.units.filter((u) => u.placedStep === 2).map((u) => u.lane));
-    expect(second).toEqual(new Set([12, 14]));
+    // 14 lane steps from the middle lane out, after 3 steps of frontier work on the middle lane.
+    expect(lead).toBe(3);
+    expect(model.placeSteps).toBe(14 + lead);
+    const placedOn = (step: number) =>
+      new Set(model.units.filter((u) => u.placedStep === step).map((u) => u.lane));
+    expect(placedOn(lead)).toEqual(new Set());
+    expect(placedOn(lead + 1)).toEqual(new Set([13]));
+    expect(placedOn(lead + 2)).toEqual(new Set([12, 14]));
   });
 
   it('switches every radio on exactly commissionLagSteps after its unit', () => {
@@ -102,7 +110,7 @@ describe('buildPlayModel (T4.1)', () => {
     const end = buildStateAt(model, model.lastStep);
     expect(end.placedUnits).toBe(model.units.length);
     expect(end.onRadios).toBe(44);
-    expect(model.lastStep).toBe(Math.max(...model.radios.map((r) => r.onStep)));
+    expect(model.lastStep).toBe(model.placeSteps + PLAY.commissionLagSteps);
   });
 
   it('maps playback time to build steps', () => {
@@ -110,5 +118,56 @@ describe('buildPlayModel (T4.1)', () => {
     expect(buildStepAt(model, PLAY.buildStepS)).toBe(1);
     expect(buildStepAt(model, 1e6)).toBe(model.lastStep);
     expect(buildDurationS(model)).toBeCloseTo(model.lastStep * PLAY.buildStepS, 6);
+  });
+});
+
+describe('frontier phases (T4.4, D49)', () => {
+  const live = phaseLive(model);
+
+  it('walks every lane through the phases in order, one step each, then live when its radio is on', () => {
+    for (let lane = 0; lane < model.lanes; lane++) {
+      const seen: number[] = [];
+      for (let step = 0; step <= model.lastStep + 1; step++) {
+        const phase = lanePhaseAt(model, lane, step);
+        if (seen[seen.length - 1] !== phase) seen.push(phase);
+      }
+      expect(seen).toEqual([PHASE_PLANNED, 0, 1, 2, 3, 4, live]);
+      const unit = model.units.find((u) => u.lane === lane);
+      if (!unit) continue;
+      expect(lanePhaseAt(model, lane, unit.placedStep)).toBe(phaseIds.indexOf('placement'));
+      expect(lanePhaseAt(model, lane, unit.placedStep - 1)).toBe(phaseIds.indexOf('trenching'));
+      expect(lanePhaseAt(model, lane, unit.placedStep + PLAY.commissionLagSteps)).toBe(live);
+    }
+    // A radio switches on exactly when its lane goes live.
+    for (const r of model.radios) {
+      const lane = model.units[r.unitId].lane;
+      expect(lanePhaseAt(model, lane, r.onStep - 1)).toBe(phaseIds.indexOf('connection'));
+      expect(lanePhaseAt(model, lane, r.onStep)).toBe(live);
+    }
+  });
+
+  it('orders the layers outward on both faces and mirrors them', () => {
+    for (let step = 1; step <= model.lastStep; step++) {
+      const lanes = frontierAt(model, step);
+      for (const f of lanes) {
+        expect(lanePhaseAt(model, model.lanes - 1 - f.lane, step)).toBe(f.phase);
+      }
+      // Moving outward on the east face, the phase index falls: connection, placement, ... grading.
+      const east = lanes.filter((f) => f.face >= 0).sort((a, b) => a.lane - b.lane);
+      for (let i = 1; i < east.length; i++) expect(east[i].phase).toBe(east[i - 1].phase - 1);
+      const west = lanes.filter((f) => f.face <= 0).sort((a, b) => b.lane - a.lane);
+      for (let i = 1; i < west.length; i++) expect(west[i].phase).toBe(west[i - 1].phase - 1);
+    }
+    // Mid-build every phase is active once on each face.
+    const mid = frontierAt(model, 8).filter((f) => f.face > 0);
+    expect(mid.map((f) => phaseIds[f.phase])).toEqual([
+      'connection',
+      'placement',
+      'trenching',
+      'foundations',
+      'grading',
+    ]);
+    expect(frontierAt(model, 0)).toEqual([]);
+    expect(frontierAt(model, model.lastStep)).toEqual([]);
   });
 });

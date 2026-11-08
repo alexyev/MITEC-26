@@ -1,8 +1,13 @@
 // State of the home screen and the guided tour (D90, D91, D92). The home screen opens on every load over the
 // already-loaded map; the tour runs on the live app. Whether the viewer finished or skipped the tour is kept
 // per viewer in localStorage, and the app works the same when storage is missing or throws.
+// Every way into the app (leaving the home screen, starting or ending the tour) lands on the clean map, with
+// every panel folded into its chip (D160).
 import { create } from 'zustand';
 import { TOUR } from '../config/tour';
+import { usePanelStore } from './panels';
+
+const foldPanels = () => usePanelStore.getState().foldAll();
 
 export type TourOutcome = 'done' | 'skipped';
 
@@ -59,6 +64,7 @@ export const useGuideStore = create<GuideState>((set, get) => ({
   seen: readTourSeen(),
   leaveHome: (next) => {
     if (get().home !== 'open') return;
+    foldPanels();
     set({ home: 'closing', afterHome: next });
   },
   homeLeft: () => {
@@ -67,15 +73,20 @@ export const useGuideStore = create<GuideState>((set, get) => ({
   },
   openHome: () => {
     if (get().home === 'open' || get().home === 'opening') return;
+    foldPanels();
     set({ home: 'opening', tourStep: null });
   },
   homeShown: () => {
     if (get().home === 'opening') set({ home: 'open' });
   },
-  startTour: () => set({ tourStep: 0 }),
+  startTour: () => {
+    foldPanels();
+    set({ tourStep: 0 });
+  },
   goToStep: (index) => set({ tourStep: index }),
   endTour: (outcome) => {
     writeTourSeen(outcome);
+    foldPanels();
     set({ tourStep: null, seen: true });
   },
 }));

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
+import { Palette } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { UI } from '../src/config/defaults';
 import {
@@ -38,6 +39,38 @@ describe('Panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show Survey' }));
     expect(onMinimize).toHaveBeenLastCalledWith(false);
     expect(screen.getByText('Inputs')).toBeTruthy();
+  });
+
+  it('can be controlled from outside, with a chip that reads as something that opens (D160, D161)', () => {
+    function Controlled() {
+      const [minimized, setMinimized] = useState(true);
+      return (
+        <Panel
+          corner="br"
+          title="Legend"
+          chipIcon={Palette}
+          minimized={minimized}
+          onMinimize={setMinimized}
+        >
+          <p>Colors</p>
+        </Panel>
+      );
+    }
+    render(<Controlled />);
+    expect(screen.queryByText('Colors')).toBeNull();
+    const chip = screen.getByRole('button', { name: 'Show Legend' });
+    expect(chip.getAttribute('aria-expanded')).toBe('false');
+    expect(chip.textContent).toBe('Legend');
+    // The panel's icon, then its name, then a chevron: up, since a bottom panel opens upward.
+    const icons = chip.querySelectorAll('svg[aria-hidden="true"]');
+    expect([...icons].map((svg) => svg.getAttribute('class'))).toEqual([
+      expect.stringContaining('panel-chip-icon'),
+      expect.stringContaining('lucide-chevron-up'),
+    ]);
+    fireEvent.click(chip);
+    expect(screen.getByText('Colors')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize Legend' }));
+    expect(screen.queryByText('Colors')).toBeNull();
   });
 
   it('renders into its dock slot inside a shell', () => {

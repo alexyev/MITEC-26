@@ -4,12 +4,14 @@
 // close (D140-D143). The view is a pure function of the fleet size and the player time (spec rule 6); Send runs
 // on the player clock.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { SITE } from '../../config/defaults';
+import { Gauge, SlidersHorizontal } from 'lucide-react';
+import { SITE, UI } from '../../config/defaults';
 import { SURVEY } from '../../config/survey';
 import { PRICING, surveyCost } from '../../engine/pricing';
 import { droneFlying, surveyedFraction, surveySchedule, vehicleAt } from '../../engine/survey';
 import type { VehicleState } from '../../engine/survey';
 import { getSiteModel } from '../../state/model';
+import { usePanelFold } from '../../state/panels';
 import { getSurveyPlan, useSurveyStore } from '../../state/survey';
 import { HoverCard } from '../kit/HoverCard';
 import { prefersReducedMotion } from '../kit/tokens';
@@ -78,6 +80,9 @@ const PCT = 100;
 const CLOSE_UP_KEY = 'closeUp';
 
 export function SurveyTab() {
+  const controlsFold = usePanelFold('survey', 'controls');
+  const readoutFold = usePanelFold('survey', 'readout');
+  const legendFold = usePanelFold('survey', 'legend');
   const vehicles = useSurveyStore((s) => s.vehicles);
   const mode = useSurveyStore((s) => s.mode);
   const sentAtT = useSurveyStore((s) => s.sentAtT);
@@ -345,7 +350,13 @@ export function SurveyTab() {
         clickable={hitUtv !== null}
       />
 
-      <Panel corner="tl" title="Survey">
+      <Panel
+        corner="tl"
+        title="Survey"
+        chipLabel={UI.controlsChip}
+        chipIcon={SlidersHorizontal}
+        {...controlsFold}
+      >
         <Section label="Fleet" data-tour="fleet">
           <Stepper
             label="UTVs"
@@ -376,7 +387,7 @@ export function SurveyTab() {
         <StepList player={player} steps={steps} />
       </Panel>
 
-      <Panel corner="tr" title="Full site">
+      <Panel corner="tr" title="Full site" chipIcon={Gauge} {...readoutFold}>
         <Section label="Model">
           <Kpi
             label={`Site · ${formatInt(SITE.areaAcres)} acres`}
@@ -409,7 +420,7 @@ export function SurveyTab() {
         pricingErrors={errors.length}
         focus={frame.step === 'done'}
       />
-      <Legend items={LEGEND} />
+      <Legend items={LEGEND} {...legendFold} />
       <PlayerBar player={player} steps={steps} note={note} />
       {card ? <HoverCard {...card} /> : null}
     </>

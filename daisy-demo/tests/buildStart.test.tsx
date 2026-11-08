@@ -6,6 +6,7 @@ import { useGuideStore } from '../src/state/guide';
 import { useShellStore } from '../src/state/store';
 import { App } from '../src/ui/App';
 import { usePlaybackSpeed } from '../src/ui/player/speed';
+import { openAllPanels } from './openPanels';
 
 // The Build & failure panel's Start button drives the shared player. Animation frames are driven by hand.
 
@@ -45,6 +46,7 @@ beforeEach(() => {
   }));
   useGuideStore.setState({ home: 'closed', tourStep: null, seen: true });
   useShellStore.setState({ tab: 'build' });
+  openAllPanels();
   useBuildStore.getState().resetInputs();
 });
 

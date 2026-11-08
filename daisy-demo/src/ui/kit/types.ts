@@ -1,5 +1,6 @@
 // Shared kit contract (spec 13.1): the story colors, legend items and the props of every kit component.
 // Minimum props as in the spec; optional props are extras that the tabs may use.
+import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 export type ColorToken = 'signal' | 'data' | 'fail' | 'work' | 'unit' | 'done' | 'base';
@@ -30,10 +31,14 @@ export type Corner = 'tl' | 'tr' | 'br';
 export interface PanelProps {
   corner: Corner;
   title?: string;
+  /** Folded into its chip; set it to keep the state outside the panel (D160), else the panel keeps its own. */
+  minimized?: boolean;
   /** Called after the panel folds into its chip or opens again (`true` when minimized). */
   onMinimize?: (minimized: boolean) => void;
   /** Text of the chip while minimized; defaults to `title`. */
   chipLabel?: string;
+  /** Icon at the start of the chip, naming what the panel holds (D161). */
+  chipIcon?: LucideIcon;
   /** Accessible name when there is no title. */
   ariaLabel?: string;
   /** Right side of the title row, before the minimize button (for example a chip). */
@@ -134,4 +139,7 @@ export interface HoverCardProps {
 export interface LegendProps {
   items: LegendItem[];
   title?: string;
+  /** Folded into its chip, kept outside the legend (D160); see `PanelProps.minimized`. */
+  minimized?: boolean;
+  onMinimize?: (minimized: boolean) => void;
 }

@@ -662,7 +662,7 @@ A HubSpot-style product tour on the live app, not on screenshots: each step spot
 
 The tour finds its targets by stable `data-tour` attributes, never by class names or text: `brand`, `tour`, `tabs` and `map` in the shell; `steps` (the step list), `player`, `play` and `speed` in the player; `legend` in the legend; `fleet`, `cost` and `cost-card` on the Survey tab; `try-it`, `cost` and `cost-card` on the Build tab.
 `Panel`, `Section`, `Segmented` and `IconButton` forward a `data-tour` prop; the tab files only gained these attributes.
-`TOUR_OPTIONAL_TARGETS` lists targets that exist only on demand (the cost card), and `tests/guide.test.tsx` checks every other target of every step is in the rendered app on its tab.
+`TOUR_OPTIONAL_TARGETS` lists targets a step may show without (the cost card, which the viewer can close while its step is up), and `tests/guide.test.tsx` runs every step and checks each of its targets is on screen, opened by the step (D160).
 
 ## D94 - Player commands from outside a tab (home and tour round)
 
@@ -953,3 +953,29 @@ The follow makes the point of the survey's connectivity: the drone is online thr
 
 Opening the demo from the home screen mounts the map while the home screen still scales it to 104% (D90), and `MapView` sized its canvas from that scaled box, so the whole map drew 4% off and hover and clicks missed what they pointed at until the window was resized.
 It now sizes the canvas from the container's layout size (`clientWidth` and `clientHeight`), which a transform does not change.
+
+## D160 - Every panel starts folded (panels round, captain's request)
+
+The captain asked for the app to open with all of the menus closed, directly or after the tour, so it does not feel cluttered.
+
+- **Folded by default.** The control panel with its step list, the readout card, the legend and the cost card of both tabs start folded into their chips, so the map opens clean with only the top row, the chips and the player bar (Play and speed) around it.
+- **One store.** Which panels are open lives in `usePanelStore` (`src/state/panels.ts`), per tab, instead of in each `Panel`.
+  `Panel` and `Legend` take a `minimized` prop and still keep their own state when it is left out; the tabs bind theirs with `usePanelFold(tab, id)`, and both cost chips with `useCostCard` (`src/ui/build/useCostCard.ts`).
+- **Per tab.** Switching tabs unmounts the other tab (spec 7), but its panels stay as the viewer left them, because the state is outside the tab.
+- **Back to clean.** Leaving the home screen ("Open the demo", "Skip the tour" or Escape), reopening it, starting the tour (the ? button) and ending it (Finish, Close, Skip tour, Escape or the brand chip) fold every panel of both tabs.
+  Between those, a panel the viewer opens stays open while they work.
+- **The tour opens what it shows.** Each step opens exactly the panels holding its targets and folds every other one (`TOUR_TARGET_PANELS` and `tourStepPanels` in `src/config/tour.ts`): the legend for the map and its colors, the control panel for the steps, the fleet, the story and Your turn, and the cost card for What it costs.
+  The cost step's copy now says the card is open here rather than asking the viewer to open it, and a click in the callout no longer closes the card it talks about.
+- **Starting a walkthrough opens nothing.** Play, Start and the step keys never open a panel; the step caption sits in the player bar, which never folds.
+  The one exception is the cost card, which the walkthrough already opened by itself on its cost step and folded after (spec 10.3: the Build tab's Cost step and the Survey tab's Done step).
+  That step's caption is about the number in that card, so it keeps doing so; it is the only panel any walkthrough opens, and only while that step plays.
+- **The map fit is unchanged.** The site still fits the gap between the 320 px docks (`UI.mapFitPaddingPx`), so opening a panel never covers it.
+
+## D161 - Chips that read as something that opens (panels round)
+
+A folded panel used to be a text-only chip ("Survey", "Full site", "Legend"), and the control panel's chip read like the tab of the same name.
+
+- Each chip now has the panel's icon, its name and a chevron pointing the way it opens, like the cost chip: down for the panels at the top, up for the legend.
+- The icons say what the panel holds: sliders for the control panel, a gauge for the readout card ("Full site" and "Readout") and a palette for the legend.
+- The control panel's chip reads "Controls & steps" on both tabs (`UI.controlsChip`), since the panel's own title is the tab's name; the panel keeps its title when open.
+- At 1280 x 720 and 1440 x 900 the chips sit at the top of the left and right docks, under the brand and the cost chip, and the legend's chip under the map tools, clear of the player bar and the "Take me there" call to action.

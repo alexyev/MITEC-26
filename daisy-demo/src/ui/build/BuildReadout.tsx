@@ -1,8 +1,10 @@
 // Readout card of the Build & failure tab (spec 9.7): CONNECT, and STRESS-TEST once a radio has failed. The cost
 // sits apart in the top row (CostChip, D54). Numbers are tabular with at most 3 significant digits (spec 6.4).
+import { Gauge } from 'lucide-react';
 import { ROUTING } from '../../config/defaults';
 import { PERCENT, PLAY } from '../../config/play';
 import type { PlayModel } from '../../engine/playModel';
+import { usePanelFold } from '../../state/panels';
 import { Kpi } from '../kit/Kpi';
 import { Panel } from '../kit/Panel';
 import { Section } from '../kit/Section';
@@ -34,10 +36,11 @@ export function BuildReadout({ model, scene }: BuildReadoutProps) {
   const net = scene.network;
   const latest = scene.latest;
   const stats = scene.stats;
+  const fold = usePanelFold('build', 'readout');
   const failed = scene.failed.subarray(0, model.radios.length).reduce((n, f) => n + f, 0);
 
   return (
-    <Panel corner="tr" title="Readout">
+    <Panel corner="tr" title="Readout" chipIcon={Gauge} {...fold}>
       <Section label="Connect">
         <Kpi
           label="Radios online"

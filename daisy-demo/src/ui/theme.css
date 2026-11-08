@@ -345,11 +345,13 @@ button {
   scrollbar-width: thin;
 }
 
+/* A folded panel (D161): its icon, its name and a chevron the way it opens, like the cost chip. */
 .panel-chip {
   display: flex;
   align-items: center;
+  gap: var(--sp-2);
   height: 40px;
-  padding: 0 var(--sp-4);
+  padding: 0 var(--sp-3);
   font-size: var(--fs-13);
   font-weight: 500;
   color: var(--text-1);
@@ -372,6 +374,25 @@ button {
 .panel-chip:hover {
   border-color: var(--border-strong);
   background: var(--surface-strong);
+}
+
+.panel-chip-icon {
+  flex: none;
+  color: var(--text-2);
+}
+
+.panel-chip-label {
+  white-space: nowrap;
+}
+
+.panel-chip-chevron {
+  flex: none;
+  color: var(--text-3);
+  transition: color var(--dur-control) var(--ease);
+}
+
+.panel-chip:hover .panel-chip-chevron {
+  color: var(--text-2);
 }
 
 /* Sections (spec 6.2, 6.4) */

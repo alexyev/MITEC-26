@@ -11,6 +11,7 @@ import { fitWithCoverage } from '../src/ui/build/BuildMap';
 import { usePlayerCommands } from '../src/ui/player/commands';
 import { poseFromViewport, type Pose } from '../src/ui/scene3d/pose';
 import { featuredRadio } from '../src/ui/scene3d/featured';
+import { openAllPanels } from './openPanels';
 
 // D120, D121, D125, D126: "Take me there" opens the 3D view of the featured radio's corner from the map's
 // view of the moment, and "Back to map" puts the map back as it was. jsdom has no WebGL: the renderer is a
@@ -106,6 +107,7 @@ beforeEach(() => {
   }));
   useGuideStore.setState({ home: 'closed', afterHome: 'map', tourStep: null, seen: true });
   useShellStore.setState({ tab: 'build' });
+  openAllPanels();
   useBuildStore.getState().resetInputs();
 });
 

@@ -1,7 +1,7 @@
 // Build & failure tab (spec 9, D70): the play model built from the center out, a radio failure mid-build traced
 // through a frontier robot's data, the rest of the build, then "Your turn", where any radio can fail.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play, RotateCcw } from 'lucide-react';
+import { Pause, Play, RotateCcw, SlidersHorizontal } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { forwardedAt, hopsAt, queueAt, type SimChange } from '../../engine/packetSim';
 import { PRICING } from '../../engine/pricing';
@@ -15,6 +15,7 @@ import {
   simAt,
   useBuildStore,
 } from '../../state/build';
+import { usePanelFold } from '../../state/panels';
 import { HoverCard } from '../kit/HoverCard';
 import { Legend } from '../kit/Legend';
 import { Panel } from '../kit/Panel';
@@ -235,6 +236,8 @@ const START_LABEL: Record<StartMode, string> = {
 };
 
 export function BuildTab() {
+  const controlsFold = usePanelFold('build', 'controls');
+  const legendFold = usePanelFold('build', 'legend');
   const resetInputs = useBuildStore((s) => s.resetInputs);
   const corner = useCornerView();
   // While the 3D view is up, Space and the arrows belong to it, not to the walkthrough underneath.
@@ -358,7 +361,13 @@ export function BuildTab() {
           onExit={corner.close}
         />
       ) : null}
-      <Panel corner="tl" title="Build & failure">
+      <Panel
+        corner="tl"
+        title="Build & failure"
+        chipLabel={UI.controlsChip}
+        chipIcon={SlidersHorizontal}
+        {...controlsFold}
+      >
         <Section label="Try it" data-tour="try-it">
           <p className="build-hint">Click a radio to fail it. Click it again to repair it.</p>
           <div className="build-actions">
@@ -395,7 +404,7 @@ export function BuildTab() {
         alternatives={ALTERNATIVES}
         focus={stepId === 'cost'}
       />
-      <Legend items={LEGEND} />
+      <Legend items={LEGEND} {...legendFold} />
       <PlayerBar
         player={player}
         steps={steps}

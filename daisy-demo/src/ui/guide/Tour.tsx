@@ -4,9 +4,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRight, Check } from 'lucide-react';
 import { UI } from '../../config/defaults';
-import { TOUR, tourSteps, type TourStep } from '../../config/tour';
+import { TOUR, tourStepPanels, tourSteps, type TourStep } from '../../config/tour';
 import { useBuildStore } from '../../state/build';
 import { useGuideStore } from '../../state/guide';
+import { usePanelStore } from '../../state/panels';
 import { useShellStore } from '../../state/store';
 import { LegendSwatch } from '../kit/Legend';
 import { prefersReducedMotion } from '../kit/tokens';
@@ -73,9 +74,10 @@ function TourRun({ index }: { index: number }) {
   const backRef = useRef(back);
   backRef.current = back;
 
-  // Entering a step shows its tab.
+  // Entering a step shows its tab and opens exactly the panels it spotlights; every other panel folds (D160).
   useEffect(() => {
     if (useShellStore.getState().tab !== step.tab) useShellStore.getState().setTab(step.tab);
+    usePanelStore.getState().showOnly(step.tab, tourStepPanels(step));
   }, [step]);
 
   // A step that needs "Your turn" asks the tab's player for it once its tab is showing (D94).

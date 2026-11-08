@@ -237,3 +237,51 @@ Planned units are outlines once they are `MAP.unitOutlineFromPx` (4 px) or more 
 
 Compared with Schoolscape, whose map always has ground under the panels, the full site read as a thin outline on an empty field.
 The map now fills the site rectangle with `--highlight` (white at 4%) inside its outline, a neutral tint, so the parcel reads as land; surveyed ground (`--c-done`) stays clearly lighter.
+
+## D40 - Play-model radio position and build symmetry (T4.1)
+
+Each radio sits on the NE corner of the unit whose NE corner is nearest its cell center: the second unit of the cell's middle lane, about 1.6 m from the center.
+The units build symmetrically, one column pair per step from the center out.
+The NE corner is not mirror-symmetric, so a radio on the east face switches on one build step before its west mirror.
+The west-most radios stand on the second unit column, so the last radio switches on at step 19 (13.3 s at 0.7 s per step), one step before all units are placed plus `commissionLagSteps`.
+
+## D41 - Base links (T4.2)
+
+The base is a radio with the same link range (spec 4), but it stands on its own mast at the center of cell (4, 2), not on the radio grid.
+It links to every radio within `linkRangeM`: the radio of its own cell and the four lane and column neighbors of that cell.
+So the watched route from (8, 2) is 4 hops before the failure and 6 hops after it.
+
+## D42 - Backup next hop (T4.2)
+
+A radio's backup next hop is its best other neighbor whose route avoids both the radio and the radio's next hop, so local repair never sends traffic back toward the radio that just failed.
+The next hop is not avoided when it is the base, which never fails.
+"Best" uses the route tie-breaks of spec 9.3: fewer hops, then nearer the base, then the lower id.
+Coverage comes from `computeNetwork` as a share from 0 to 1, because the engine allows no numeric constants other than 0, 1 and 2 (D7); the UI shows it as a percentage.
+
+## D43 - Packet simulation model (T4.3)
+
+- A hop takes `hopS`.
+  When the receiver has failed, the sender gets no acknowledgement at the end of the hop, keeps the packet in its queue and holds all traffic for that neighbor until its route changes.
+  The dot of such a hop stops where the receiver failed.
+- A failed radio's queued packets are lost; packets it was already sending still arrive.
+  So the walkthrough's failure loses nothing.
+- The neighbors declare a radio down when its third expected hello is missed: its last hello before the failure plus `missedHellosToDown x helloIntervalS`.
+  A radio that rejoins first cancels the count.
+- At detection, every neighbor that routed through the failed radio switches to its backup next hop at once (local repair).
+  The new routes then spread from the detecting neighbors, and a radio `d` flood hops away switches to them `(d + 1) x updateFloodPerHopS` later.
+  "Rerouted in" is the time from the failure until the last reachable radio has switched.
+- Radios with no route queue their packets up to `bufferMaxPackets` and then drop them.
+  A packet that has made `maxPacketHops` hops is dropped, so a short routing loop during a route update cannot run forever.
+- A queue empties one packet every `queueFlushIntervalS`, so the flushed packets show as a short train of dots instead of one dot.
+- A repaired radio rejoins at its next hello and the new routes spread from it and its neighbors.
+
+## D44 - Timing of the walkthrough failure (T4.3)
+
+The preset failure happens `failAfterHelloS` (0.05 s) after one of the failed radio's hellos, at or after the planned failure time.
+The three missed hellos then fall exactly one interval apart, 0.95 s, 1.95 s and 2.95 s after the failure, so the walkthrough can put its step boundaries on them.
+
+## D45 - Live simulation for clicks (T4.3)
+
+`simulate` replays the whole history, which takes about 25 ms after ten minutes of play: more than one frame.
+`createSim` keeps the simulation state, is advanced to the player time every frame, and applies a click at its frontier (the current player time).
+The applied changes are kept in `result.changes`, and replaying them with `simulate` gives exactly the same events, so the view stays a pure function of its inputs and `t` (spec rule 6).

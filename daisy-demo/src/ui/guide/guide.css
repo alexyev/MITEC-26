@@ -216,6 +216,7 @@
 
 /* The daisy pops in with a small overshoot: its center first, then the petals unfurl clockwise. */
 .home-art {
+  --daisy-w: clamp(240px, min(30vw, 50vh), 420px);
   position: relative;
   display: flex;
   align-items: center;
@@ -234,7 +235,7 @@
 
 .daisy {
   position: relative;
-  width: clamp(240px, min(30vw, 50vh), 420px);
+  width: var(--daisy-w);
   height: auto;
   overflow: visible;
   animation: daisy-pop 960ms 560ms both;
@@ -316,6 +317,53 @@
   }
 }
 
+/* Mini daisies bloom outward around the big one and fade within about a second: behind it, never over the text. */
+.daisy-burst {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.daisy-burst-item {
+  position: absolute;
+  width: calc(var(--daisy-w) * var(--s));
+  height: calc(var(--daisy-w) * var(--s));
+  margin: calc(var(--daisy-w) * var(--s) / -2) 0 0 calc(var(--daisy-w) * var(--s) / -2);
+  animation: daisy-burst 1100ms cubic-bezier(0.2, 0.7, 0.3, 1) var(--d) both;
+}
+
+/* The mini keeps the big daisy's drawing but none of its entry or spin. */
+.daisy.daisy-mini {
+  width: 100%;
+}
+
+.daisy.daisy-mini,
+.daisy-mini .daisy-spin,
+.daisy-mini .daisy-petal,
+.daisy-mini .daisy-center {
+  animation: none;
+}
+
+@keyframes daisy-burst {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.2) rotate(0deg);
+  }
+
+  30% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--daisy-w) * var(--x)), calc(var(--daisy-w) * var(--y))) scale(1)
+      rotate(var(--r));
+  }
+}
+
 /* The credit sits where the map's credit does, so it stays put as the home screen gives way. */
 .home-foot {
   position: absolute;
@@ -340,7 +388,8 @@
     margin-top: 0;
   }
 
-  .home-art::before {
+  .home-art::before,
+  .daisy-burst {
     display: none;
   }
 
@@ -612,6 +661,10 @@
     animation-name: home-fade;
     animation-duration: 480ms;
     animation-timing-function: var(--ease);
+  }
+
+  .daisy-burst {
+    display: none;
   }
 
   .daisy-spin,

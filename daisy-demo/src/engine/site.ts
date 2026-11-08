@@ -190,3 +190,24 @@ export function generateSite(config: SiteConfig = SITE): Site {
     warnings,
   };
 }
+
+/** World rectangle of the unit grid, out to the outer unit edges (the survey area of spec 8.2). */
+export function unitGridRect(site: Site, config: SiteConfig = SITE): Rect {
+  if (site.count === 0) return { x: 0, y: 0, w: 0, h: 0 };
+  const ew = site.laneAxis === 'EW';
+  const halfW = (ew ? config.unitWidthM : config.unitDepthM) / 2;
+  const halfH = (ew ? config.unitDepthM : config.unitWidthM) / 2;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (let i = 0; i < site.count; i++) {
+    const x = site.centers[2 * i];
+    const y = site.centers[2 * i + 1];
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (y < y0) y0 = y;
+    if (y > y1) y1 = y;
+  }
+  return { x: x0 - halfW, y: y0 - halfH, w: x1 - x0 + 2 * halfW, h: y1 - y0 + 2 * halfH };
+}

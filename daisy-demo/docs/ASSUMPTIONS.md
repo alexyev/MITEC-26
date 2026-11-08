@@ -93,3 +93,10 @@ This replaces the site numbers in "Site and layout" and "Build schedule" above.
 - The lane pitch is 21.64 m everywhere; each road between block rows runs in the corridor between two lanes (decision D30).
 - The unit grid, which the 4x4s survey, is 3,638 m by 1,972 m.
 - At 200 units per day the build takes 115 days.
+
+## 4x4 survey (spec section 8, T3.2)
+
+- 4x4s survey the unit-grid rectangle before any unit is placed, on coordinated autonomous paths.
+- Each 4x4 carries a Starlink terminal, so it is online everywhere on the site.
+- A survey pass records a 20 m swath at 8 km/h; the legs between the base and a strip run at 20 km/h.
+- The survey method, swath, speeds and the $150 hourly 4x4 cost are placeholders (spec section 14).

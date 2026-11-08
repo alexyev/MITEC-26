@@ -162,3 +162,21 @@ The old pitch solver still used a 12.4 m center distance (unit depth plus road) 
 When the even pitch over all lane rows is at least the unit depth plus the road width, the generator now uses that even pitch everywhere and centers each block-row road in the lane corridor where the block rows meet.
 The lane pitch is then 21.64 m everywhere, and the unit grid is 3,638 m by 1,972 m.
 On denser sites, where the even pitch is smaller than a road, the generator keeps the old rule; the road rectangle formula gives the same position there.
+
+## D31 - Survey paths and the surveyed-ground model (T3.2)
+
+Spec 8.2 leaves a few details open; `src/engine/survey.ts` uses the simplest choice for each.
+
+- The base is at the site center (D5), and the survey area is the unit grid, 3,638 m by 1,972 m (`unitGridRect` in `site.ts`).
+- A strip of width W gets `ceil(W / swathM)` passes spaced evenly at `W / passes`, which is at most `swathM`, so the passes tile the strip exactly and no ground is driven twice.
+- Each pass runs the full height of the area at the center of its sub-strip.
+  The first pass starts at the north or south end nearer the base (south on a tie, which is the case for the center base).
+- A 4x4 drives in a straight line from the base to the start of its first pass and from the end of its last pass back to the base, at `transitSpeedKmh`.
+  The short shift from one pass to the next is driven at `surveySpeedKmh`; turns take no time.
+- A strip east of the base starts at its west edge and a strip west of the base at its east edge; the strip that contains the base starts at its west edge.
+- The ground is a grid of `cellM` cells.
+  A cell is surveyed at the hour the pass over its sub-strip reaches the cell's center, so the surveyed share at any hour is one lookup in the sorted cell hours, and seeking works (spec rule 6).
+- The map draws the surveyed ground as one rectangle per started pass (`surveyedRects`), which matches the cell share to within 1%.
+- Unit conversions (m per km, Wh per kWh, hours per day) are in `src/config/units.ts`, because the engine allows no other numeric literals (D7).
+
+With 1, 3 and 6 4x4s the survey takes 45.5 h, 15.3 h and 7.9 h, and the 4x4-hours stay between 45.5 and 47.1.

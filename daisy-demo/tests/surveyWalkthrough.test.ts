@@ -28,9 +28,9 @@ describe('survey walkthrough', () => {
 
   it('puts the numbers of the run in the Done caption', () => {
     expect(steps[3].caption).toBe(
-      `Done in ${Math.round(plan.finishH)} h with 3 4x4s. More 4x4s finish sooner at about the same cost.`,
+      `Done in ${Math.round(plan.finishH)} h with 3 4x4s. More 4x4s finish sooner in the same 4x4-hours.`,
     );
-    expect(Math.round(plan.finishH)).toBe(16);
+    expect(Math.round(plan.finishH)).toBe(15);
     expect(surveySteps(getSurveyPlan(1))[3].caption).toContain('with 1 4x4.');
   });
 

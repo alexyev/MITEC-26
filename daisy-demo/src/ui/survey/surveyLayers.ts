@@ -1,7 +1,7 @@
 // Survey map layers (spec 5, 8): surveyed ground, strip boundaries, the planned paths ahead of each 4x4,
-// and the 4x4s with their online dots. Pure drawing from the plan and the survey hour; no state.
+// the 4x4s with their online dots, and their drones on a link to them. Pure drawing from the plan and the hour.
 import { SURVEY_VIEW } from '../../config/survey';
-import { surveyedRects, vehicleAt } from '../../engine/survey';
+import { droneFlying, surveyedRects, trailPoint, vehicleAt } from '../../engine/survey';
 import type { SurveyLeg, SurveyPlan, VehicleState } from '../../engine/survey';
 import { canvasFont, cssVar } from '../kit/tokens';
 import type { MapColors } from '../kit/tokens';
@@ -38,8 +38,34 @@ export function vehicleMarkers(plan: SurveyPlan, hours: number, view: Viewport):
   });
 }
 
-/** What the pointer is over: a 4x4 (nearest first), the base, or nothing. */
-export type SurveyHit = { kind: 'vehicle'; id: number } | { kind: 'base' } | null;
+/** Where a flying drone is drawn: behind its 4x4 along the path, at a fixed distance on screen (D61). */
+export interface DroneMarker {
+  /** The id of its 4x4. */
+  id: number;
+  sx: number;
+  sy: number;
+}
+
+/** The drones in the air at `hours`; a drone at the base rides docked on its 4x4 and is not drawn. */
+export function droneMarkers(
+  plan: SurveyPlan,
+  vehicles: VehicleMarker[],
+  hours: number,
+  view: Viewport,
+): DroneMarker[] {
+  const trailM = SURVEY_VIEW.droneTrailPx / view.scale;
+  return vehicles
+    .filter((m) => droneFlying(m.state))
+    .map((m) => {
+      const p = trailPoint(plan.vehicles[m.id], hours, trailM);
+      const s = worldToScreen(view, p.x, p.y);
+      return { id: m.id, sx: s.sx, sy: s.sy };
+    });
+}
+
+/** What the pointer is over: a 4x4 or a drone (nearest first), the base, or nothing. */
+export type SurveyHit =
+  { kind: 'vehicle'; id: number } | { kind: 'drone'; id: number } | { kind: 'base' } | null;
 
 export function hitTest(
   plan: SurveyPlan,
@@ -47,23 +73,26 @@ export function hitTest(
   view: Viewport,
   sx: number,
   sy: number,
+  drones: DroneMarker[] = [],
 ): SurveyHit {
   const r = SURVEY_VIEW.hitRadiusPx;
-  let best: VehicleMarker | null = null;
+  let best: SurveyHit = null;
   let bestD = r;
-  for (const m of markers) {
+  const consider = (kind: 'vehicle' | 'drone', m: { id: number; sx: number; sy: number }) => {
     const d = Math.hypot(m.sx - sx, m.sy - sy);
     if (d <= bestD) {
-      best = m;
+      best = { kind, id: m.id };
       bestD = d;
     }
-  }
-  if (best) return { kind: 'vehicle', id: best.id };
+  };
+  for (const m of markers) consider('vehicle', m);
+  for (const m of drones) consider('drone', m);
+  if (best) return best;
   const b = worldToScreen(view, plan.base.x, plan.base.y);
   return Math.hypot(b.sx - sx, b.sy - sy) <= r ? { kind: 'base' } : null;
 }
 
-/** Surveyed ground: one fill for every pass rectangle of every 4x4 (spec 5.2, `--c-done`). */
+/** Surveyed ground: one fill for every pass rectangle of every 4x4 (spec 5.2, `--c-done`); never the pad. */
 export function drawSurveyed(
   ctx: CanvasRenderingContext2D,
   view: Viewport,
@@ -122,7 +151,7 @@ function line(
 
 /**
  * The planned path still ahead of each 4x4, dashed amber (spec 8.1): the drive out, the passes, and the
- * drive back once it starts. When the passes are closer than
+ * drive back once it starts. Paths never cross the base pad (D60). When the passes are closer than
  * `minPassGapPx` on screen, only every k-th pass is drawn, so the plan reads as lanes and not as a solid
  * fill; the pass the 4x4 is on is always drawn. Zoom in to see every pass.
  */
@@ -139,16 +168,16 @@ export function drawPaths(
   ctx.beginPath();
   for (const v of plan.vehicles) {
     const stride = Math.max(1, Math.ceil(SURVEY_VIEW.minPassGapPx / (v.passSpacingM * view.scale)));
-    let pass = -1;
     for (const leg of v.legs) {
-      if (leg.kind === 'pass') pass++;
       if (leg.t1H <= hours) continue;
       const current = leg.t0H <= hours;
       // A shift between passes is one pass spacing; with passes left out it only adds noise.
       if (leg.kind === 'shift' && stride > 1) continue;
-      // The drive back to the base shows once the 4x4 is on it, so the plan reads as strips, not spokes.
+      // Drives between the parts of a strip and back to the base show once the 4x4 is on them, so the plan
+      // reads as strips, not spokes.
       if (leg.kind === 'transit' && leg.t0H > 0 && !current) continue;
-      if (leg.kind === 'pass' && !current && pass % stride !== 0) continue;
+      // Thinned by column, so the two half-passes of a column beside the pad are kept or left out together.
+      if (leg.kind === 'pass' && !current && (leg.column ?? 0) % stride !== 0) continue;
       if (current) {
         const s = vehicleAt(v, hours);
         line(ctx, view, s.x, s.y, leg);
@@ -195,5 +224,83 @@ export function drawVehicles(
     ctx.arc(m.sx + o, m.sy - o, d, 0, Math.PI * 2);
     ctx.fillStyle = colors.data;
     ctx.fill();
+  }
+}
+
+/** The link from each flying drone to its 4x4: a short solid blue line, the drone's data path (D61). */
+export function drawDroneLinks(
+  ctx: CanvasRenderingContext2D,
+  vehicles: VehicleMarker[],
+  drones: DroneMarker[],
+  colors: MapColors,
+): void {
+  if (drones.length === 0) return;
+  ctx.strokeStyle = colors.data;
+  ctx.lineWidth = SURVEY_VIEW.droneLinkWidthPx;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const d of drones) {
+    const v = vehicles.find((m) => m.id === d.id);
+    if (!v) continue;
+    ctx.moveTo(v.sx, v.sy);
+    ctx.lineTo(d.sx, d.sy);
+  }
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+}
+
+/** The drone mark centered on (x, y): crossed arms, a small body and four rotor rings. */
+function drawDroneMark(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  color: string,
+  widen: number,
+): void {
+  const a = SURVEY_VIEW.droneArmPx;
+  const r = SURVEY_VIEW.droneRotorRadiusPx;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = SURVEY_VIEW.droneRotorWidthPx + widen;
+  ctx.beginPath();
+  ctx.moveTo(x - a, y - a);
+  ctx.lineTo(x + a, y + a);
+  ctx.moveTo(x + a, y - a);
+  ctx.lineTo(x - a, y + a);
+  ctx.stroke();
+  ctx.beginPath();
+  for (const [dx, dy] of [
+    [-a, -a],
+    [a, -a],
+    [a, a],
+    [-a, a],
+  ]) {
+    ctx.moveTo(x + dx + r, y + dy);
+    ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2);
+  }
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, SURVEY_VIEW.droneBodyRadiusPx + widen / 2, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+/** The flying drones: amber four-rotor marks on a dark halo, like the 4x4s they follow. */
+export function drawDrones(
+  ctx: CanvasRenderingContext2D,
+  drones: DroneMarker[],
+  colors: MapColors,
+  hoveredId: number | null,
+): void {
+  const reach = SURVEY_VIEW.droneArmPx + SURVEY_VIEW.droneRotorRadiusPx;
+  for (const d of drones) {
+    drawDroneMark(ctx, d.sx, d.sy, colors.halo, SURVEY_VIEW.droneHaloPx * 2);
+    drawDroneMark(ctx, d.sx, d.sy, colors.work, 0);
+    if (d.id === hoveredId) {
+      ctx.beginPath();
+      ctx.arc(d.sx, d.sy, reach + SURVEY_VIEW.hoverRingGapPx, 0, Math.PI * 2);
+      ctx.strokeStyle = colors.base;
+      ctx.lineWidth = SURVEY_VIEW.hoverRingWidthPx;
+      ctx.stroke();
+    }
   }
 }

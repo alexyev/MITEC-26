@@ -21,19 +21,19 @@ export function surveySteps(plan: SurveyPlan): WalkStep[] {
     {
       id: 'paths',
       label: 'Paths',
-      caption: 'Each 4x4 gets its own strip, so no ground is driven twice.',
+      caption: 'Each 4x4 gets its own strip; the paths stop at the base pad, never cross it.',
       durationS: SURVEY_WALK.pathsS,
     },
     {
       id: 'survey',
       label: 'Survey',
-      caption: 'Every 4x4 carries Starlink, so the whole fleet stays online anywhere on site.',
+      caption: 'Each 4x4 carries Starlink and a drone that follows it, online through the 4x4.',
       durationS: plan.finishH / plan.config.playbackHoursPerS,
     },
     {
       id: 'done',
       label: 'Done',
-      caption: `Done in ${formatInt(plan.finishH)} h with ${fleet}. More 4x4s finish sooner at about the same cost.`,
+      caption: `Done in ${formatInt(plan.finishH)} h with ${fleet}. More 4x4s finish sooner in the same 4x4-hours.`,
       durationS: SURVEY_WALK.doneS,
     },
     {
@@ -73,10 +73,12 @@ export function walkthroughFrame(steps: WalkStep[], plan: SurveyPlan, t: number)
   while (index + 1 < steps.length && t >= starts[index + 1]) index++;
   const step = steps[index].id as SurveyStepId;
   const surveyStart = starts[steps.findIndex((s) => s.id === 'survey')];
-  const hours = Math.min(
-    plan.finishH,
-    Math.max(0, (t - surveyStart) * plan.config.playbackHoursPerS),
-  );
+  // From the Done step on, the run is over exactly: rounding in the step starts must not leave a 4x4 short of
+  // the base, where it would still show as driving with its drone in the air.
+  const hours =
+    step === 'done' || step === 'yourTurn'
+      ? plan.finishH
+      : Math.min(plan.finishH, Math.max(0, (t - surveyStart) * plan.config.playbackHoursPerS));
   return { step, showPaths: step !== 'site', hours };
 }
 

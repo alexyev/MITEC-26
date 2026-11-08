@@ -41,6 +41,19 @@ export function LegendSwatch({ token, shape }: Pick<LegendItem, 'token' | 'shape
     case 'square':
       mark = <rect x="4" y="2" width="8" height="8" rx="1" fill={c} />;
       break;
+    case 'drone':
+      // Crossed arms, a small body and four rotor rings, as the survey map draws a drone.
+      mark = (
+        <g stroke={c} strokeWidth="1.1" fill="none">
+          <path d="M4.5 2.5 L11.5 9.5 M11.5 2.5 L4.5 9.5" />
+          <circle cx="4.5" cy="2.5" r="1.9" />
+          <circle cx="11.5" cy="2.5" r="1.9" />
+          <circle cx="11.5" cy="9.5" r="1.9" />
+          <circle cx="4.5" cy="9.5" r="1.9" />
+          <circle cx="8" cy="6" r="1.4" fill={c} stroke="none" />
+        </g>
+      );
+      break;
     case 'fill':
       mark = (
         <rect

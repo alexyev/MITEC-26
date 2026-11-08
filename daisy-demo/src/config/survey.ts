@@ -17,6 +17,8 @@ export const SURVEY: SurveyConfig = {
   cellM: 10,
   /** Hours of survey work shown per second of playback (1 hour of work plays in 1 s). */
   playbackHoursPerS: 1,
+  /** A strip section narrower than this joins its neighbor; a base this close to a strip edge is on it (D60). */
+  minSectionM: 1,
 };
 
 /** Survey walkthrough (spec 8.5): step lengths in seconds; the Survey step lasts the survey time. */
@@ -40,7 +42,18 @@ export const SURVEY_VIEW = {
   vehicleHaloPx: 2,
   onlineDotRadiusPx: 2.25,
   onlineDotOffsetPx: 5,
-  /** Ring around the hovered 4x4. */
+  /**
+   * A drone (D61): a small four-rotor mark that follows its 4x4 this far behind along the path it drove,
+   * on a short blue link to the 4x4, whose Starlink carries its data.
+   */
+  droneTrailPx: 20,
+  droneArmPx: 3.5,
+  droneRotorRadiusPx: 2.25,
+  droneRotorWidthPx: 1.25,
+  droneBodyRadiusPx: 1.5,
+  droneHaloPx: 1.5,
+  droneLinkWidthPx: 1.25,
+  /** Ring around the hovered 4x4 or drone. */
   hoverRingGapPx: 3.5,
   hoverRingWidthPx: 1.5,
   /** 4x4s at the base park in a row this far below the base marker, this far apart. */

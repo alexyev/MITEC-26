@@ -10,12 +10,12 @@ import type { YourTurnMode } from '../ui/survey/walkthrough';
 
 const plans = new Map<number, SurveyPlan>();
 
-/** The survey plan for `count` 4x4s on the full site, from the base on its pad at the center (D5, D34). */
+/** The survey plan for `count` 4x4s on the full site, from the base on its pad at the center (D5, D34, D60). */
 export function getSurveyPlan(count: number): SurveyPlan {
   let plan = plans.get(count);
   if (!plan) {
     const { site } = getSiteModel();
-    plan = planSurvey(unitGridRect(site), site.base, count);
+    plan = planSurvey(unitGridRect(site), site.base, count, SURVEY, site.basePad);
     plans.set(count, plan);
   }
   return plan;

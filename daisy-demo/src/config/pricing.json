@@ -133,5 +133,13 @@
       "avgPowerW": 5
     }
   ],
-  "survey": { "vehicleHourUsd": 150 }
+  "survey": {
+    "vehicleHourUsd": 150,
+    "starlinkKitUsd": 649,
+    "starlinkMountUsd": 150,
+    "starlinkPlanUsdPerMonth": 250,
+    "starlinkBillingDays": 30,
+    "droneUsd": null,
+    "unverified": ["vehicleHourUsd"]
+  }
 }

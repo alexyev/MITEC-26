@@ -168,6 +168,7 @@ export function drawPaths(
   ctx.beginPath();
   for (const v of plan.vehicles) {
     const stride = Math.max(1, Math.ceil(SURVEY_VIEW.minPassGapPx / (v.passSpacingM * view.scale)));
+    const now = vehicleAt(v, hours);
     for (const leg of v.legs) {
       if (leg.t1H <= hours) continue;
       const current = leg.t0H <= hours;
@@ -178,12 +179,10 @@ export function drawPaths(
       if (leg.kind === 'transit' && leg.t0H > 0 && !current) continue;
       // Thinned by column, so the two half-passes of a column beside the pad are kept or left out together.
       if (leg.kind === 'pass' && !current && (leg.column ?? 0) % stride !== 0) continue;
-      if (current) {
-        const s = vehicleAt(v, hours);
-        line(ctx, view, s.x, s.y, leg);
-      } else {
-        line(ctx, view, leg.x0, leg.y0, leg);
-      }
+      // The current leg starts at the 4x4; before Send the 4x4 is parked at the base, inside the pad, so the
+      // leg starts where it leaves the pad and no dash crosses the pad (D60).
+      if (current && now.kind !== 'base') line(ctx, view, now.x, now.y, leg);
+      else line(ctx, view, leg.x0, leg.y0, leg);
     }
   }
   ctx.stroke();

@@ -79,21 +79,33 @@ describe('machines work only inside coverage (D51)', () => {
     }
   });
 
-  it('has no machines before the build or after it, so the walkthrough failure is machine-free', () => {
+  it('has machines at work through the mid-build failure, and none after the build (D70)', () => {
     const { machines } = machinesAtTime(model.buildS);
     expect(machines).toEqual([]);
     const tl = PLAY_TIMELINE;
-    for (const t of [tl.failS, tl.detectS, tl.detectS + 2, tl.yourTurnS + 5]) {
+    for (const t of [tl.failS, tl.detectS, tl.detectS + 2]) {
       const scene = sceneAt(PLAY_MODEL, PLAY_GRAPH, tl, simAt([], t).result, t);
-      expect(scene.machines).toEqual([]);
+      expect(scene.machines.length).toBeGreaterThan(0);
     }
+    const after = sceneAt(
+      PLAY_MODEL,
+      PLAY_GRAPH,
+      tl,
+      simAt([], tl.yourTurnS + 5).result,
+      tl.yourTurnS + 5,
+    );
+    expect(after.machines).toEqual([]);
   });
 
-  it('every machine in the walkthrough build is online', () => {
+  it('every machine in the walkthrough build is online, the failure included, by the coverage rule', () => {
     const tl = PLAY_TIMELINE;
-    for (let t = tl.buildStartS; t < tl.buildStartS + PLAY_MODEL.buildS; t += 0.05) {
+    for (let t = tl.buildStartS; t < tl.buildEndS; t += 0.05) {
       const scene = sceneAt(PLAY_MODEL, PLAY_GRAPH, tl, simAt([], t).result, t);
-      for (const m of scene.machines) expect(m.online).toBe(true);
+      for (const m of scene.machines) {
+        const by = coveringNode(graph, scene.network.connected, R, m.x, m.y);
+        expect(m.online).toBe(by >= 0);
+        expect(m.online).toBe(true);
+      }
     }
   });
 });

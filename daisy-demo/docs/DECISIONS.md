@@ -353,6 +353,7 @@ The play model now uses that grid, 10 cells across by 5 down (`PLAY.cellCols`, `
 `tests/buildTab.test.ts` checks that the play grid and the radio count equal `networkCost`'s grid on the generated site, so a change to the pricing file or the site that changes the grid fails the tests instead of drifting silently.
 
 - The walkthrough's radios are derived, not configured: the watched source is the east-most radio of the middle row, (9, 2), and the failed radio is the middle radio of its route, (7, 2) (`presetRadios`).
+  Superseded by D70: the failure now happens mid-build, on a robot's route.
 - On this grid the detour is 1 hop longer, not the spec's 2: the base also links (5, 3), so the route around (7, 2) through row 3 rejoins the base one hop early.
 - Every number in the walkthrough's captions comes from the code: the "Recovered" caption from the network and a short simulation (packets lost and extra hops), and the "Cost" caption from `networkCost` (modules, total and share of the P3 hardware).
 - The cost section shows the default setup, its total, per container, per kWh of storage and share of the P3 hardware, with the "Team estimate · not quotes" chip while the pricing file is not verified, and a breakdown of modules, batteries, base, spares and contingency with a bar for each share of the total.
@@ -380,6 +381,7 @@ The captain chose the real-life model instead: all work happens inside the cover
 - **Offline machines stop.** A team advances only along ground the current network covers (`machinesAt` in `engine/machines.ts`).
   When a failure leaves it without coverage it stops where it stands, turns grey with a red "no link" ring, and resumes from the same point when coverage returns; the time it waited is lost.
   The walkthrough's failure and every "Your turn" click happen after the build, when no machines are on the map, so they are machine-free; the engine tests fail radios mid-build to check the rule.
+  Superseded by D70: the walkthrough's failure now happens mid-build, with the machines at work; "Your turn" stays after the build.
 - **Engine tests** (`tests/machines.test.ts`): at every tenth of every phase of every stage, every machine is online and inside a connected circle; every team route is covered along its whole length; a machine whose coverage fails stops, shows offline and resumes.
 - **Overlap.** At the real ratio a failed radio's neighbors cover its cell, so the walkthrough's failure no longer opens a coverage hole: coverage stays at 100% while the data reroutes.
   The failure caption says so ("Its neighbors' circles overlap, so the ground stays covered."); failing a full column still cuts off the radios beyond it.
@@ -423,6 +425,7 @@ The card opens by itself during the walkthrough's "Cost" step; Escape or a click
 ## D55 - Contrast of the data steps (round 2, captain's request)
 
 From the data step on, while packets move, the map under the routes is dimmed (`--c-map-dim`), so coverage, units and idle links recede.
+Since D70 that is while the robot's data and the failure play out mid-build, and again in "Your turn".
 Live routes are 3 px of the data blue on a dark casing, packets are 4 px dots of full-strength blue on a dark ring, larger than the route is wide, and the replaced path is a dashed light grey (`--c-old-route`).
 A failed radio is a red cross in a red ring.
 
@@ -495,3 +498,49 @@ The Build & failure sheet showed "Starlink on every machine" at about $33.6k, be
 The captain asked to remove it, since it does not solve the links going down: each machine has only its own dish, with no local link between machines, crews or units, and a blocked dish leaves the machine alone.
 The option is gone from the sheet (`ui/build/alternatives.ts`), from `engine/alternatives.ts` and from `config/alternatives.ts` (`STARLINK_PER_MACHINE`), and `AlternativeSite` keeps only the site area, which is all the remaining options use.
 "Starlink and Wi-Fi access points" stays, and the Survey tab's Starlink on each 4x4 (D61, D62) is unchanged, as is the survey comparison, which has no Starlink-on-every-machine option either.
+
+## D70 - The failure happens mid-build, on a robot's data (round 3, captain's request)
+
+The captain asked to stop mid-construction and show a failure through a robot sending its data, rather than pausing after the build and showing the radios' traffic.
+This supersedes the "failure only after the build" of D51 and the after-build failure scene of the walkthrough (D44, D47, D50).
+
+- **The moment.** The build holds halfway through the foundations phase of the middle stage: stage 5 of 8, 32 of 50 radios on (`failureScenario` in `engine/scenario.ts`, `PLAY.scenario`).
+  The stage, phase and share are config; the robot and the radios follow from the model.
+- **The robot.** Of that phase's machines on the east face, the one whose covering radio is furthest from the base in hops, then the one nearest the base's row: a pile rig covered by C8-2, 4 radio hops from the base.
+  It sends its task status and safety messages four times a second (`robotPacketIntervalS`, 0.25 s, a placeholder) while the build holds.
+- **The failed radio** is the middle radio between the robot's radio and the base on that route: C6-2.
+  Its neighbors miss 3 hellos (D44), C7-2 holds the data in its queue, switches to its backup C7-3 at detection (D42), and the new route spreads; the robot's route is 1 hop longer and no packet is lost.
+- **The robot stays online, truthfully.** C6-2 does not cover the robot, and the coverage rule (D51) is checked with C6-2 down: C8-2 still covers it, so it keeps working, and the failure caption says so.
+  If a failure took away its coverage, the same rule would stop it and the caption would say it stops (`tests/robotSource.test.ts` checks that case in the engine).
+- **The hold.** The build clock stands still from the robot step to the resume step (`buildTimeAt`, `timeOfBuild` in `ui/build/walkthrough.ts`): the network reacts in seconds and the build takes weeks, so the robot step's caption opens with "Time slows mid-build", and the player bar says "Packets slowed for visibility".
+  The machines keep their places and their work pulse while it holds.
+- **After the failure, a repair.** Of the two truthful ways on (repair it, or build around it), repair is the simpler: the maintenance ticket goes out at the "Recovered" step, and the crew's swap goes in when the build resumes (about 15 min, a placeholder, is nothing on the build's time scale).
+  The radio rejoins at its next hello (D43), so the rest of the build runs on the network its stages were planned for, and the "Coverage" step and "Your turn" start with every radio up.
+- **Steps:** Section, Build, Power, Robot data, Failure, Detection, Reroute, Recovered, Resume, Coverage, Cost, Your turn.
+  Every name and number in the captions comes from the code: the robot's kind, its radio and hops, the failed radio, the queueing radio, the backup from the local-repair event, the queued packets just before detection, packets lost and the extra hops from a short simulation of the hold.
+- **On the map,** while the robot sends the map is dimmed as in D55 and the robot's route is the one cased blue route, from its tile through its radio to the base; after the reroute its old route is dashed grey.
+  The robot has a 1.5 px data-blue frame around its tile and a "Pile rig · sending" badge above it; its packets are the full-size bright dots, and the radios' own traffic shows as smaller, fainter dots; the other machines fade to 45%.
+  The readout's last row reads "Extra hops, pile rig route" while the robot sends, and "Extra hops, C8-2 route" after.
+  Hovering the robot shows the radio it sends through, its hops to the base and the packets it has sent.
+- **Between the failure and "Your turn"** the dim lifts and no packets are drawn, so the rest of the build and the cost read as before; the simulation keeps running underneath, so the readout's numbers stay live.
+- "Your turn" is unchanged (D48), with the robot's radio, C8-2, as its watched route.
+
+## D71 - Machines as packet sources, and radios that switch on mid-simulation (engine, D70)
+
+- `SimInput.sources` lists machines that send their own data; a machine is node `graph.nodeCount + k` (`sourceNode`).
+  It links through the nearest node within the coverage radius that has a route in the latest routing version: the coverage rule of D51 on the routes the network knows.
+  It learns of a change when its radios do: it relinks at every detection, rejoin and switch-on, so when its radio fails it sends into silence, holds its packets for that radio, and relinks or stops linking at detection.
+  With no radio in reach it queues up to `bufferMaxPackets` and sends the queue when coverage returns.
+- Its hop to its radio is an ordinary hop: the same acknowledgement, queues and flushing as between radios (D43).
+  `pathAt`, `hopsAt` (its own hop counted), `queueAt` and the new `sentByAt` read it back like any node, and the scene draws its hop from the machine's position.
+- A radio's first switch-on is a change of kind `on`: the radio says hello at once, joins the routes, and the new routes spread from it and its neighbors as after a rejoin.
+  The walkthrough's simulation starts at the hold with the radios that are on then (`online`) and switches the later stages' radios on as the build reaches them, so it runs unbroken into "Your turn".
+- A repair only acts on a radio that failed, so an unbuilt radio cannot be "repaired" on.
+- The machine's position is fixed in the input: the walkthrough's robot stands still while the build holds.
+- Tests (`tests/robotSource.test.ts`): the same events for the same seed; detection within `missedHellosToDown x helloIntervalS +- helloIntervalS` with only built radios watching; the robot route around the failed radio; zero packets lost and every queued and robot packet delivered; the robot online by the coverage rule and linked through the same radio in the simulation; a robot whose every covering radio fails losing its link and resending its queue after the repair; a radio switched on mid-run joining and sending.
+
+## D72 - The legend keeps 7 rows (D70)
+
+The readout card and the legend share the right side, and at 1280 x 720 the card with STRESS-TEST fits only beside a 7-row legend (D47).
+The legend adds "Route before reroute" (the dashed grey of D55, through `LegendItem.colorVar`) and drops "P3 unit": the units are the grey blocks the build sets down, and their hover card names them.
+The robot needs no legend row: its badge on the map names it while it sends.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROUTING } from '../src/config/defaults';
 import { PLAY } from '../src/config/play';
-import { buildGraph, presetRadios } from '../src/engine/network';
+import { buildGraph } from '../src/engine/network';
 import {
   createSim,
   failedAt,
@@ -19,7 +19,9 @@ import { buildPlayModel, cellRadioId } from '../src/engine/playModel';
 
 const model = buildPlayModel();
 const graph = buildGraph(model);
-const { failed, watched } = presetRadios(model, graph);
+// The full network's middle row: (9, 2) sends through (7, 2), which fails.
+const watched = cellRadioId(model, 9, 2);
+const failed = cellRadioId(model, 7, 2);
 const upstream = cellRadioId(model, 8, 2);
 const failS = presetFailS(graph, failed, 5);
 const endS = failS + 30;

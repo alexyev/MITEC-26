@@ -60,6 +60,12 @@ export interface PlayConfig {
   equipment: { kinds: Record<EquipmentGlyph, EquipmentInfo> };
   /** Each connected radio sends one packet per interval. */
   packetIntervalS: number;
+  /**
+   * The walkthrough's failure mid-build (D70): the build holds `phaseShare` of the way through the `phase` of
+   * the middle stage, and one of that phase's robots on the east face sends its task status and safety
+   * messages, one packet every `robotPacketIntervalS` (placeholder), while a radio on its route fails.
+   */
+  scenario: { phase: FrontierPhase['id']; phaseShare: number; robotPacketIntervalS: number };
   /** Playback time per hop ("Packets slowed for visibility"). */
   hopS: number;
   /** Spacing of the packets that leave a queue once the radio has a route again. */
@@ -73,9 +79,8 @@ export interface PlayConfig {
   basePadLanes: number;
   basePadUnits: number;
   /**
-   * The walkthrough's failure (spec 9.5): the watched source is the east-most radio of the middle row, and
-   * the failed radio is the middle radio of its route. It fails this long after one of its hellos, so
-   * the three missed hellos fall on the walkthrough's step boundaries.
+   * The walkthrough's failed radio (D70) fails this long after one of its hellos, so the three missed
+   * hellos fall on the walkthrough's step boundaries (D44).
    */
   failAfterHelloS: number;
   /** Maintenance ticket after the walkthrough's failure. */
@@ -118,6 +123,7 @@ export const PLAY: PlayConfig = {
     },
   },
   packetIntervalS: 1.0,
+  scenario: { phase: 'foundations', phaseShare: 0.5, robotPacketIntervalS: 0.25 },
   hopS: 0.15,
   queueFlushIntervalS: 0.05,
   maxPacketHops: 64,
@@ -153,6 +159,13 @@ export const PLAY_VIEW = {
   /** Packets (D55): larger than the route is wide, on a dark ring. */
   packetPx: 4,
   packetHaloPx: 2,
+  /** While the robot sends (D70): the radios' own packets, smaller and fainter than the robot's. */
+  otherPacketPx: 2.5,
+  otherPacketAlpha: 0.5,
+  /** The robot's data-blue frame around its tile, and the other machines' alpha meanwhile. */
+  robotFramePx: 1.5,
+  robotFrameGapPx: 3,
+  otherMachineAlpha: 0.45,
   linkWidthPx: 1,
   routeWidthPx: 3,
   /** Dark casing on each side of a live route, so it stands off the links and the coverage (D55). */

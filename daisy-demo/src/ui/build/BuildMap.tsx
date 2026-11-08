@@ -81,7 +81,7 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
     drawScene(ctx, viewport, model, graph, scene, colorsRef.current, {
       hover,
       reducedMotion: prefersReducedMotion(),
-      emphasis: scene.traffic,
+      emphasis: scene.dataShown,
       scratch: scratchRef.current,
       dpr,
     });

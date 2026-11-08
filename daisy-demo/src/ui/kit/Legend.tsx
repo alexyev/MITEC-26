@@ -4,9 +4,13 @@ import { Panel } from './Panel';
 import { tokenVar } from './tokens';
 import type { LegendItem, LegendProps } from './types';
 
-/** A 16 x 12 swatch in the item's shape, drawn in its story color. */
-export function LegendSwatch({ token, shape }: Pick<LegendItem, 'token' | 'shape'>) {
-  const c = tokenVar(token);
+/** A 16 x 12 swatch in the item's shape, drawn in its story color (or the map variant it names). */
+export function LegendSwatch({
+  token,
+  shape,
+  colorVar,
+}: Pick<LegendItem, 'token' | 'shape' | 'colorVar'>) {
+  const c = colorVar ? `var(${colorVar})` : tokenVar(token);
   const area = `var(--c-${token}-area, ${c})`;
   const edge = `var(--c-${token}-edge, transparent)`;
   let mark;
@@ -82,7 +86,7 @@ export function Legend({ items, title = 'Legend' }: LegendProps) {
       <ul className="legend-list">
         {items.map((item) => (
           <li key={`${item.token}-${item.shape}-${item.label}`} className="legend-item">
-            <LegendSwatch token={item.token} shape={item.shape} />
+            <LegendSwatch token={item.token} shape={item.shape} colorVar={item.colorVar} />
             <span>{item.label}</span>
           </li>
         ))}

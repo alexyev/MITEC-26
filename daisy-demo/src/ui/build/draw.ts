@@ -72,7 +72,12 @@ export function drawScene(
   c: DrawColors,
   opt: DrawOptions,
 ): void {
-  const px = (id: number) => worldToScreen(v, graph.x[id], graph.y[id]);
+  // Radios and the base by node id; the simulation's machine sources (the robot) come after them.
+  const px = (id: number) => {
+    if (id < graph.nodeCount) return worldToScreen(v, graph.x[id], graph.y[id]);
+    const src = scene.sources[id - graph.nodeCount];
+    return worldToScreen(v, src.x, src.y);
+  };
   const s = v.scale;
   const t = scene.t;
 
@@ -234,28 +239,54 @@ export function drawScene(
     ctx.globalAlpha = 1;
   }
 
-  // Frontier machines (D51): working inside coverage, stopped and offline outside it.
+  // Frontier machines (D51): working inside coverage, stopped and offline outside it. While the robot sends,
+  // the other machines recede with the map, and the robot gets a data-blue frame: it is the source (D70).
+  const robot = scene.robot;
   scene.machines.forEach((m, i) => {
     const p = worldToScreen(v, m.x, m.y);
     const hovered = opt.hover?.kind === 'machine' && opt.hover.id === i;
-    drawMachine(ctx, m.glyph, m.online, p.sx, p.sy, t, i, hovered, c, opt.reducedMotion);
+    const alpha = robot && i !== robot.index ? PLAY_VIEW.otherMachineAlpha : 1;
+    drawMachine(ctx, m.glyph, m.online, p.sx, p.sy, t, i, hovered, c, opt.reducedMotion, alpha);
   });
-
-  // Packets: full-strength data blue on a dark ring, larger and brighter than the route they ride on.
-  ctx.beginPath();
-  for (const d of scene.packets) {
-    const a = px(d.from);
-    const b = px(d.to);
-    const x = a.sx + (b.sx - a.sx) * d.f;
-    const y = a.sy + (b.sy - a.sy) * d.f;
-    ctx.moveTo(x + PLAY_VIEW.packetPx, y);
-    ctx.arc(x, y, PLAY_VIEW.packetPx, 0, Math.PI * 2);
+  if (robot) {
+    const m = scene.machines[robot.index];
+    const p = worldToScreen(v, m.x, m.y);
+    const r = PLAY_VIEW.machineTilePx + PLAY_VIEW.robotFrameGapPx;
+    ctx.strokeStyle = c.data;
+    ctx.lineWidth = PLAY_VIEW.robotFramePx;
+    ctx.beginPath();
+    ctx.roundRect(
+      Math.round(p.sx - r),
+      Math.round(p.sy - r),
+      Math.round(2 * r),
+      Math.round(2 * r),
+      PLAY_VIEW.machineTileCornerPx + PLAY_VIEW.robotFrameGapPx,
+    );
+    ctx.stroke();
   }
-  ctx.fillStyle = c.data;
-  ctx.strokeStyle = c.halo;
-  ctx.lineWidth = PLAY_VIEW.packetHaloPx;
-  ctx.stroke();
-  ctx.fill();
+
+  // Packets: full-strength data blue on a dark ring, larger and brighter than the route they ride on. While
+  // the robot sends, its packets lead and the radios' own traffic shows smaller and fainter (D70).
+  const drawPackets = (lead: boolean, radiusPx: number, alpha: number) => {
+    ctx.beginPath();
+    for (const d of scene.packets) {
+      if ((!robot || d.source === robot.node) !== lead) continue;
+      const a = px(d.from);
+      const b = px(d.to);
+      const x = a.sx + (b.sx - a.sx) * d.f;
+      const y = a.sy + (b.sy - a.sy) * d.f;
+      ctx.moveTo(x + radiusPx, y);
+      ctx.arc(x, y, radiusPx, 0, Math.PI * 2);
+    }
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = c.data;
+    ctx.strokeStyle = c.halo;
+    ctx.lineWidth = PLAY_VIEW.packetHaloPx;
+    ctx.stroke();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  };
+  drawPackets(false, PLAY_VIEW.otherPacketPx, PLAY_VIEW.otherPacketAlpha);
 
   // Radios.
   for (const r of model.radios) {
@@ -275,6 +306,8 @@ export function drawScene(
       dot(ctx, p.sx, p.sy, PLAY_VIEW.radioPx, build === RadioBuild.On ? c.signal : c.work);
     }
   }
+
+  drawPackets(true, PLAY_VIEW.packetPx, 1);
 
   // A failed radio flashes red once.
   for (const f of scene.failures) {
@@ -304,6 +337,25 @@ export function drawScene(
   }
 
   drawStageLabel(ctx, v, model, scene, c);
+
+  // The robot's label above its frame, in the data color: what it is and that it is the source.
+  ctx.font = canvasFont(11, 600);
+  ctx.textBaseline = 'middle';
+  if (robot) {
+    const m = scene.machines[robot.index];
+    const p = worldToScreen(v, m.x, m.y);
+    const top = p.sy - PLAY_VIEW.machineTilePx - PLAY_VIEW.robotFrameGapPx - PLAY_VIEW.labelGapPx;
+    const name = model.config.equipment.kinds[m.glyph].name;
+    const text = robot.uplink >= 0 ? `${name} · sending` : `${name} · no link`;
+    badge(
+      ctx,
+      text,
+      p.sx,
+      top - PLAY_VIEW.badgeHeightPx / 2,
+      robot.uplink >= 0 ? c.data : c.fail,
+      c,
+    );
+  }
 
   // Labels: missed hellos next to a failed radio, queue badges next to waiting radios.
   ctx.font = canvasFont(11, 600);
@@ -500,6 +552,8 @@ function drawMachine(
   hovered: boolean,
   c: DrawColors,
   reducedMotion: boolean,
+  /** The whole mark's opacity: below 1 while another machine is the one that sends (D70). */
+  alpha: number,
 ): void {
   const h = PLAY_VIEW.machineTilePx;
   const color = online ? c.work : c.text3;
@@ -507,15 +561,15 @@ function drawMachine(
     // Machines pulse out of step with each other, so the frontier reads as busy rather than blinking.
     const period = PLAY_VIEW.workPulseS;
     const k = ((((t + (index * period) / GOLDEN) % period) + period) % period) / period;
-    ctx.globalAlpha = PLAY_VIEW.workPulseAlpha * (1 - k);
+    ctx.globalAlpha = alpha * PLAY_VIEW.workPulseAlpha * (1 - k);
     ctx.strokeStyle = c.work;
     ctx.lineWidth = 1;
     ctx.beginPath();
     const r = h + easeOut(k) * PLAY_VIEW.workPulsePx;
     ctx.roundRect(x - r, y - r, 2 * r, 2 * r, PLAY_VIEW.machineTileCornerPx + (r - h));
     ctx.stroke();
-    ctx.globalAlpha = 1;
   }
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = c.halo;
   ctx.strokeStyle = hovered ? c.base : color;
   ctx.lineWidth = 1;
@@ -540,6 +594,7 @@ function drawMachine(
     dot(ctx, cx, cy, PLAY_VIEW.offlineRingPx + 1, c.halo);
     ring(ctx, cx, cy, PLAY_VIEW.offlineRingPx - 1 / 2, c.fail, 1.5);
   }
+  ctx.globalAlpha = 1;
 }
 
 /** Spreads the pulse phases of neighboring machines evenly. */

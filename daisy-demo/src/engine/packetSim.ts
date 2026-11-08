@@ -1,7 +1,8 @@
-// Discrete-event packet simulation of the play model (spec 9.4, 9.5): traffic, hellos, failure detection,
-// local repair, route updates and queues, precomputed from the inputs and then read back at any time t.
+// Discrete-event packet simulation of the play model (spec 9.4, 9.5): traffic from radios and machines, hellos,
+// failure detection, local repair, route updates and queues, precomputed and then read back at any time t.
 import { RNG, ROUTING } from '../config/defaults';
 import { PLAY, type PlayConfig } from '../config/play';
+import { coveringNode } from './machines';
 import { computeRouting, type Graph, type Routing } from './network';
 import { createRng } from './rng';
 
@@ -13,11 +14,28 @@ export interface RoutingConfig {
   bufferMaxPackets: number;
 }
 
-/** A user or walkthrough action: fail a radio, or repair it (it rejoins at its next hello). */
+/**
+ * A user or walkthrough action: fail a radio, repair it (it rejoins at its next hello), or switch a radio on
+ * for the first time when the build commissions it (it says hello at once, D71).
+ */
 export interface SimChange {
   tS: number;
   radio: number;
-  kind: 'fail' | 'repair';
+  kind: 'fail' | 'repair' | 'on';
+}
+
+/**
+ * A machine that sends its own data (D71), such as a frontier robot's task status and safety messages. It
+ * stands at (x, y) and links through the radio that covers it: the nearest node within the coverage radius
+ * that has a known route to the base, the coverage rule of the machines (D51). It sends one packet every
+ * `packetIntervalS` from `fromS` until `toS`. Its node id is `graph.nodeCount + k` (`sourceNode`).
+ */
+export interface MachineSource {
+  x: number;
+  y: number;
+  fromS: number;
+  toS: number;
+  packetIntervalS: number;
 }
 
 export interface SimInput {
@@ -27,8 +45,10 @@ export interface SimInput {
   /** Nothing is simulated after this time (Infinity for a live simulation that keeps running). */
   endS: number;
   changes: SimChange[];
-  /** Radios that are on at `startS` (default: all). */
+  /** Radios that are on at `startS` (default: all); the others switch on with an 'on' change. */
   online?: Uint8Array;
+  /** Machines that send their own data, linked through the radio that covers them (D71). */
+  sources?: MachineSource[];
   seed?: number;
   routing?: RoutingConfig;
   play?: PlayConfig;
@@ -46,12 +66,14 @@ export type SimEventKind =
   | 'delivered'
   | 'lost'
   | 'fail'
-  | 'repair';
+  | 'repair'
+  | 'on'
+  | 'uplink';
 
 /**
  * One simulation event. `node` is where it happens; `other` is the other node (the next hop of a hop,
- * the silent radio of a hello timeout, the backup of a local repair) or -1; `value` is the missed-hello
- * count of a hello timeout, the routing version of a route update, or 0.
+ * the silent radio of a hello timeout, the backup of a local repair, the new radio of a machine's uplink)
+ * or -1; `value` is the missed-hello count of a hello timeout, the routing version of a route update, or 0.
  */
 export interface SimEvent {
   tS: number;
@@ -94,7 +116,7 @@ export interface SimResult {
   /** Routing tables: version 0 at the start, then one per detection or rejoin. */
   versions: Routing[];
   failures: FailureRecord[];
-  /** Hops in departure order (`hopT0` is non-decreasing). */
+  /** Hops in departure order (`hopT0` is non-decreasing). A hop from a machine starts at its node id. */
   hopPacket: number[];
   hopFrom: number[];
   hopTo: number[];
@@ -106,13 +128,15 @@ export interface SimResult {
   sentTimes: number[];
   deliveredTimes: number[];
   lostTimes: number[];
-  /** Per node: queue length over time. */
+  /** Per node, then per machine source: queue length over time. */
   queue: Timeline[];
-  /** Per node: next hop and hops to the base over time. */
+  /** Per node and machine source: next hop (a machine's uplink) and hops to the base over time. */
   nextHop: Timeline[];
   hops: Timeline[];
-  /** Per node: arrival times of the packets it forwarded successfully. */
+  /** Per node and machine source: arrival times of the packets it forwarded successfully. */
   forwarded: number[][];
+  /** Per node and machine source: times of the packets it sent itself. */
+  sentBy: number[][];
   /** Largest queue anywhere, over time. */
   maxQueue: Timeline;
   /** Per radio: failed intervals [from, to), `to` = Infinity while failed. */
@@ -128,6 +152,8 @@ const enum Ev {
   Rejoin,
   Switch,
   Flush,
+  On,
+  SourceGen,
 }
 
 interface HeapItem {
@@ -244,6 +270,11 @@ function pushTimeline(line: Timeline, t: number, value: number): void {
   line.value.push(value);
 }
 
+/** Node id of the k-th machine source: after the radios and the base. */
+export function sourceNode(graph: Graph, k: number): number {
+  return graph.nodeCount + k;
+}
+
 /** Number of entries of a sorted array that are at most `t`. */
 export function countAtOrBefore(sorted: number[], t: number): number {
   let lo = 0;
@@ -290,6 +321,9 @@ export function createSim(input: SimInput): LiveSim {
   const base = graph.baseId;
   const interval = routing.helloIntervalS;
   const missed = Math.max(1, routing.missedHellosToDown);
+  const sources = input.sources ?? [];
+  /** Radios and the base, then the machine sources. */
+  const all = n + sources.length;
 
   const truth = new Uint8Array(n);
   for (let i = 0; i < n; i++) truth[i] = input.online ? input.online[i] : 1;
@@ -299,11 +333,13 @@ export function createSim(input: SimInput): LiveSim {
   const cur = new Int32Array(n);
   const NONE = -2;
   const override = new Int32Array(n).fill(NONE);
-  const blocked = new Int32Array(n).fill(-1);
-  const queues: number[][] = Array.from({ length: n }, () => []);
-  const flushing = new Uint8Array(n);
+  const blocked = new Int32Array(all).fill(-1);
+  const queues: number[][] = Array.from({ length: all }, () => []);
+  const flushing = new Uint8Array(all);
   const latestFailure = new Int32Array(n).fill(-1);
   const rejoinToken = new Int32Array(n);
+  /** The radio each machine sends through, -1 while none covers it. */
+  const uplink = new Int32Array(sources.length).fill(-1);
 
   const result: SimResult = {
     input,
@@ -325,10 +361,11 @@ export function createSim(input: SimInput): LiveSim {
     sentTimes: [],
     deliveredTimes: [],
     lostTimes: [],
-    queue: Array.from({ length: n }, () => ({ tS: [], value: [] })),
-    nextHop: Array.from({ length: n }, () => ({ tS: [], value: [] })),
-    hops: Array.from({ length: n }, () => ({ tS: [], value: [] })),
-    forwarded: Array.from({ length: n }, () => []),
+    queue: Array.from({ length: all }, () => ({ tS: [], value: [] })),
+    nextHop: Array.from({ length: all }, () => ({ tS: [], value: [] })),
+    hops: Array.from({ length: all }, () => ({ tS: [], value: [] })),
+    forwarded: Array.from({ length: all }, () => []),
+    sentBy: Array.from({ length: all }, () => []),
     maxQueue: { tS: [], value: [] },
     down: Array.from({ length: n }, () => []),
   };
@@ -338,11 +375,43 @@ export function createSim(input: SimInput): LiveSim {
 
   const emit = (tS: number, kind: SimEventKind, node: number, other = -1, packet = -1, value = 0) =>
     result.events.push({ tS, kind, node, other, packet, value });
-  const nextHopOf = (i: number): number =>
-    override[i] !== NONE ? override[i] : versions[cur[i]].nextHop[i];
+  /** A machine source is always up; a radio is up while it is on and not failed. */
+  const isUp = (i: number): boolean => i >= n || truth[i] === 1;
+  const nextHopOf = (i: number): number => {
+    if (i >= n) return uplink[i - n];
+    return override[i] !== NONE ? override[i] : versions[cur[i]].nextHop[i];
+  };
+  const hopsOf = (i: number): number => {
+    if (i < n) return versions[cur[i]].hops[i];
+    const u = uplink[i - n];
+    return u >= 0 && hopsOf(u) >= 0 ? hopsOf(u) + 1 : -1;
+  };
   const recordRoute = (i: number, t: number): void => {
     pushTimeline(result.nextHop[i], t, nextHopOf(i));
-    pushTimeline(result.hops[i], t, versions[cur[i]].hops[i]);
+    pushTimeline(result.hops[i], t, hopsOf(i));
+  };
+  /** The machines that send through radio i, whose hops change with its route. */
+  const recordSourcesVia = (i: number, t: number): void => {
+    for (let k = 0; k < sources.length; k++) if (uplink[k] === i) recordRoute(n + k, t);
+  };
+  /**
+   * Every machine links through the radio that covers it on the routes it knows (the latest routing
+   * version): it hears the same hellos as the radios around it, so it learns of a change when they do.
+   */
+  const relink = (t: number): void => {
+    if (sources.length === 0) return;
+    const latest = versions[versions.length - 1];
+    const reachable = new Uint8Array(n);
+    for (let i = 0; i < n; i++) reachable[i] = latest.hops[i] >= 0 ? 1 : 0;
+    sources.forEach((s, k) => {
+      const u = coveringNode(graph, reachable, play.coverageRadiusM, s.x, s.y);
+      if (u === uplink[k]) return;
+      uplink[k] = u;
+      blocked[n + k] = -1;
+      recordRoute(n + k, t);
+      emit(t, 'uplink', n + k, u);
+      startFlush(n + k, t);
+    });
   };
   const recordQueue = (i: number, t: number): void => {
     pushTimeline(result.queue[i], t, queues[i].length);
@@ -431,16 +500,36 @@ export function createSim(input: SimInput): LiveSim {
     return last;
   };
 
+  /** A radio joins the routes when its hello is heard: on its first switch-on, or when it rejoins. */
+  const join = (r: number, t: number): void => {
+    truth[r] = 1;
+    known[r] = 1;
+    const version = versions.length;
+    versions.push(computeRouting(graph, known));
+    for (const v of graph.neighbors[r]) {
+      if (blocked[v] === r) {
+        blocked[v] = -1;
+        startFlush(v, t);
+      }
+    }
+    flood([r, ...graph.neighbors[r]], version, t);
+    relink(t);
+  };
+
   let frontier = startS;
+  const changeEvent = { fail: Ev.Fail, repair: Ev.Repair, on: Ev.On } as const;
   const addChange = (c: SimChange): SimChange => {
     const applied = { ...c, tS: Math.max(c.tS, frontier) };
-    if (applied.tS > endS || applied.radio === base) return applied;
+    const isRadio = applied.radio >= 0 && applied.radio < n && applied.radio !== base;
+    if (applied.tS > endS || !isRadio) return applied;
     result.changes.push(applied);
-    heap.push(applied.tS, applied.kind === 'fail' ? Ev.Fail : Ev.Repair, applied.radio);
+    heap.push(applied.tS, changeEvent[applied.kind], applied.radio);
     return applied;
   };
 
   for (let i = 0; i < n; i++) recordRoute(i, startS);
+  relink(startS);
+  for (let k = 0; k < sources.length; k++) recordRoute(n + k, startS);
   for (const c of [...input.changes].sort((a, b) => a.tS - b.tS)) {
     if (c.tS >= startS) addChange(c);
   }
@@ -448,6 +537,10 @@ export function createSim(input: SimInput): LiveSim {
     if (i === base) continue;
     heap.push(nextHelloAt(sendPhase[i], play.packetIntervalS, startS), Ev.Gen, i);
   }
+  sources.forEach((s, k) => {
+    const first = Math.max(startS, s.fromS);
+    if (first < s.toS) heap.push(first, Ev.SourceGen, k);
+  });
 
   const advanceTo = (until: number): void => {
     const limit = Math.min(until, endS);
@@ -467,8 +560,23 @@ export function createSim(input: SimInput): LiveSim {
         result.packetSentS.push(t);
         packetHops.push(0);
         result.sentTimes.push(t);
+        result.sentBy[r].push(t);
         emit(t, 'send', r, -1, p);
         forward(r, p, t);
+        break;
+      }
+      case Ev.SourceGen: {
+        const k = ev.a;
+        const s = sources[k];
+        if (t + s.packetIntervalS < s.toS) heap.push(t + s.packetIntervalS, Ev.SourceGen, k);
+        const p = result.packetSource.length;
+        result.packetSource.push(n + k);
+        result.packetSentS.push(t);
+        packetHops.push(0);
+        result.sentTimes.push(t);
+        result.sentBy[n + k].push(t);
+        emit(t, 'send', n + k, -1, p);
+        forward(n + k, p, t);
         break;
       }
       case Ev.Arrive: {
@@ -480,7 +588,7 @@ export function createSim(input: SimInput): LiveSim {
           const died = result.down[to][result.down[to].length - 1]?.from ?? t;
           result.hopVisibleEnd[ev.c] = Math.max(result.hopT0[ev.c], died);
           blocked[from] = to;
-          if (truth[from]) enqueue(from, p, t);
+          if (isUp(from)) enqueue(from, p, t);
           else lose(p, t, from);
           break;
         }
@@ -541,41 +649,42 @@ export function createSim(input: SimInput): LiveSim {
             override[v] = backup;
             blocked[v] = -1;
             recordRoute(v, t);
+            recordSourcesVia(v, t);
             emit(t, 'localRepair', v, backup);
             startFlush(v, t);
           }
         }
         record.reroutedS = flood(watchers, version, t);
+        relink(t);
         break;
       }
       case Ev.Repair: {
         const r = ev.a;
         emit(t, 'repair', r);
-        if (truth[r]) break;
         const f = latestFailure[r];
-        if (f >= 0 && result.failures[f].repairS === null) result.failures[f].repairS = t;
+        // Only a failed radio can be repaired; a radio the build has not switched on stays off.
+        if (truth[r] || f < 0) break;
+        if (result.failures[f].repairS === null) result.failures[f].repairS = t;
         heap.push(nextHelloAt(helloPhase[r], interval, t), Ev.Rejoin, r, rejoinToken[r]);
         break;
       }
       case Ev.Rejoin: {
         const r = ev.a;
         if (ev.b !== rejoinToken[r] || truth[r]) break;
-        truth[r] = 1;
-        known[r] = 1;
         const span = result.down[r][result.down[r].length - 1];
         if (span) span.to = t;
         const f = latestFailure[r];
         if (f >= 0) result.failures[f].rejoinS = t;
         emit(t, 'hello', r);
-        const version = versions.length;
-        versions.push(computeRouting(graph, known));
-        for (const v of graph.neighbors[r]) {
-          if (blocked[v] === r) {
-            blocked[v] = -1;
-            startFlush(v, t);
-          }
-        }
-        flood([r, ...graph.neighbors[r]], version, t);
+        join(r, t);
+        break;
+      }
+      case Ev.On: {
+        const r = ev.a;
+        // A new radio says hello as it starts; a radio that is on, or failed, is not switched on again.
+        if (truth[r] || latestFailure[r] >= 0) break;
+        emit(t, 'on', r);
+        join(r, t);
         break;
       }
       case Ev.Switch: {
@@ -586,13 +695,14 @@ export function createSim(input: SimInput): LiveSim {
         override[i] = NONE;
         blocked[i] = -1;
         recordRoute(i, t);
+        recordSourcesVia(i, t);
         emit(t, 'routeUpdate', i, -1, -1, version);
         startFlush(i, t);
         break;
       }
       case Ev.Flush: {
         const i = ev.a;
-        if (!truth[i] || queues[i].length === 0 || !canSend(i)) {
+        if (!isUp(i) || queues[i].length === 0 || !canSend(i)) {
           flushing[i] = 0;
           break;
         }
@@ -646,11 +756,12 @@ export function queueAt(sim: SimResult, node: number, t: number): number {
 }
 
 export function nextHopAt(sim: SimResult, node: number, t: number): number {
-  return timelineAt(sim.nextHop[node], t, sim.versions[0].nextHop[node]);
+  return timelineAt(sim.nextHop[node], t, sim.versions[0].nextHop[node] ?? -1);
 }
 
+/** Hops to the base at time t; a machine source counts its hop to the radio that covers it. */
 export function hopsAt(sim: SimResult, node: number, t: number): number {
-  return timelineAt(sim.hops[node], t, sim.versions[0].hops[node]);
+  return timelineAt(sim.hops[node], t, sim.versions[0].hops[node] ?? -1);
 }
 
 /** The route a node's packets take at time t, following each node's own next hop. */
@@ -675,6 +786,11 @@ export function failedAt(sim: SimResult, t: number): Uint8Array {
 
 export function forwardedAt(sim: SimResult, node: number, t: number): number {
   return countAtOrBefore(sim.forwarded[node], t);
+}
+
+/** Packets a node or machine source has sent itself by time t. */
+export function sentByAt(sim: SimResult, node: number, t: number): number {
+  return countAtOrBefore(sim.sentBy[node], t);
 }
 
 /** Missed hellos a radio's neighbors have counted at time t (0 when none, `missedHellosToDown` once down). */

@@ -47,10 +47,16 @@ describe('survey walkthrough', () => {
 
   it('shows the right state at the start of every step (seeking)', () => {
     const at = (i: number) => walkthroughFrame(steps, plan, starts[i]);
-    const still = { closeUp: null, rateHPerS: SURVEY.playbackHoursPerS };
+    const still = { closeUp: null, rateHPerS: SURVEY.playbackHoursPerS, hoursPerS: 0 };
     expect(at(0)).toEqual({ step: 'site', showPaths: false, hours: 0, ...still });
     expect(at(1)).toEqual({ step: 'paths', showPaths: true, hours: 0, ...still });
-    expect(at(2)).toEqual({ step: 'survey', showPaths: true, hours: 0, ...still });
+    expect(at(2)).toEqual({
+      step: 'survey',
+      showPaths: true,
+      hours: 0,
+      ...still,
+      hoursPerS: SURVEY.playbackHoursPerS,
+    });
     expect(at(3)).toEqual({ step: 'done', showPaths: true, hours: plan.finishH, ...still });
     expect(at(4).step).toBe('yourTurn');
   });

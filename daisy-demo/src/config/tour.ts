@@ -41,6 +41,7 @@ export type TourTarget =
   | 'steps'
   | 'speed'
   | 'fleet'
+  | 'follow'
   | 'cost'
   | 'cost-card'
   | 'try-it'
@@ -166,8 +167,9 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'fleet',
       title: 'Plan the survey',
-      body: `Set 1 to ${f.maxVehicles} ${f.vehicle}s and press Send. Each gets its own strip and a drone, online over its own Starlink. ${fleet} take ${f.surveyHours} h on site; more finish sooner.`,
-      targets: ['fleet'],
+      body: `Set 1 to ${f.maxVehicles} ${f.vehicle}s and press Send. Each gets its own strip and a drone, online over its own Starlink. ${fleet} take ${f.surveyHours} h on site; more finish sooner. Follow a ${f.vehicle} to ride along with its drone.`,
+      targets: ['fleet', 'follow'],
+      merge: true,
       tab: 'survey',
     },
     {

@@ -15,6 +15,12 @@ export interface PlayerOptions {
   keyboard?: boolean;
   /** Called by restart(), so the tab can put its inputs back to the defaults (spec 7). */
   onRestart?: () => void;
+  /**
+   * The tab's own time scale at walkthrough time t, on top of the shared speed (1 when absent), for example
+   * while the Survey tab follows a UTV up close (D142). Like the speed, it only rescales the next frames, so t
+   * never jumps.
+   */
+  rate?: (t: number) => number;
 }
 
 /** Keys typed into these elements are theirs, not the player's. */
@@ -31,7 +37,7 @@ function hasKeyboardFocus(el: Element): boolean {
 }
 
 export function usePlayer(steps: WalkStep[], options: PlayerOptions = {}): Player {
-  const { autoplay = false, keyboard = true, onRestart } = options;
+  const { autoplay = false, keyboard = true, onRestart, rate } = options;
   const [state, setState] = useState<ClockState>({ t: 0, playing: autoplay });
   const stepsRef = useRef(steps);
   stepsRef.current = steps;
@@ -42,15 +48,19 @@ export function usePlayer(steps: WalkStep[], options: PlayerOptions = {}): Playe
   const setSpeed = usePlaybackSpeed((s) => s.setSpeed);
   const speedRef = useRef(speed);
   speedRef.current = speed;
+  const rateRef = useRef(rate);
+  rateRef.current = rate;
 
-  // Advance on animation frames while playing, by the frame's wall time times the playback speed.
+  // Advance on animation frames while playing, by the frame's wall time times the playback speed and the tab's rate.
   useEffect(() => {
     if (!state.playing) return;
     let last = performance.now();
     let frame = requestAnimationFrame(function loop(now) {
       const dt = Math.min(UI.player.maxFrameS, Math.max(0, (now - last) / 1000));
       last = now;
-      setState((s) => clock.tick(stepsRef.current, s, dt, speedRef.current));
+      setState((s) =>
+        clock.tick(stepsRef.current, s, dt, speedRef.current * (rateRef.current?.(s.t) ?? 1)),
+      );
       frame = requestAnimationFrame(loop);
     });
     return () => cancelAnimationFrame(frame);

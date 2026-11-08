@@ -480,3 +480,124 @@
   font-size: var(--fs-12);
   color: var(--text-2);
 }
+
+/* Following a UTV (D140, D143): the "Up close" section and the clickable UTVs on the map. */
+.map-canvas.clickable:not(.dragging) {
+  cursor: pointer;
+}
+
+.survey-quiet-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background var(--dur-control) var(--ease),
+    border-color var(--dur-control) var(--ease);
+}
+
+.survey-quiet-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--text-3);
+}
+
+.survey-quiet-btn svg {
+  color: var(--text-2);
+}
+
+.survey-follow-hint {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-11);
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.survey-follow-hint + .survey-quiet-btn {
+  margin-top: var(--sp-3);
+}
+
+.survey-follow-key {
+  padding: 0 var(--sp-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-size: var(--fs-11);
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+/* The chain that keeps the drone online: Starlink, then the UTV, then the drone, joined as the map joins them. */
+.link-chain {
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link-node {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 20px;
+  font-size: var(--fs-13);
+}
+
+.link-name {
+  color: var(--text-1);
+}
+
+.link-status {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.link-glyph {
+  display: block;
+  width: 16px;
+  height: 12px;
+  overflow: visible;
+}
+
+.link-glyph .glyph-neutral {
+  fill: var(--text-2);
+}
+
+.link-glyph .glyph-data {
+  fill: var(--c-data);
+}
+
+.link-glyph .glyph-work {
+  fill: var(--c-work);
+}
+
+.link-glyph .glyph-halo {
+  fill: var(--surface-strong);
+}
+
+.link-glyph .glyph-drone {
+  fill: none;
+  stroke: var(--c-work);
+  stroke-width: 1.1;
+}
+
+/* The links between the glyphs: dashed for the Starlink beam, solid for the drone's link, as on the map. */
+.link-edge {
+  width: 0;
+  height: 10px;
+  margin-left: 7.5px;
+  border-left: 1.25px solid var(--c-data);
+}
+
+.link-edge.starlink {
+  border-left-style: dashed;
+}

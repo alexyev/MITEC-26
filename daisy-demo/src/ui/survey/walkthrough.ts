@@ -31,6 +31,8 @@ export interface SurveyClock {
   durationS: number;
   /** Survey hours at `s` seconds into the step. */
   hoursAt: (s: number) => number;
+  /** How fast those hours pass at `s`, in hours per second of the step: the slope of `hoursAt` (D142). */
+  rateAt: (s: number) => number;
   /** The close-up at `s` seconds into the step, or null outside it. */
   closeUpAt: (s: number) => CloseUp | null;
   /** Hours of work per second of playback at 1x in the close-up (the playback rate when there is none). */
@@ -64,6 +66,7 @@ function buildSurveyClock(plan: SurveyPlan): SurveyClock {
   const plain: SurveyClock = {
     durationS: plan.finishH / fast,
     hoursAt: (s) => Math.min(plan.finishH, Math.max(0, s * fast)),
+    rateAt: (s) => (s < 0 || s >= plan.finishH / fast ? 0 : fast),
     closeUpAt: () => null,
     closeUpHPerS: fast,
   };
@@ -105,6 +108,14 @@ function buildSurveyClock(plan: SurveyPlan): SurveyClock {
     }
     return Math.min(plan.finishH, endH + (s - e) * fast);
   };
+  const rateAt = (s: number): number => {
+    if (s < 0) return 0;
+    if (s <= a) return fast;
+    if (s <= b) return fast - (fast - slow) * smooth((s - a) / c.rampS);
+    if (s <= d) return slow;
+    if (s <= e) return slow + (fast - slow) * smooth((s - d) / c.rampS);
+    return endH + (s - e) * fast >= plan.finishH ? 0 : fast;
+  };
   const blendAt = (s: number): number => {
     if (s <= a || s >= e) return 0;
     if (s < b) return smooth((s - a) / c.rampS);
@@ -114,6 +125,7 @@ function buildSurveyClock(plan: SurveyPlan): SurveyClock {
   return {
     durationS: e + (plan.finishH - endH) / fast,
     hoursAt,
+    rateAt,
     closeUpAt: (s) => {
       const blend = blendAt(s);
       if (blend <= 0) return null;
@@ -193,6 +205,8 @@ export interface SurveyFrame {
   closeUp: CloseUp | null;
   /** Hours of work per second of playback at 1x in this phase: the close-up's or the playback rate. */
   rateHPerS: number;
+  /** How fast the hours pass right now, per second of walkthrough time: 0 while they stand still (D142). */
+  hoursPerS: number;
 }
 
 /** The walkthrough frame at player time `t` (every step but "Your turn"). */
@@ -214,6 +228,7 @@ export function walkthroughFrame(steps: WalkStep[], plan: SurveyPlan, t: number)
     hours: over ? plan.finishH : step === 'survey' ? clock.hoursAt(s) : 0,
     closeUp,
     rateHPerS: closeUp ? clock.closeUpHPerS : plan.config.playbackHoursPerS,
+    hoursPerS: step === 'survey' ? clock.rateAt(s) : 0,
   };
 }
 
@@ -238,6 +253,7 @@ export function yourTurnFrame(
     hours,
     closeUp: null,
     rateHPerS: plan.config.playbackHoursPerS,
+    hoursPerS: mode === 'running' && hours < plan.finishH ? plan.config.playbackHoursPerS : 0,
   };
 }
 

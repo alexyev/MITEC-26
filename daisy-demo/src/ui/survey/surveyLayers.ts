@@ -1,6 +1,7 @@
 // Survey map layers (spec 5, 8): surveyed ground, strip boundaries, the planned paths ahead of each UTV,
 // the UTVs with their online dots, and their drones on a link to them. Pure drawing from the plan and the hour.
-import { SURVEY_VIEW } from '../../config/survey';
+import { UI } from '../../config/defaults';
+import { SURVEY_FOLLOW, SURVEY_VIEW } from '../../config/survey';
 import { droneFlying, surveyedRects, trailPoint, vehicleAt } from '../../engine/survey';
 import type { SurveyLeg, SurveyPlan, VehicleState } from '../../engine/survey';
 import { canvasFont, cssVar } from '../kit/tokens';
@@ -351,10 +352,137 @@ export function drawCloseUpLabels(
     ctx.strokeText(text, x, y);
     ctx.fillText(text, x, y);
   };
-  label(`UTV #${id + 1} · Starlink`, v.sx + gap, v.sy);
+  // Parked in the row by the gate, a label beside the UTV would run over its neighbors: it goes below the row.
+  if (v.state.kind === 'base') {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    label(`UTV #${id + 1} · Starlink`, v.sx, v.sy + gap);
+  } else {
+    label(`UTV #${id + 1} · Starlink`, v.sx + gap, v.sy);
+  }
   if (d) {
     ctx.fillStyle = cssVar('--text-2');
     label(`Drone #${id + 1} · via UTV`, d.sx + gap, d.sy);
   }
+  ctx.restore();
+}
+
+/** Where the Starlink satellite of the follow view sits on screen (D143): up and to the left of the UTV. */
+export function satelliteAt(view: Viewport): { sx: number; sy: number } {
+  const pad = UI.mapFitPaddingPx;
+  const focusX = (pad.left + view.width - pad.right) / 2;
+  return { sx: focusX + SURVEY_FOLLOW.satelliteDxPx, sy: pad.top + SURVEY_FOLLOW.satelliteTopPx };
+}
+
+/**
+ * The followed UTV's links (D143), under the marks: the dashed Starlink beam from the satellite to the UTV's
+ * online dot, its dashes moving up with the data, and one data pulse each way on the drone's link to the UTV.
+ * `phase` (0 to 1) moves them; null, with reduced motion, leaves the dashes still and draws no pulses.
+ */
+export function drawFollowLinks(
+  ctx: CanvasRenderingContext2D,
+  vehicle: VehicleMarker,
+  drone: DroneMarker | undefined,
+  satellite: { sx: number; sy: number },
+  alpha: number,
+  phase: number | null,
+  colors: MapColors,
+): void {
+  if (alpha <= 0) return;
+  const o = SURVEY_VIEW.onlineDotOffsetPx;
+  const dash = SURVEY_FOLLOW.beamDashPx;
+  const period = dash[0] + dash[1];
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.strokeStyle = colors.data;
+  ctx.lineWidth = SURVEY_FOLLOW.beamWidthPx;
+  ctx.lineCap = 'round';
+  ctx.setLineDash(dash);
+  // Drawn from the UTV up, so a growing offset moves the dashes toward the satellite.
+  ctx.lineDashOffset = -(phase ?? 0) * period;
+  ctx.beginPath();
+  ctx.moveTo(vehicle.sx + o, vehicle.sy - o);
+  ctx.lineTo(satellite.sx, satellite.sy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (drone && phase !== null) {
+    const r = SURVEY_FOLLOW.pulseRadiusPx;
+    // Scan data from the drone to the UTV, and commands back, half a cycle apart; each fades at the ends.
+    for (const [u, toUtv] of [
+      [phase, true],
+      [(phase + 1 / 2) % 1, false],
+    ] as const) {
+      const a = toUtv ? drone : vehicle;
+      const b = toUtv ? vehicle : drone;
+      const x = a.sx + (b.sx - a.sx) * u;
+      const y = a.sy + (b.sy - a.sy) * u;
+      ctx.globalAlpha = Math.min(1, alpha) * Math.sin(Math.PI * u);
+      ctx.beginPath();
+      ctx.arc(x, y, r + SURVEY_VIEW.vehicleHaloPx / 2, 0, Math.PI * 2);
+      ctx.fillStyle = colors.halo;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = colors.data;
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/** The Starlink satellite of the follow view (D143): a body between two solar wings, and its name. */
+export function drawSatellite(
+  ctx: CanvasRenderingContext2D,
+  at: { sx: number; sy: number },
+  alpha: number,
+  colors: MapColors,
+): void {
+  if (alpha <= 0) return;
+  const b = SURVEY_FOLLOW.satelliteBodyPx;
+  const wing = SURVEY_FOLLOW.satelliteWingPx;
+  const halo = SURVEY_VIEW.vehicleHaloPx;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.translate(at.sx, at.sy);
+  const shape = (grow: number) => {
+    ctx.beginPath();
+    ctx.rect(-b - grow, -b - grow, 2 * (b + grow), 2 * (b + grow));
+    for (const side of [-1, 1]) {
+      const x0 = side < 0 ? -b - wing.gap - wing.w : b + wing.gap;
+      ctx.rect(x0 - grow, -wing.h / 2 - grow, wing.w + 2 * grow, wing.h + 2 * grow);
+    }
+  };
+  shape(halo);
+  ctx.fillStyle = colors.halo;
+  ctx.fill();
+  shape(0);
+  ctx.fillStyle = cssVar('--text-2');
+  ctx.fill();
+  // The wings' cells: one hairline down the middle of each.
+  ctx.strokeStyle = colors.halo;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (const side of [-1, 1]) {
+    const mid = side * (b + wing.gap + wing.w / 2);
+    ctx.moveTo(mid, -wing.h / 2);
+    ctx.lineTo(mid, wing.h / 2);
+  }
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, b / 2, 0, Math.PI * 2);
+  ctx.fillStyle = colors.data;
+  ctx.fill();
+
+  ctx.font = canvasFont(12, 500);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = halo * 2;
+  ctx.strokeStyle = colors.halo;
+  ctx.fillStyle = cssVar('--text-2');
+  const x = b + wing.gap + wing.w + SURVEY_VIEW.closeUpLabelGapPx;
+  ctx.strokeText('Starlink', x, 0);
+  ctx.fillText('Starlink', x, 0);
   ctx.restore();
 }

@@ -94,27 +94,38 @@ export interface Camera {
   /** Zoom at blend 1, in CSS pixels per meter. */
   pxPerM: number;
   blend: number;
+  /**
+   * The camera this one takes over from (D141): blend 0 is that camera's view rather than the start view, so
+   * one camera move can hand over to another without a jump. Blend 1 does not depend on it.
+   */
+  from?: Camera;
+  /**
+   * Names one camera move (D141). After the viewer takes the view back, a camera with another key starts over
+   * from the viewer's view; the same key stays let go until the camera clears.
+   */
+  key?: string;
 }
 
 /**
  * The view part of the way from `from` to a close view of `camera.target`. The zoom eases geometrically, and
  * the target slides on a straight screen line from where `from` shows it to `focus`, so it never leaves the
- * screen while the map zooms.
+ * screen while the map zooms. With `camera.from`, the move starts from that camera's view of `from` instead.
  */
 export function cameraViewport(
   from: Viewport,
   camera: Camera,
   focus: { sx: number; sy: number },
 ): Viewport {
+  const base = camera.from ? cameraViewport(from, camera.from, focus) : from;
   const f = Math.min(1, Math.max(0, camera.blend));
-  const scale = from.scale * Math.pow(camera.pxPerM / from.scale, f);
-  const start = worldToScreen(from, camera.target.x, camera.target.y);
+  const scale = base.scale * Math.pow(camera.pxPerM / base.scale, f);
+  const start = worldToScreen(base, camera.target.x, camera.target.y);
   const sx = start.sx + (focus.sx - start.sx) * f;
   const sy = start.sy + (focus.sy - start.sy) * f;
   return {
-    ...from,
+    ...base,
     scale,
-    cx: camera.target.x - (sx - from.width / 2) / scale,
-    cy: camera.target.y + (sy - from.height / 2) / scale,
+    cx: camera.target.x - (sx - base.width / 2) / scale,
+    cy: camera.target.y + (sy - base.height / 2) / scale,
   };
 }

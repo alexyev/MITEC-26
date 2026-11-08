@@ -99,6 +99,38 @@ export const SURVEY_CLOSE_UP = {
   holdS: 5,
 };
 
+/**
+ * Following a UTV (D140-D143): the viewer zooms in on one UTV, and the camera stays on it as it drives, with its
+ * drone behind it on its link and Starlink above it.
+ */
+export const SURVEY_FOLLOW = {
+  /** Zoom while following, in CSS pixels per meter: passes 40 m apart are 96 px apart, the drone 43 px behind. */
+  pxPerM: 2.4,
+  /**
+   * How fast the ground passes under the UTV on a survey pass at 1x, in CSS pixels per second (D142): 25 m/s,
+   * about 4.5 times real time, so 1 s plays about 4.5 s of work.
+   */
+  screenSpeedPxS: 60,
+  /** Seconds of wall time to ease in and back out, and to switch to another UTV (D141). */
+  easeS: 1.2,
+  switchS: 1,
+  /**
+   * The Starlink satellite of the link view (D143): this far left of the followed UTV (the labels are on its
+   * right, so the beam never crosses them), and this far below the top of the area between the panels.
+   */
+  satelliteDxPx: -150,
+  satelliteTopPx: 30,
+  /** The satellite mark: its body, and the solar wing on each side. */
+  satelliteBodyPx: 4,
+  satelliteWingPx: { w: 9, h: 5, gap: 2 },
+  /** The uplink beam: dashed, its dashes moving up one dash period every `pulseWorkS` of work. */
+  beamDashPx: [3, 4],
+  beamWidthPx: 1.25,
+  /** Data pulses on the drone's link, one each way: each crosses the link in this many seconds of work. */
+  pulseWorkS: 5,
+  pulseRadiusPx: 2.25,
+};
+
 /** Survey map (spec 5, 6.6): sizes in CSS pixels. Colors come from tokens.css; zoom and fit from MAP and UI. */
 export const SURVEY_VIEW = {
   /** Planned paths: dashed, and at least this far apart on screen (closer passes are thinned out). */

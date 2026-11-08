@@ -243,18 +243,18 @@
 @keyframes daisy-pop {
   0% {
     opacity: 0;
-    transform: scale(0.4) rotate(-24deg);
+    transform: scale(0.4) rotate(-300deg);
     animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
   }
 
   45% {
     opacity: 1;
-    transform: scale(1.07) rotate(3deg);
+    transform: scale(1.07) rotate(8deg);
     animation-timing-function: ease-in-out;
   }
 
   72% {
-    transform: scale(0.98) rotate(-1deg);
+    transform: scale(0.98) rotate(-2deg);
     animation-timing-function: ease-in-out;
   }
 
@@ -264,8 +264,21 @@
   }
 }
 
+.daisy-spin {
+  /* The origin is user-space (0, 0), the flower's center. After the twirl-in lands, a calm turn every 24 s. */
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: daisy-spin 24s linear 1560ms infinite;
+}
+
+@keyframes daisy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .daisy-petal {
-  fill: none;
+  fill: var(--daisy-petal-fill);
   stroke: var(--daisy-petal);
   stroke-width: 2.7;
   /* The ellipse's left edge is the flower's center, so each petal grows outward from it. */
@@ -601,6 +614,7 @@
     animation-timing-function: var(--ease);
   }
 
+  .daisy-spin,
   .daisy-petal,
   .daisy-center,
   .tour-ring.active,

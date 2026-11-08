@@ -310,6 +310,10 @@ describe('home screen (D90)', () => {
     expect(daisy.querySelectorAll('ellipse.daisy-petal')).toHaveLength(5);
     expect(daisy.querySelectorAll('circle.daisy-center')).toHaveLength(1);
     expect(daisy.querySelectorAll('rect, image')).toHaveLength(0);
+    // One group turns the whole flower about its center; the lede explains the name.
+    expect(daisy.querySelectorAll('g.daisy-spin ellipse.daisy-petal')).toHaveLength(5);
+    expect(daisy.querySelectorAll('g.daisy-spin circle.daisy-center')).toHaveLength(1);
+    expect(home.querySelector('.home-lede')!.textContent).toContain('daisy-chained');
   });
 
   it('credits the site by its bare domain on the home screen and the map, in a new tab (D130)', () => {

@@ -1,6 +1,6 @@
 // The daisy on the home screen (D130): five outlined petals around a filled center, drawn after the
 // captain's reference. The background stays transparent, and the colors come from tokens.css through
-// guide.css. Petals are listed clockwise from the upper left, the order they bloom in.
+// guide.css. The whole flower sits in one group that turns slowly about its center. Petals are listed clockwise from the upper left, the order they bloom in.
 import type { CSSProperties } from 'react';
 
 /** Petal directions in degrees, clockwise from +x (SVG y points down): one petal points straight down. */
@@ -18,19 +18,21 @@ export function Daisy({ className }: { className?: string }) {
       aria-hidden="true"
       focusable="false"
     >
-      {PETAL_ANGLES.map((angle, i) => (
-        <g key={angle} transform={`rotate(${angle})`}>
-          <ellipse
-            className="daisy-petal"
-            style={{ '--i': i } as CSSProperties}
-            cx={PETAL.rx}
-            cy={0}
-            rx={PETAL.rx}
-            ry={PETAL.ry}
-          />
-        </g>
-      ))}
-      <circle className="daisy-center" r={CENTER_R} />
+      <g className="daisy-spin">
+        {PETAL_ANGLES.map((angle, i) => (
+          <g key={angle} transform={`rotate(${angle})`}>
+            <ellipse
+              className="daisy-petal"
+              style={{ '--i': i } as CSSProperties}
+              cx={PETAL.rx}
+              cy={0}
+              rx={PETAL.rx}
+              ry={PETAL.ry}
+            />
+          </g>
+        ))}
+        <circle className="daisy-center" r={CENTER_R} />
+      </g>
     </svg>
   );
 }

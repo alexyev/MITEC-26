@@ -30,15 +30,16 @@ async function daisyPng() {
   s.addImage({ data: await daisyPng(), x: 8.95, y: 0.3, w: 0.5, h: 0.5, objectName: "Daisy", altText: "Daisy logo" });
 
   const cols = [
-    { icon: FiClock, q: "How long does it take", big: "~76", bigUnit: " acres/hr", label: "per vehicle · 15 km/h · 30 m strip",
+    { icon: FiClock, q: "How long does it take", big: "~76", bigUnit: " acres/hr", label: "per vehicle at 15 km/h (9 mph)",
       colW: [0.8, 0.95], table: [["Vehicles", "Field hours", "Days"], ["1", "26.4", "3.1"], ["2", "13.2", "1.6"], ["3", "8.8", "1.0"], ["5", "5.3", "0.6"]] },
     { icon: FiDollarSign, q: "How much does this cost", big: "~$244k", label: "per vehicle",
       lines: ["4x4 + self-driving kit: $122k", "Sensing (lidar, GPS/inertial, software): $120k", "Starlink, 2 terminals: $2.6k + $350/mo"] },
     { icon: FiCrosshair, q: "How fine of a scan we can get", big: "5 cm", label: "ground point spacing, ≥ 400 pts/m²",
       table: [["Axis", "Spacing", "Accuracy"], ["X (along)", "≤ 5 cm", "≈ 2 cm"], ["Y (across)", "≤ 5 cm", "≈ 2 cm"], ["Z (height)", "—", "≈ 3–5 cm"]],
-      colW: [0.9, 0.68] },
+      colW: [0.9, 0.68],
+      lines: ["Lidar: 2.6 M points/s", "At 15 km/h: line every ~6 mm", "Across: ≤ 5 cm to 15 m/side"] },
   ];
-  const x0 = 0.5, gap = 0.3, w = (9 - 2 * gap) / 3, y0 = 1.25, h = 3.55;
+  const x0 = 0.5, gap = 0.3, w = (9 - 2 * gap) / 3, y0 = 1.15, h = 3.72;
   for (let i = 0; i < 3; i++) {
     const c = cols[i], x = x0 + i * (w + gap), pad = 0.22;
     s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x, y: y0, w, h, rectRadius: 0.12, fill: { color: CARD },
@@ -56,9 +57,12 @@ async function daisyPng() {
     if (c.table) {
       const hdr = { bold: true, color: INK, fill: { color: "F3EFE3" } };
       s.addTable(c.table.map((r, ri) => r.map(t => ({ text: t, options: ri === 0 ? hdr : {} }))),
-        { x: x + pad, y: y0 + 2.0, w: w - 2 * pad, colW: [c.colW[0], c.colW[1], w - 2 * pad - c.colW[0] - c.colW[1]], rowH: 0.24, fontFace: "Arial",
+        { x: x + pad, y: y0 + 1.95, w: w - 2 * pad, colW: [c.colW[0], c.colW[1], w - 2 * pad - c.colW[0] - c.colW[1]], rowH: 0.24, fontFace: "Arial",
           fontSize: 11, color: BODY, align: "center", valign: "middle", margin: 0.02,
           border: { type: "solid", pt: 0.5, color: LINE }, objectName: `Table ${i + 1}` });
+      if (c.lines) s.addText(c.lines.map((t, j) => ({ text: t, options: { breakLine: j < c.lines.length - 1 } })),
+        { x: x + pad, y: y0 + 3.0, w: w - 2 * pad, h: 0.62, fontFace: "Arial", fontSize: 11, color: BODY, valign: "top",
+          margin: 0, paraSpaceAfter: 2, isTextBox: true, objectName: `How ${i + 1}` });
       continue;
     }
     s.addText(c.lines.map((t, j) => ({ text: t, options: { bullet: { indent: 12 }, breakLine: j < c.lines.length - 1 } })),

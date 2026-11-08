@@ -164,7 +164,7 @@ export const PERF_TARGETS_MS = {
  */
 export const UI = {
   /** Brand chip at the top left and the browser tab title (index.html), by the captain's request. */
-  brand: 'Exowatt: Scaling Deployment',
+  brand: 'Exowatt: Daisy Does It',
   /** Credit at the bottom center of the map and the home screen (spec 6.2, D130): the site's bare domain, in a new tab. */
   credit: { label: 'alexanderyevchenko.com', url: 'https://alexanderyevchenko.com' },
   /** Network cost card: where "?" explains the radio technology, and the proof that mesh runs autonomous mines. */

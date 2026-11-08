@@ -2,7 +2,7 @@
 // and dimmed, with the daisy on the right. "Open the demo" leaves it with a same-page transition into the
 // map, then the tour starts unless this viewer already finished or skipped it; the brand chip at the top
 // left reopens it.
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { HOME } from '../../config/tour';
 import { UI } from '../../config/defaults';
@@ -11,9 +11,6 @@ import { prefersReducedMotion } from '../kit/tokens';
 import { Daisy, DaisyBurst } from './Daisy';
 import { tourFacts } from './facts';
 import './guide.css';
-
-/** The subheader under the title, revealed a word at a time once the title lands (D130). */
-const TAGLINE = ['Daisy', 'Does', 'It!'];
 
 /** Keys the player listens to on the window; the map behind the home screen must not react to them. */
 const PLAYER_KEYS = new Set([' ', 'ArrowLeft', 'ArrowRight']);
@@ -88,16 +85,6 @@ function HomeScreen() {
         <h1 className="home-title" id="home-title">
           {UI.brand}
         </h1>
-        <p className="home-sub">
-          {TAGLINE.map((word, i) => (
-            <span key={word}>
-              {i > 0 ? ' ' : null}
-              <span className="home-sub-word" style={{ '--i': i } as CSSProperties}>
-                {word}
-              </span>
-            </span>
-          ))}
-        </p>
         <p className="home-lede" id="home-lede">
           A {f.acres}-acre site holds {f.units} P3 units, and every machine that surveys and builds
           it needs a link. {f.vehicle}s with lidar and drones survey the ground over Starlink. Then

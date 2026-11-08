@@ -234,7 +234,7 @@ Planned units are outlines once they are `MAP.unitOutlineFromPx` (4 px) or more 
 - The readout card has one row for the site (acres and units) and one for elapsed and total hours, and puts the hourly rate next to the 4x4-hours, so the whole card, survey cost included, fits at 1280 x 720 without scrolling.
 - The Done caption reads "Done in 16 h with 3 4x4s. ..." so it fits on one line of the player bar.
 - The kit has no text button, so the Send button is styled in `src/ui/survey/survey.css` from the tokens (spec 6.5: 32 px, radius 8, light fill, dark text).
-- By the captain's request the brand chip and the browser tab title read "Exowatt: Scaling Deployment" (`UI.brand`, `index.html`).
+- By the captain's request the brand chip and the browser tab title read "Exowatt: Daisy Does It" (`UI.brand`, `index.html`).
 
 ## D37 - The site has a ground tint (T3.4 polish)
 
@@ -632,7 +632,7 @@ The captain asked to say UTV instead of 4x4, to show what a survey UTV would loo
 The app opens on a short home screen, modeled on the Schoolscape landing in craft but not in color.
 
 - It is not a separate page: the map loads underneath and shows through, blurred and dimmed (`--home-scrim`), and the home screen is a dialog over the shell; the shell behind it is `inert`.
-- It holds the "Exowatt: Scaling Deployment" title, two sentences on what the demo shows (the site's acres and units, the survey, the radio mesh and the reroute, all read from the code), one line on the two tabs, the primary "Open the demo" and a quiet second action, and a footer with how to reopen it and the credit.
+- It holds the "Exowatt: Daisy Does It" title, two sentences on what the demo shows (the site's acres and units, the survey, the radio mesh and the reroute, all read from the code), one line on the two tabs, the primary "Open the demo" and a quiet second action, and a footer with how to reopen it and the credit.
 - The title is set at 40 px (`--fs-40`), the one display size outside the spec's 11 to 20 px scale (6.4); nothing else on the home screen goes above 16 px.
 - Leaving it is a same-page transition of 720 ms (`--dur-home`, `HOME.transitionMs`): the column lifts and fades, the backdrop fades, the map comes into focus from a slight zoom, and the top row and docks slide in from their edges, moving only transform, filter and opacity. Under reduced motion it is a 200 ms crossfade with nothing moving.
 - The brand chip at the top left is now a button that reopens it (the map blurs again and the panels step away); Escape leaves it for the map.
@@ -718,3 +718,6 @@ The captain asked for a shorter home screen with more character, and for the cre
 - **Credit.** `UI.credit.label` is "alexanderyevchenko.com", linking to https://alexanderyevchenko.com in a new tab, at the bottom center of the map and of the home screen; the home screen's credit sits exactly where the map's lands, so it stays put as the page gives way to the map.
   No "by Alexander Yevchenko" wording is left in the app or the README.
 - **Tests** (`tests/guide.test.tsx`): the column reads title, subheader, lede and actions and none of the removed copy; the daisy is decorative with five petals, a center and no background shape; both credits read the bare domain and open the site in a new tab.
+
+- **Update (brand rename, captain's request).** The brand reads "Exowatt: Daisy Does It" (`UI.brand`, the tab title, the README, the home title), and the home screen's "Daisy Does It!" subheader and its word reveal are gone: the title slides in, then the lede (20 px below it) and the actions.
+  The brand chip carries a small still daisy (24 px, the same `Daisy` drawing with `.daisy-logo`, no spin or entry) to the left of the text.

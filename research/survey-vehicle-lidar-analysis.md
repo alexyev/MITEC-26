@@ -371,6 +371,41 @@ Choose electric only if the site already has a charging trailer. It costs **$37,
 | Payload power | 0.53 kW | EV runtime, aux battery size |
 | VMX-2HA price | $600k | Tier S capex. Range $250k–$1.2M |
 
+## 12. Follow-up (Nov 8): Starlink, drone or 4x4, and a coarser resolution
+
+**Mapping does not need Starlink, on a drone or on a 4x4.** Mapping systems record raw data on board. Positioning works without internet in two ways:
+- **PPK:** a local base station (Emlid RS3) logs GNSS data, and both logs are combined after the survey.
+- **RTK:** the base station sends corrections over its own radio (the RS3 has a built-in LoRa radio).
+
+So a drone needs no Starlink and no 4x4 following it. Starlink is useful for one thing only: **watching an autonomous ground vehicle remotely**. That means telemetry, the camera feed and the e-stop status.
+
+**"25 cm²" is ambiguous:**
+- **5 cm × 5 cm cells:** this is the §10 spec.
+- **25 cm × 25 cm cells:** acceptable for the elevation grid of a grading design.
+
+**The second reading makes the ground survey no faster.** In §4.2 the coverage rate stops rising at spacings above about 3.5 cm, because vehicle speed and reach set the limit, not the sensor. Both readings take 26 field hours with one vehicle. **The spec that matters is vertical accuracy (RMSEz ≤ 5 cm), not grid size.**
+
+**Drone or 4x4: simplest path to a good result**
+
+| | Drone (human pilot, FAA Part 107) | Autonomous 4x4 |
+|---|---|---|
+| Hardware | ≈ $47k, off the shelf | ≈ $272k (Tier E, 1 vehicle + base) |
+| Autonomy | Built-in mission planning | $100k by-wire kit, obstacle detection, remote supervision |
+| Sensor integration | Factory-integrated | Lidar-to-INS calibration, time sync, mounting (unless you buy an integrated MLS) |
+| Field time, 2,000 ac | 3–4 flights at the published setting; more if flown lower | ≈ 26 h, 337 km of lines |
+| View of the ground in brush | From above, through gaps | From the side, with a shadow behind every bush |
+| Starlink | Not needed | Optional, for supervision only |
+
+**Recommendation:**
+- **Simplest:** the drone.
+- **If you choose the 4x4** (for example, because the vehicles will also do repeated surveys during the build), keep it minimal:
+  1. One gasoline UTV.
+  2. One **factory-integrated** lidar + GNSS/INS unit, so you avoid your own calibration.
+  3. One local base station, processed by PPK.
+  4. No SLAM.
+  5. A Starlink Mini only if the vehicle drives itself.
+- **Autonomy for a single survey:** the $100k autonomy kit does not pay off; a human driver is far cheaper.
+
 ## Sources
 
 - RIEGL VUX-1HA datasheet (1 MHz, 10–250 scans/s, 5 mm accuracy, 3 mm precision, 0.5 mrad): [rieglusa.com PDF](https://www.rieglusa.com/wp-content/uploads/vux-1ha-datasheet1.pdf), [VUX-1HA-22 page](https://www.riegl.com/en-uk/products/detail/riegl-vux-1ha-22)

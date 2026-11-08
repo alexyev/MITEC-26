@@ -1,6 +1,7 @@
 // The Build & failure scene at time t (spec 9.2 to 9.7): build state, network, packets, queues, routes and
 // stress-test numbers, all computed from the inputs and t, never accumulated frame by frame (spec rule 6).
-import { PLAY, PLAY_VIEW, PLAY_WALK, type EquipmentGlyph } from '../../config/play';
+import { PLAY_WALK } from '../../config/play';
+import { machinesAt, type CoverageSpan, type Machine } from '../../engine/machines';
 import { computeNetwork, type Graph, type NetworkState } from '../../engine/network';
 import {
   failedAt,
@@ -16,11 +17,10 @@ import {
   type SimStats,
 } from '../../engine/packetSim';
 import {
+  buildClockAt,
   buildStateAt,
-  buildStepAt,
-  frontierAt,
   RadioBuild,
-  type FrontierLane,
+  type BuildClock,
   type PlayModel,
 } from '../../engine/playModel';
 import type { BuildTimeline } from './walkthrough';
@@ -36,25 +36,13 @@ export interface FailureView {
   affected: { source: number; oldPath: number[] }[];
 }
 
-/** One machine or crew at the frontier, in world meters. */
-export interface Equipment {
-  glyph: EquipmentGlyph;
-  phase: number;
-  lane: number;
-  x: number;
-  y: number;
-  /** Inside the coverage of a connected radio or the base. */
-  online: boolean;
-}
-
 export interface Scene {
   t: number;
-  /** Build step, and the progress through it (0 to 1) for the equipment's motion. */
-  step: number;
-  stepFrac: number;
-  /** Lanes under frontier work (D49). */
-  frontier: FrontierLane[];
-  equipment: Equipment[];
+  /** Seconds since the start of the build, and the stage and phase at work then (D51). */
+  buildS: number;
+  clock: BuildClock;
+  /** Frontier machines: working inside coverage, stopped and offline outside it (D51). */
+  machines: Machine[];
   unitPlaced: Uint8Array;
   /** RadioBuild per radio. */
   radioBuild: Uint8Array;
@@ -97,25 +85,25 @@ export function sceneAt(
   sim: SimResult,
   t: number,
 ): Scene {
-  const step = buildStepAt(model, t - timeline.buildStartS);
-  const stepFrac =
-    step >= model.lastStep
-      ? 0
-      : Math.min(1, Math.max(0, (t - timeline.buildStartS) / PLAY.buildStepS - step));
-  const { unitPlaced, radioState } = buildStateAt(model, step);
+  const buildS = t - timeline.buildStartS;
+  const clock = buildClockAt(model, buildS);
+  const { unitPlaced, radioState } = buildStateAt(model, buildS);
   const radioOnS = new Float64Array(model.radios.length).fill(Infinity);
   for (const r of model.radios) {
-    if (radioState[r.id] === RadioBuild.On) {
-      radioOnS[r.id] = timeline.buildStartS + r.onStep * PLAY.buildStepS;
-    }
+    if (radioState[r.id] === RadioBuild.On) radioOnS[r.id] = timeline.buildStartS + r.onS;
   }
   const traffic = t >= timeline.dataStartS;
-  const failed = traffic ? failedAt(sim, t) : new Uint8Array(graph.nodeCount);
-  const alive = new Uint8Array(model.radios.length);
-  for (let i = 0; i < alive.length; i++) {
-    alive[i] = radioState[i] === RadioBuild.On && !failed[i] ? 1 : 0;
-  }
-  const network = networkFor(graph, alive);
+  const failedAtTime = (time: number) =>
+    time >= timeline.dataStartS ? failedAt(sim, time) : new Uint8Array(graph.nodeCount);
+  const networkAt = (failedNow: Uint8Array) => {
+    const alive = new Uint8Array(model.radios.length);
+    for (let i = 0; i < alive.length; i++) {
+      alive[i] = radioState[i] === RadioBuild.On && !failedNow[i] ? 1 : 0;
+    }
+    return networkFor(graph, alive);
+  };
+  const failed = failedAtTime(t);
+  const network = networkAt(failed);
 
   const failures: FailureView[] = [];
   let latest: FailureView | null = null;
@@ -188,15 +176,27 @@ export function sceneAt(
     };
   }
 
-  const frontier = frontierAt(model, step);
-  const equipment = frontierEquipment(model, graph, network, frontier, stepFrac);
+  const machines =
+    clock.done || buildS < 0
+      ? []
+      : machinesAt(
+          model,
+          graph,
+          clock,
+          coverageSpans(
+            sim,
+            timeline.buildStartS + clock.phaseStartS,
+            model.stages[clock.stage].phaseS,
+            t,
+            (time) => networkAt(failedAtTime(time)).connected,
+          ),
+        );
 
   return {
     t,
-    step,
-    stepFrac,
-    frontier,
-    equipment,
+    buildS,
+    clock,
+    machines,
     unitPlaced,
     radioBuild: radioState,
     radioOnS,
@@ -216,51 +216,31 @@ export function sceneAt(
 }
 
 /**
- * The machines of every frontier lane. Each drives the length of its lane once per build step, south to
- * north or back, alternating by lane and phase; lanes beside the base yard work only north of the yard.
+ * The network through the current phase, split where a radio fails or is repaired, as shares of the phase.
+ * Radios switch on only at stage ends, so the build itself never splits a phase.
  */
-function frontierEquipment(
-  model: PlayModel,
-  graph: Graph,
-  network: NetworkState,
-  frontier: FrontierLane[],
-  frac: number,
-): Equipment[] {
-  const out: Equipment[] = [];
-  const yard = model.base.yard;
-  const margin = PLAY_VIEW.equipmentMarginM;
-  for (const f of frontier) {
-    const x = (f.lane + 1 / 2) * model.lanePitchM;
-    const besideYard = x > yard.x && x < yard.x + yard.w;
-    const y0 = (besideYard ? yard.y + yard.h : 0) + margin;
-    const y1 = model.heightM - margin;
-    const phases = model.config.frontierPhases;
-    // Machines of different phases are spread along their lanes, so a face reads as layers, not a train.
-    const u = (frac + f.phase / phases.length) % 1;
-    const northward = f.lane % 2 === 0;
-    const along = northward ? u : 1 - u;
-    const glyphs = phases[f.phase].glyphs;
-    glyphs.forEach((glyph, i) => {
-      // A second machine of the same phase (the carrier behind the crane) trails the first.
-      const trail = i * PLAY_VIEW.equipmentTrailM * (northward ? -1 : 1);
-      const y = Math.min(y1, Math.max(y0, y0 + (y1 - y0) * along + trail));
-      out.push({
-        glyph,
-        phase: f.phase,
-        lane: f.lane,
-        x,
-        y,
-        online: inCoverage(graph, network, x, y),
-      });
+function coverageSpans(
+  sim: SimResult,
+  phaseStartS: number,
+  phaseS: number,
+  t: number,
+  connectedAt: (time: number) => Uint8Array,
+): CoverageSpan[] {
+  const frac = (time: number) => Math.min(1, Math.max(0, (time - phaseStartS) / phaseS));
+  const cuts = new Set<number>();
+  for (const spans of sim.down) {
+    for (const d of spans) {
+      for (const time of [d.from, d.to]) if (time > phaseStartS && time < t) cuts.add(time);
+    }
+  }
+  const times = [phaseStartS, ...Array.from(cuts).sort((a, b) => a - b), t];
+  const out: CoverageSpan[] = [];
+  for (let i = 0; i + 1 < times.length; i++) {
+    out.push({
+      fromFrac: frac(times[i]),
+      toFrac: frac(times[i + 1]),
+      connected: connectedAt(times[i]),
     });
   }
   return out;
-}
-
-function inCoverage(graph: Graph, network: NetworkState, x: number, y: number): boolean {
-  for (let id = 0; id < graph.nodeCount; id++) {
-    if (!network.connected[id]) continue;
-    if (Math.hypot(graph.x[id] - x, graph.y[id] - y) <= PLAY.coverageRadiusM) return true;
-  }
-  return false;
 }

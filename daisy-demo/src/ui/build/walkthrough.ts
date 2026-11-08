@@ -7,7 +7,7 @@ import { presetFailS, simulate, statsAt } from '../../engine/packetSim';
 import type { NetworkCost } from '../../engine/pricing';
 import { formatUsd } from '../survey/format';
 import { formatShare } from './format';
-import { buildDurationS, type PlayModel } from '../../engine/playModel';
+import type { PlayModel } from '../../engine/playModel';
 import { stepStarts } from '../player/clock';
 import type { WalkStep } from '../player/types';
 
@@ -38,9 +38,10 @@ export function buildTimeline(
   cost: CostSummary = null,
 ): BuildTimeline {
   const { watched: watchedRadio, failed: failedRadio } = presetRadios(model, graph);
-  const buildS = buildDurationS(model) + PLAY_WALK.buildHoldS;
-  // The build step shows the frontier layers; the power step starts when the first radio switches on.
-  const firstRadioS = Math.min(...model.radios.map((r) => r.onStep)) * PLAY.buildStepS;
+  const buildS = model.buildS + PLAY_WALK.buildHoldS;
+  // The build step shows the first stage, inside the base's coverage; the power step starts when its
+  // radios switch on and the coverage grows.
+  const firstRadioS = Math.min(...model.radios.map((r) => r.onS));
   const buildStartS = PLAY_WALK.sectionS;
   const dataStartS = buildStartS + buildS + PLAY_WALK.coverageS;
   const failS = presetFailS(graph, failedRadio, dataStartS + PLAY_WALK.dataS);
@@ -85,13 +86,15 @@ export function buildTimeline(
     {
       id: 'build',
       label: 'Build',
-      caption: 'Work moves out from the center in layers: grade, piles, trench, place, connect.',
+      caption:
+        "Stage 1 works only inside the base's coverage: grade, piles, trench, place, connect.",
       durationS: firstRadioS,
     },
     {
       id: 'power',
       label: 'Power',
-      caption: 'Each radio switches on once its unit has power, so the frontier stays online.',
+      caption:
+        'Each finished stage switches its radios on; coverage grows and the next stage starts.',
       durationS: buildS - firstRadioS,
     },
     {
@@ -109,7 +112,7 @@ export function buildTimeline(
     {
       id: 'failure',
       label: 'Failure',
-      caption: 'This radio fails.',
+      caption: "This radio fails. Its neighbors' circles overlap, so the ground stays covered.",
       durationS: firstMissS - failS,
     },
     {

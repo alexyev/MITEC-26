@@ -10,6 +10,12 @@ export interface CellRef {
 /** Equipment marks drawn for a frontier phase. */
 export type EquipmentGlyph = 'dozer' | 'pileRig' | 'trencher' | 'carrier' | 'crane' | 'crew';
 
+/** A machine or crew at the frontier: its name and what it is doing, for the hover card (D51). */
+export interface EquipmentInfo {
+  name: string;
+  task: string;
+}
+
 /** One construction phase at the build frontier (D49). */
 export interface FrontierPhase {
   id: 'grading' | 'foundations' | 'trenching' | 'placement' | 'connection';
@@ -28,23 +34,30 @@ export interface PlayConfig {
   lanesPerCell: number;
   /** Lane pitch as on the full site; unit size and gap come from SITE. */
   rowPitchM: number;
-  /** Two grid neighbors link when they are at most this far apart; the base links to any radio in range. */
+  /**
+   * Two grid neighbors link when they are at most this far apart; the base links to any radio in range.
+   * Real numbers scaled to the play model (D51): the default HaLow setup's reliable range over the full-site
+   * spacing of its radio columns, times the play model's column spacing; tests/buildTab.test.ts keeps it so.
+   */
   linkRangeM: number;
-  /** Ground coverage radius of a connected radio and of the base. */
+  /** Ground coverage radius of a connected radio and of the base: the same reliable range, scaled (D51). */
   coverageRadiusM: number;
   coverageTargetPct: number;
   /** Spacing of the coverage sample grid. */
   coverageSampleM: number;
-  /** Playback time per build step. */
-  buildStepS: number;
-  /** Build steps from placing a unit to its radio switching on. */
-  commissionLagSteps: number;
   /**
-   * Construction phases at the frontier, outermost first: each takes one build step per lane, the
-   * placement phase is the step a lane's units are placed, and connection lasts until the radio is on.
-   * Illustrative, after the team's research of the challenge video; Exowatt has not published a method.
+   * The staged build (D51): every stage works the unbuilt ground inside the coverage, phase after phase, with
+   * `teamsPerFace` teams of each phase on each face. A phase lasts `unitWorkS` per unit of the longest team
+   * route, and at least `minPhaseS`; when the stage's connection phase ends its radios switch on.
+   */
+  build: { teamsPerFace: number; unitWorkS: number; minPhaseS: number };
+  /**
+   * Construction phases of a stage, in order. Illustrative, after the team's research of the challenge
+   * video; Exowatt has not published a method.
    */
   frontierPhases: FrontierPhase[];
+  /** Frontier machines (D51): the name and task of every kind of machine, for the hover card. */
+  equipment: { kinds: Record<EquipmentGlyph, EquipmentInfo> };
   /** Each connected radio sends one packet per interval. */
   packetIntervalS: number;
   /** Playback time per hop ("Packets slowed for visibility"). */
@@ -77,12 +90,11 @@ export const PLAY: PlayConfig = {
   unitsPerCell: 4,
   lanesPerCell: 3,
   rowPitchM: 21.0,
-  linkRangeM: 75,
-  coverageRadiusM: 46,
+  linkRangeM: 77,
+  coverageRadiusM: 77,
   coverageTargetPct: 95,
   coverageSampleM: 2,
-  buildStepS: 0.7,
-  commissionLagSteps: 2,
+  build: { teamsPerFace: 3, unitWorkS: 0.035, minPhaseS: 0.55 },
   frontierPhases: [
     { id: 'grading', label: 'Grading', equipment: 'Dozer', glyphs: ['dozer'] },
     { id: 'foundations', label: 'Foundations', equipment: 'Pile rig', glyphs: ['pileRig'] },
@@ -95,6 +107,16 @@ export const PLAY: PlayConfig = {
     },
     { id: 'connection', label: 'Connection', equipment: 'Crew', glyphs: ['crew'] },
   ],
+  equipment: {
+    kinds: {
+      dozer: { name: 'Dozer', task: 'Leveling the strip' },
+      pileRig: { name: 'Pile rig', task: 'Driving piles' },
+      trencher: { name: 'Trencher', task: 'Digging the cable trench' },
+      carrier: { name: 'Carrier', task: 'Bringing P3 units' },
+      crane: { name: 'Crane', task: 'Lifting units onto piles' },
+      crew: { name: 'Crew', task: 'Connecting and testing' },
+    },
+  },
   packetIntervalS: 1.0,
   hopS: 0.15,
   queueFlushIntervalS: 0.05,
@@ -108,7 +130,7 @@ export const PLAY: PlayConfig = {
 /** Walkthrough of the Build & failure tab (spec 9.8): step durations in playback seconds. */
 export const PLAY_WALK = {
   sectionS: 4,
-  /** The build plays one step per `buildStepS`, then holds the finished build for this long. */
+  /** The build plays its stages, then holds the finished build for this long. */
   buildHoldS: 0.7,
   coverageS: 4,
   /** Planned length of the data step; it stretches to the failed radio's next hello (D44). */
@@ -124,13 +146,19 @@ export const PLAY_VIEW = {
   radioHaloPx: 1.5,
   hitRadiusPx: 12,
   hoverRingPx: 7,
-  failCrossPx: 5,
+  failCrossPx: 4,
+  /** A failed radio's ring around its cross (D55). */
+  failRingPx: 8,
   cutOffRingPx: 4.5,
-  packetPx: 2.5,
+  /** Packets (D55): larger than the route is wide, on a dark ring. */
+  packetPx: 4,
+  packetHaloPx: 2,
   linkWidthPx: 1,
-  routeWidthPx: 2.5,
+  routeWidthPx: 3,
+  /** Dark casing on each side of a live route, so it stands off the links and the coverage (D55). */
+  routeCasingPx: 1.5,
   oldRouteWidthPx: 1.5,
-  oldRouteDashPx: [4, 4],
+  oldRouteDashPx: [5, 4],
   coverageEdgePx: 1,
   /** A radio's coverage circle scales in over this time when it comes online (spec 6.7). */
   radioFadeInS: 0.3,
@@ -152,14 +180,23 @@ export const PLAY_VIEW = {
   yardAlpha: 0.35,
   /** Half size of the base marker; larger than on the full-site map, since the base has its own yard. */
   baseMarkerPx: 7,
-  /** Frontier layers (D49): band tint, how far machines stay from the lane ends, the carrier's trail. */
+  /** Frontier layers (D49): band tint. */
   phaseBandAlpha: 0.08,
-  equipmentMarginM: 12,
-  equipmentTrailM: 18,
-  /** Equipment marks: half size in CSS px (the glyphs are drawn on a grid of +-glyphHalfUnits), and the online dot. */
-  equipmentPx: 5,
+  /**
+   * Machine marks (D51): a dark rounded tile with the machine's glyph, the glyph's half size in CSS px (drawn
+   * on a grid of +-glyphHalfUnits), the online dot, the offline ring, and the hit radius for the hover card.
+   */
+  machineTilePx: 11,
+  machineTileCornerPx: 4,
+  equipmentPx: 7,
   glyphHalfUnits: 6,
-  onlineDotPx: 2,
+  onlineDotPx: 3,
+  offlineRingPx: 3,
+  machineHitPx: 13,
+  /** Work cue of a working machine: a ring that grows from the tile and fades, once per period. */
+  workPulseS: 1.4,
+  workPulsePx: 9,
+  workPulseAlpha: 0.45,
   /** Phase labels above the east face: row height, gap above the coverage, leader alpha. */
   phaseLabelRowPx: 14,
   phaseLabelGapPx: 6,

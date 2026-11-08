@@ -36,12 +36,16 @@ export interface SectionProps {
 export interface SegmentedOption<V extends string = string> {
   value: V;
   label: string;
+  /** Tooltip and accessible name when the label alone is terse (for example "1×"). */
+  title?: string;
 }
 export interface SegmentedProps<V extends string = string> {
   options: SegmentedOption<V>[];
   value: V;
   onChange: (value: V) => void;
   ariaLabel?: string;
+  /** 'compact' sits flat inside a panel, 28 px high (the player bar's speed control). */
+  size?: 'default' | 'compact';
 }
 
 /** <Stepper min max value onChange label />: minus, value, plus (spec 6.5). */

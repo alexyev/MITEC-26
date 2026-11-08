@@ -1,7 +1,7 @@
 // Canvas drawing of the play-model map (spec 5, 6.7, 9): units, coverage union, links, routes, packets,
 // radios, the base, queue badges and the failure marks. Colors come from tokens.css only.
-import { MAP, ROUTING, UI } from '../../config/defaults';
-import { PLAY, PLAY_VIEW, type EquipmentGlyph } from '../../config/play';
+import { MAP, ROUTING } from '../../config/defaults';
+import { PLAY_VIEW, type EquipmentGlyph } from '../../config/play';
 import type { Graph } from '../../engine/network';
 import { RadioBuild, type PlayModel } from '../../engine/playModel';
 import { canvasFont, cssVar, type MapColors } from '../kit/tokens';
@@ -13,6 +13,9 @@ export interface DrawColors extends MapColors {
   text3: string;
   surface: string;
   borderStrong: string;
+  /** Emphasis while data moves (D55): the dim over the map, and the replaced path. */
+  dim: string;
+  oldRoute: string;
 }
 
 export function readDrawColors(base: MapColors): DrawColors {
@@ -22,12 +25,24 @@ export function readDrawColors(base: MapColors): DrawColors {
     text3: cssVar('--text-3'),
     surface: cssVar('--surface-strong'),
     borderStrong: cssVar('--border-strong'),
+    dim: cssVar('--c-map-dim'),
+    oldRoute: cssVar('--c-old-route'),
   };
 }
 
+/** What the pointer is on: a radio or the base (node id), a unit, or a frontier machine (index in the scene). */
+export type BuildHit =
+  { kind: 'node'; id: number } | { kind: 'unit'; id: number } | { kind: 'machine'; id: number };
+
+export function sameHit(a: BuildHit | null, b: BuildHit | null): boolean {
+  return a === b || (a !== null && b !== null && a.kind === b.kind && a.id === b.id);
+}
+
 export interface DrawOptions {
-  hover: number | null;
+  hover: BuildHit | null;
   reducedMotion: boolean;
+  /** Data steps (D55): dim the map under the routes, packets and radios so the reroute reads at once. */
+  emphasis: boolean;
   /** Offscreen canvas for the coverage edge. */
   scratch: HTMLCanvasElement;
   dpr: number;
@@ -35,7 +50,7 @@ export interface DrawOptions {
 
 /** How far the coverage reaches past the section edges, in meters (x and y). */
 export function coverageSpill(model: PlayModel): { x: number; y: number } {
-  const r = PLAY.coverageRadiusM;
+  const r = model.config.coverageRadiusM;
   let x = 0;
   let y = 0;
   for (const radio of model.radios) {
@@ -74,7 +89,7 @@ export function drawScene(
 
   // Coverage: the union of the connected circles with one fill, so overlaps do not get darker (spec 5.1).
   const circles: { x: number; y: number; r: number }[] = [];
-  const radius = PLAY.coverageRadiusM * s;
+  const radius = model.config.coverageRadiusM * s;
   for (let id = 0; id < graph.nodeCount; id++) {
     if (!scene.network.connected[id]) continue;
     const p = px(id);
@@ -113,27 +128,27 @@ export function drawScene(
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  // Frontier layers (D49): a faint work tint on every lane under construction, outside the base yard.
-  ctx.globalAlpha = PLAY_VIEW.phaseBandAlpha;
-  ctx.fillStyle = c.work;
-  ctx.beginPath();
-  for (const f of scene.frontier) {
-    const x0 = f.lane * model.lanePitchM;
-    const x1 = x0 + model.lanePitchM;
-    const besideYard = x0 < yard.x + yard.w && x1 > yard.x;
-    const spans = besideYard
-      ? [
-          [0, yard.y],
-          [yard.y + yard.h, model.heightM],
-        ]
-      : [[0, model.heightM]];
-    for (const [y0, y1] of spans) {
-      const a = worldToScreen(v, x0, y1);
-      ctx.rect(a.sx, a.sy, model.lanePitchM * s, (y1 - y0) * s);
+  // The stage's work zone (D51): a faint work tint on its unit slots, clipped to the coverage it lies in.
+  const stage = scene.clock.done ? null : model.stages[scene.clock.stage];
+  if (stage && scene.buildS >= 0) {
+    ctx.save();
+    ctx.beginPath();
+    for (const ci of circles) {
+      ctx.moveTo(ci.x + ci.r, ci.y);
+      ctx.arc(ci.x, ci.y, ci.r, 0, Math.PI * 2);
     }
+    ctx.clip();
+    ctx.globalAlpha = PLAY_VIEW.phaseBandAlpha;
+    ctx.fillStyle = c.work;
+    ctx.beginPath();
+    for (const id of stage.units) {
+      const u = model.units[id];
+      const a = worldToScreen(v, u.x - model.lanePitchM / 2, u.y + model.unitPitchM / 2);
+      ctx.rect(a.sx, a.sy, model.lanePitchM * s, model.unitPitchM * s);
+    }
+    ctx.fill();
+    ctx.restore();
   }
-  ctx.fill();
-  ctx.globalAlpha = 1;
 
   // Units stand with their long side north-south.
   const uw = model.unitSizeXM * s;
@@ -168,16 +183,33 @@ export function drawScene(
   ctx.lineWidth = PLAY_VIEW.linkWidthPx;
   ctx.stroke();
 
-  // Old paths (dashed grey) under the live routes (blue).
+  // While data moves, everything above sits on a dimmed map: coverage, units and idle links recede.
+  if (opt.emphasis) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = c.dim;
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.restore();
+  }
+
+  // Old paths (dashed grey) under the live routes (blue on a dark casing).
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   strokePaths(
     ctx,
     scene.oldRoutes,
     px,
-    c.unit,
+    c.oldRoute,
     PLAY_VIEW.oldRouteWidthPx,
     PLAY_VIEW.oldRouteDashPx,
+  );
+  strokePaths(
+    ctx,
+    scene.routes,
+    px,
+    c.halo,
+    PLAY_VIEW.routeWidthPx + PLAY_VIEW.routeCasingPx * 2,
+    [],
   );
   strokePaths(ctx, scene.routes, px, c.dataRoute, PLAY_VIEW.routeWidthPx, []);
 
@@ -202,18 +234,14 @@ export function drawScene(
     ctx.globalAlpha = 1;
   }
 
-  // Frontier equipment, with a blue online dot inside radio coverage.
-  for (const e of scene.equipment) {
-    const p = worldToScreen(v, e.x, e.y);
-    drawGlyph(ctx, e.glyph, p.sx, p.sy, c);
-    if (e.online) {
-      const k = PLAY_VIEW.equipmentPx;
-      dot(ctx, p.sx + k, p.sy - k, PLAY_VIEW.onlineDotPx + 1, c.halo);
-      dot(ctx, p.sx + k, p.sy - k, PLAY_VIEW.onlineDotPx, c.data);
-    }
-  }
+  // Frontier machines (D51): working inside coverage, stopped and offline outside it.
+  scene.machines.forEach((m, i) => {
+    const p = worldToScreen(v, m.x, m.y);
+    const hovered = opt.hover?.kind === 'machine' && opt.hover.id === i;
+    drawMachine(ctx, m.glyph, m.online, p.sx, p.sy, t, i, hovered, c, opt.reducedMotion);
+  });
 
-  // Packets.
+  // Packets: full-strength data blue on a dark ring, larger and brighter than the route they ride on.
   ctx.beginPath();
   for (const d of scene.packets) {
     const a = px(d.from);
@@ -225,7 +253,7 @@ export function drawScene(
   }
   ctx.fillStyle = c.data;
   ctx.strokeStyle = c.halo;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = PLAY_VIEW.packetHaloPx;
   ctx.stroke();
   ctx.fill();
 
@@ -235,6 +263,9 @@ export function drawScene(
     const build = scene.radioBuild[r.id];
     if (build === RadioBuild.None) continue;
     if (scene.failed[r.id]) {
+      // A failed radio: a red cross in a red ring, unmissable on the dimmed map.
+      dot(ctx, p.sx, p.sy, PLAY_VIEW.failRingPx + PLAY_VIEW.radioHaloPx, c.halo);
+      ring(ctx, p.sx, p.sy, PLAY_VIEW.failRingPx, c.fail, PLAY_VIEW.radioHaloPx);
       drawCross(ctx, p.sx, p.sy, c);
     } else if (scene.network.cutOff[r.id]) {
       dot(ctx, p.sx, p.sy, PLAY_VIEW.cutOffRingPx + PLAY_VIEW.radioHaloPx, c.halo);
@@ -267,12 +298,12 @@ export function drawScene(
   ctx.stroke();
   ctx.fill();
 
-  if (opt.hover !== null) {
-    const p = px(opt.hover);
+  if (opt.hover?.kind === 'node') {
+    const p = px(opt.hover.id);
     ring(ctx, p.sx, p.sy, PLAY_VIEW.hoverRingPx, c.base, PLAY_VIEW.radioHaloPx);
   }
 
-  drawPhaseLabels(ctx, v, model, scene, c);
+  drawStageLabel(ctx, v, model, scene, c);
 
   // Labels: missed hellos next to a failed radio, queue badges next to waiting radios.
   ctx.font = canvasFont(11, 600);
@@ -432,92 +463,114 @@ function badge(
   ctx.fillText(text, left + w / 2, top + h / 2 + 1 / 2);
 }
 
-/**
- * Small uppercase phase labels above the east face, one row per layer, each on a hairline leader down to
- * its lane. Labels read rightward from their leader; near the right edge they flip to read leftward.
- */
-function drawPhaseLabels(
+/** The stage and phase at work, in small uppercase above the section: "STAGE 2 OF 6 · FOUNDATIONS". */
+function drawStageLabel(
   ctx: CanvasRenderingContext2D,
   v: Viewport,
   model: PlayModel,
   scene: Scene,
   c: DrawColors,
 ): void {
-  const mid = (model.lanes - 1) / 2;
-  const east = scene.frontier.filter((f) => f.lane >= mid).sort((a, b) => a.lane - b.lane);
-  if (east.length === 0) return;
-  ctx.font = canvasFont(11, 500);
+  if (scene.clock.done || scene.buildS < 0) return;
+  const phase = model.config.frontierPhases[scene.clock.phase];
+  const text =
+    `Stage ${scene.clock.stage + 1} of ${model.stages.length} · ${phase.label}`.toUpperCase();
+  const top = worldToScreen(v, model.widthM / 2, model.heightM + coverageSpill(model).y);
+  ctx.font = canvasFont(11, 600);
   ctx.letterSpacing = cssVar('--label-tracking');
-  const top = worldToScreen(v, 0, model.heightM).sy;
-  const base = worldToScreen(v, 0, model.heightM + coverageSpill(model).y).sy;
-  const labels = east.map((f) => {
-    const text = model.config.frontierPhases[f.phase].label.toUpperCase();
-    const x = worldToScreen(v, (f.lane + 1 / 2) * model.lanePitchM, 0).sx;
-    return { text, x, w: ctx.measureText(text).width };
-  });
-  const right = v.width - UI.mapFitPaddingPx.right + PLAY_VIEW.labelGapPx;
-  const flip = labels.some((l) => l.x + PLAY_VIEW.labelGapPx / 2 + l.w > right);
-  // Rows go up from the coverage edge; the label nearest its text side sits highest, so no leader crosses text.
-  const ordered = flip ? labels.slice().reverse() : labels;
-  ordered.forEach((l, i) => {
-    const row = ordered.length - 1 - i;
-    const y = base - PLAY_VIEW.phaseLabelGapPx - row * PLAY_VIEW.phaseLabelRowPx;
-    ctx.globalAlpha = PLAY_VIEW.phaseLeaderAlpha;
-    ctx.strokeStyle = c.work;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(Math.round(l.x) + 1 / 2, y);
-    ctx.lineTo(Math.round(l.x) + 1 / 2, top);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = c.text2;
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = flip ? 'right' : 'left';
-    const gap = PLAY_VIEW.labelGapPx / 2;
-    ctx.fillText(l.text, flip ? l.x - gap : l.x + gap, y);
-  });
+  ctx.fillStyle = c.work;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(text, top.sx, top.sy - PLAY_VIEW.phaseLabelGapPx);
   ctx.letterSpacing = '0px';
 }
 
-/** An equipment mark: a small side view in the work color on a dark halo, centered on (x, y). */
+/**
+ * A machine mark (D51): a dark rounded tile with the machine's side view. A working machine is amber with a
+ * blue online dot and a soft work pulse; a machine without coverage is grey and stopped, with a red ring.
+ */
+function drawMachine(
+  ctx: CanvasRenderingContext2D,
+  glyph: EquipmentGlyph,
+  online: boolean,
+  x: number,
+  y: number,
+  t: number,
+  index: number,
+  hovered: boolean,
+  c: DrawColors,
+  reducedMotion: boolean,
+): void {
+  const h = PLAY_VIEW.machineTilePx;
+  const color = online ? c.work : c.text3;
+  if (online && !reducedMotion) {
+    // Machines pulse out of step with each other, so the frontier reads as busy rather than blinking.
+    const period = PLAY_VIEW.workPulseS;
+    const k = ((((t + (index * period) / GOLDEN) % period) + period) % period) / period;
+    ctx.globalAlpha = PLAY_VIEW.workPulseAlpha * (1 - k);
+    ctx.strokeStyle = c.work;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const r = h + easeOut(k) * PLAY_VIEW.workPulsePx;
+    ctx.roundRect(x - r, y - r, 2 * r, 2 * r, PLAY_VIEW.machineTileCornerPx + (r - h));
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = c.halo;
+  ctx.strokeStyle = hovered ? c.base : color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.roundRect(
+    Math.round(x - h) + 1 / 2,
+    Math.round(y - h) + 1 / 2,
+    2 * h - 1,
+    2 * h - 1,
+    PLAY_VIEW.machineTileCornerPx,
+  );
+  ctx.fill();
+  ctx.stroke();
+  drawGlyph(ctx, glyph, x, y, color);
+  // Status at the top-right corner: blue online dot, or a hollow red ring for no link.
+  const cx = x + h - 1;
+  const cy = y - h + 1;
+  if (online) {
+    dot(ctx, cx, cy, PLAY_VIEW.onlineDotPx + 1, c.halo);
+    dot(ctx, cx, cy, PLAY_VIEW.onlineDotPx, c.data);
+  } else {
+    dot(ctx, cx, cy, PLAY_VIEW.offlineRingPx + 1, c.halo);
+    ring(ctx, cx, cy, PLAY_VIEW.offlineRingPx - 1 / 2, c.fail, 1.5);
+  }
+}
+
+/** Spreads the pulse phases of neighboring machines evenly. */
+const GOLDEN = 1.618;
+
+/** An equipment glyph: a small side view in one color, centered on (x, y). */
 function drawGlyph(
   ctx: CanvasRenderingContext2D,
   glyph: EquipmentGlyph,
   x: number,
   y: number,
-  c: DrawColors,
+  color: string,
 ): void {
   const k = PLAY_VIEW.equipmentPx / PLAY_VIEW.glyphHalfUnits;
-  const shapes = GLYPHS[glyph];
-  for (const pass of [0, 1]) {
-    const color = pass === 0 ? c.halo : c.work;
-    const extra = pass === 0 ? PLAY_VIEW.radioHaloPx * 2 : 0;
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const sh of shapes) {
-      ctx.beginPath();
-      if (sh.kind === 'rect') {
-        ctx.roundRect(x + sh.x * k, y + sh.y * k, sh.w * k, sh.h * k, k);
-        if (pass === 0) {
-          ctx.lineWidth = extra;
-          ctx.stroke();
-        }
-        ctx.fill();
-      } else if (sh.kind === 'dot') {
-        ctx.arc(x + sh.x * k, y + sh.y * k, sh.r * k, 0, Math.PI * 2);
-        if (pass === 0) {
-          ctx.lineWidth = extra;
-          ctx.stroke();
-        }
-        ctx.fill();
-      } else {
-        ctx.moveTo(x + sh.x0 * k, y + sh.y0 * k);
-        ctx.lineTo(x + sh.x1 * k, y + sh.y1 * k);
-        ctx.lineWidth = sh.w * k + extra;
-        ctx.stroke();
-      }
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (const sh of GLYPHS[glyph]) {
+    ctx.beginPath();
+    if (sh.kind === 'rect') {
+      ctx.roundRect(x + sh.x * k, y + sh.y * k, sh.w * k, sh.h * k, k);
+      ctx.fill();
+    } else if (sh.kind === 'dot') {
+      ctx.arc(x + sh.x * k, y + sh.y * k, sh.r * k, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.moveTo(x + sh.x0 * k, y + sh.y0 * k);
+      ctx.lineTo(x + sh.x1 * k, y + sh.y1 * k);
+      ctx.lineWidth = sh.w * k;
+      ctx.stroke();
     }
   }
 }

@@ -1,5 +1,5 @@
 // Play-model map of the Build & failure tab: draws the scene on a canvas fitted between the panels, finds
-// the radio under the pointer (12 px hit radius), and shows the maintenance ticket next to a failed radio.
+// the radio, machine or unit under the pointer, and shows the maintenance ticket next to a failed radio.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { UI } from '../../config/defaults';
@@ -8,16 +8,23 @@ import type { Graph } from '../../engine/network';
 import type { PlayModel } from '../../engine/playModel';
 import { prefersReducedMotion, readColorTokens } from '../kit/tokens';
 import { fitViewport, screenToWorld, worldToScreen, type Viewport } from '../map/viewport';
-import { coverageSpill, drawScene, readDrawColors, type DrawColors } from './draw';
+import {
+  coverageSpill,
+  drawScene,
+  readDrawColors,
+  sameHit,
+  type BuildHit,
+  type DrawColors,
+} from './draw';
 import type { Scene } from './scene';
 
 export interface BuildMapProps {
   model: PlayModel;
   graph: Graph;
   scene: Scene;
-  hover: number | null;
-  /** Node under the pointer (a radio, the base, or null) and the pointer in map pixels. */
-  onHover: (id: number | null, x: number, y: number) => void;
+  hover: BuildHit | null;
+  /** What is under the pointer, and the pointer in map pixels. */
+  onHover: (hit: BuildHit | null, x: number, y: number) => void;
   onClickRadio: (radio: number) => void;
 }
 
@@ -39,6 +46,7 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scratchRef = useRef<HTMLCanvasElement | null>(null);
   const colorsRef = useRef<DrawColors | null>(null);
+  const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -73,26 +81,38 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
     drawScene(ctx, viewport, model, graph, scene, colorsRef.current, {
       hover,
       reducedMotion: prefersReducedMotion(),
+      emphasis: scene.traffic,
       scratch: scratchRef.current,
       dpr,
     });
   });
 
-  /** The radio or base nearest the pointer within the hit radius; radios that are not built do not count. */
-  const hitTest = (x: number, y: number): number | null => {
+  /**
+   * The radio, base or machine nearest the pointer within its hit radius, else the unit slot under it.
+   * Radios that are not built do not count.
+   */
+  const hitTest = (x: number, y: number): BuildHit | null => {
     if (!viewport) return null;
-    let best: number | null = null;
-    let bestD = PLAY_VIEW.hitRadiusPx;
+    let best: BuildHit | null = null;
+    let bestD = Infinity;
     for (let id = 0; id < graph.nodeCount; id++) {
       if (id !== graph.baseId && scene.radioBuild[id] === 0) continue;
       const p = worldToScreen(viewport, graph.x[id], graph.y[id]);
       const d = Math.hypot(p.sx - x, p.sy - y);
       // The base and its own cell's radio are close together: prefer the radio on a tie.
-      if (d < bestD || (d === bestD && id !== graph.baseId)) {
-        best = id;
+      if (d <= PLAY_VIEW.hitRadiusPx && (d < bestD || (d === bestD && id !== graph.baseId))) {
+        best = { kind: 'node', id };
         bestD = d;
       }
     }
+    scene.machines.forEach((m, i) => {
+      const p = worldToScreen(viewport, m.x, m.y);
+      const d = Math.hypot(p.sx - x, p.sy - y);
+      if (d <= PLAY_VIEW.machineHitPx && d < bestD) {
+        best = { kind: 'machine', id: i };
+        bestD = d;
+      }
+    });
     if (best !== null) return best;
     // Otherwise the unit slot under the pointer (the lane strip by the unit pitch), for its phase.
     const w = screenToWorld(viewport, x, y);
@@ -100,25 +120,38 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
     const lane = Math.floor(w.x / model.lanePitchM);
     const pos = Math.floor(w.y / model.unitPitchM);
     const unit = model.unitSlot[lane * model.unitsPerLane + pos];
-    return unit >= 0 ? graph.nodeCount + unit : null;
+    return unit >= 0 ? { kind: 'unit', id: unit } : null;
   };
+
+  // Machines drive while the pointer rests: keep the hover on whatever is under it now.
+  useEffect(() => {
+    const p = pointerRef.current;
+    if (!p) return;
+    const hit = hitTest(p.x, p.y);
+    if (!sameHit(hit, hover)) onHover(hit, p.x, p.y);
+  });
 
   const local = (e: ReactPointerEvent) => {
     const r = containerRef.current?.getBoundingClientRect();
     return { x: e.clientX - (r?.left ?? 0), y: e.clientY - (r?.top ?? 0) };
   };
   const onMove = (e: ReactPointerEvent<HTMLCanvasElement>) => {
-    const { x, y } = local(e);
-    onHover(hitTest(x, y), x, y);
+    const p = local(e);
+    pointerRef.current = p;
+    onHover(hitTest(p.x, p.y), p.x, p.y);
+  };
+  const onLeave = () => {
+    pointerRef.current = null;
+    onHover(null, 0, 0);
   };
   const onDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (e.button !== 0) return;
     const { x, y } = local(e);
-    const id = hitTest(x, y);
-    if (id !== null && id !== graph.baseId) onClickRadio(id);
+    const hit = hitTest(x, y);
+    if (hit?.kind === 'node' && hit.id !== graph.baseId) onClickRadio(hit.id);
   };
 
-  const clickable = hover !== null && hover < graph.baseId;
+  const clickable = hover?.kind === 'node' && hover.id < graph.baseId;
   let ticket = null;
   if (scene.ticket && viewport) {
     const p = worldToScreen(viewport, graph.x[scene.ticket.radio], graph.y[scene.ticket.radio]);
@@ -140,18 +173,6 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
     );
   }
 
-  let note = null;
-  if (viewport) {
-    // Under the coverage, which reaches past the section edge by the radius minus the radios' inset.
-    const p = worldToScreen(viewport, 0, -coverageSpill(model).y);
-    note = (
-      <div className="build-model-note" style={{ left: Math.round(p.sx), top: Math.round(p.sy) }}>
-        Play model: the full-site {PLAY.cellCols} × {PLAY.cellRows} radio grid on a{' '}
-        {model.units.length}-unit section; distances not to scale
-      </div>
-    );
-  }
-
   return (
     <div className="map" ref={containerRef}>
       <canvas
@@ -159,10 +180,9 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
         className={clickable ? 'map-canvas static clickable' : 'map-canvas static'}
         aria-label="Play-model section: click a radio to fail or repair it"
         onPointerMove={onMove}
-        onPointerLeave={() => onHover(null, 0, 0)}
+        onPointerLeave={onLeave}
         onPointerDown={onDown}
       />
-      {note}
       {ticket}
     </div>
   );

@@ -5,10 +5,11 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
- * tl: control panel · tr: readout card · tools: map tools above the legend · br: legend ·
- * player: player bar · float: hover cards over everything.
+ * top: a compact element at the right of the top row (the Build tab's cost chip) · tl: control panel ·
+ * tr: readout card · tools: map tools above the legend · br: legend · player: player bar ·
+ * float: hover cards and sheets over everything.
  */
-export type DockSlot = 'tl' | 'tr' | 'tools' | 'br' | 'player' | 'float';
+export type DockSlot = 'top' | 'tl' | 'tr' | 'tools' | 'br' | 'player' | 'float';
 
 export type DockSlots = Partial<Record<DockSlot, HTMLElement | null>>;
 

@@ -9,7 +9,7 @@ The workbook itself is not part of the app.
 The layout values (units, units per lane row, lane rows, the two pitches, units per day) come from the site model and `BUILD`, not from this file.
 
 All values are the team's estimates, not supplier quotes.
-While `verified` is `false`, every cost in the demo carries the chip "Team estimate · not quotes".
+While `verified` is `false`, the numbers are the team's estimates; the demo shows them without an estimate label (D53).
 
 ## Keys
 

@@ -8,6 +8,8 @@ import { buildGraph, type Graph } from '../engine/network';
 import { createSim, failedAt, type LiveSim, type SimChange } from '../engine/packetSim';
 import { buildPlayModel, type PlayModel } from '../engine/playModel';
 import { buildTimeline, type BuildTimeline } from '../ui/build/walkthrough';
+import { buildAlternatives, type Alternatives } from '../ui/build/alternatives';
+import { sameHit, type BuildHit } from '../ui/build/draw';
 
 /** The play model, its network graph and the walkthrough timing never change while the app runs. */
 export const PLAY_MODEL: PlayModel = buildPlayModel();
@@ -22,6 +24,17 @@ export const FULL_SITE_COST: NetworkCost | null = (() => {
     return networkCost(PRICING.pricing, siteLayoutSummary(getSiteModel().site, BUILD));
   } catch (err) {
     console.error('The full-site radio network cannot be costed:', err);
+    return null;
+  }
+})();
+
+/** The Alternatives comparison on the generated site (D54); null when the pricing file cannot be costed. */
+export const ALTERNATIVES: Alternatives | null = (() => {
+  if (!FULL_SITE_COST) return null;
+  try {
+    return buildAlternatives(PRICING.pricing, getSiteModel().site);
+  } catch (err) {
+    console.error('The alternatives cannot be costed:', err);
     return null;
   }
 })();
@@ -82,9 +95,9 @@ export function simAt(user: SimChange[], t: number): LiveSim {
 interface BuildState {
   /** Failures and repairs the user made, in time order (spec 9.6). */
   userChanges: SimChange[];
-  /** Radio id or the base id under the pointer, or null. */
-  hover: number | null;
-  setHover: (id: number | null) => void;
+  /** The radio, base, machine or unit under the pointer, or null. */
+  hover: BuildHit | null;
+  setHover: (hit: BuildHit | null) => void;
   /** Fail an alive radio, or repair a failed one, at time t. */
   toggleRadio: (radio: number, t: number) => void;
   /** Repair every failed radio at time t. */
@@ -111,7 +124,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   userChanges: [],
   hover: null,
   setHover: (hover) => {
-    if (get().hover !== hover) set({ hover });
+    if (!sameHit(get().hover, hover)) set({ hover });
   },
   toggleRadio: (radio, t) => {
     const kept = upTo(get().userChanges, t);

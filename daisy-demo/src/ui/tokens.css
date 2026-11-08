@@ -15,12 +15,14 @@
   /* Map variants of the story colors (alpha only, same hue and meaning). */
   --c-signal-fill: rgba(47, 191, 113, 0.18); /* Coverage union, one fill */
   --c-signal-link: rgba(47, 191, 113, 0.55); /* Radio-to-radio links */
-  --c-data-route: rgba(59, 158, 255, 0.7); /* A highlighted route to the base */
+  --c-data-route: rgba(59, 158, 255, 0.85); /* A highlighted route to the base */
   --c-unit-planned: rgba(91, 98, 112, 0.45); /* Planned units, thin outlines */
   --c-work-path: rgba(245, 184, 46, 0.7); /* Planned 4x4 paths, dashed */
   --c-map-bg: #0b0d11; /* The map ground */
   --c-map-outline: rgba(255, 255, 255, 0.1); /* Site boundary */
   --c-map-halo: #0b0d11; /* Dark ring that lifts markers off the map */
+  --c-map-dim: rgba(11, 13, 17, 0.6); /* Dims the map under the routes while data moves (D55) */
+  --c-old-route: rgba(170, 178, 191, 0.85); /* The path a reroute replaced, dashed (D55) */
   /* Legend swatches of the 'fill' and 'circle' shapes: an area tint and its edge, per token. */
   --c-signal-area: var(--c-signal-fill);
   --c-signal-edge: var(--c-signal);
@@ -31,6 +33,7 @@
   --surface-strong: rgba(18, 21, 27, 0.92);
   --surface-raised: rgba(255, 255, 255, 0.1); /* Selected segment, hovered quiet button */
   --surface-hover: rgba(255, 255, 255, 0.05);
+  --scrim: rgba(0, 0, 0, 0.5); /* Behind a sheet over the view (D54) */
   --border: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.16);
   --highlight: rgba(255, 255, 255, 0.04);

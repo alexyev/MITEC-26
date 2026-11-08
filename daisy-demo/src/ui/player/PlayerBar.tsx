@@ -1,12 +1,23 @@
 // Player bar (spec 6.2, 7): bottom center, at most 560 px wide. The step and its caption, then play and pause,
-// a progress track with one tick per step (click or drag to seek), step back and forward, and restart.
+// a progress track with one tick per step (click or drag to seek), step back and forward, restart, and the
+// playback speed shared by both tabs (1× is the designed pace).
 import { useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
+import { UI } from '../../config/defaults';
 import { DockPortal } from '../kit/dock';
 import { IconButton } from '../kit/IconButton';
+import { Segmented } from '../kit/Segmented';
+import type { SegmentedOption } from '../kit/types';
 import { stepStarts, walkDuration } from './clock';
+import { speedLabel } from './speed';
 import type { Player, WalkStep } from './types';
+
+const SPEED_OPTIONS: SegmentedOption[] = UI.player.speeds.map((speed, i) => ({
+  value: String(speed),
+  label: speedLabel(speed),
+  title: i === 0 ? `${speedLabel(speed)} · normal speed` : `${speedLabel(speed)} · faster`,
+}));
 
 export interface PlayerBarProps {
   player: Player;
@@ -107,6 +118,14 @@ export function PlayerBar({ player, steps, note }: PlayerBarProps) {
             disabled={player.stepIndex >= last}
           />
           <IconButton icon={RotateCcw} label="Restart" onClick={player.restart} />
+          <span className="player-divider" aria-hidden="true" />
+          <Segmented
+            options={SPEED_OPTIONS}
+            value={String(player.speed)}
+            onChange={(v) => player.setSpeed(Number(v))}
+            ariaLabel="Playback speed"
+            size="compact"
+          />
         </div>
       </section>
     </DockPortal>

@@ -6,4 +6,5 @@ export interface Player {
   t: number; playing: boolean; stepIndex: number;
   play(): void; pause(): void; seek(t: number): void; stepBy(d: 1 | -1): void; restart(): void;
   toYourTurn(): void; // called on user input; pauses and jumps to the last step
+  speed: number; setSpeed(speed: number): void; // playback speed, shared by every tab (1 = designed pace)
 }

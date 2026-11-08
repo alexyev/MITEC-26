@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UI } from '../../config/defaults';
 import * as clock from './clock';
 import type { ClockState } from './clock';
+import { usePlaybackSpeed } from './speed';
 import type { Player, WalkStep } from './types';
 
 export interface PlayerOptions {
@@ -35,15 +36,20 @@ export function usePlayer(steps: WalkStep[], options: PlayerOptions = {}): Playe
   stepsRef.current = steps;
   const onRestartRef = useRef(onRestart);
   onRestartRef.current = onRestart;
+  // The speed is shared by every tab; a change only rescales the next frames, so t and the step never jump.
+  const speed = usePlaybackSpeed((s) => s.speed);
+  const setSpeed = usePlaybackSpeed((s) => s.setSpeed);
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
 
-  // Advance on animation frames while playing. The clock is computed from elapsed time, never per frame.
+  // Advance on animation frames while playing, by the frame's wall time times the playback speed.
   useEffect(() => {
     if (!state.playing) return;
     let last = performance.now();
     let frame = requestAnimationFrame(function loop(now) {
       const dt = Math.min(UI.player.maxFrameS, Math.max(0, (now - last) / 1000));
       last = now;
-      setState((s) => clock.tick(stepsRef.current, s, dt));
+      setState((s) => clock.tick(stepsRef.current, s, dt, speedRef.current));
       frame = requestAnimationFrame(loop);
     });
     return () => cancelAnimationFrame(frame);
@@ -95,7 +101,19 @@ export function usePlayer(steps: WalkStep[], options: PlayerOptions = {}): Playe
   }, [keyboard, pause, play, stepBy]);
 
   return useMemo(
-    () => ({ t, playing, stepIndex, play, pause, seek, stepBy, restart, toYourTurn }),
-    [t, playing, stepIndex, play, pause, seek, stepBy, restart, toYourTurn],
+    () => ({
+      t,
+      playing,
+      stepIndex,
+      play,
+      pause,
+      seek,
+      stepBy,
+      restart,
+      toYourTurn,
+      speed,
+      setSpeed,
+    }),
+    [t, playing, stepIndex, play, pause, seek, stepBy, restart, toYourTurn, speed, setSpeed],
   );
 }

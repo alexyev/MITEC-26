@@ -63,6 +63,37 @@ describe('play, pause and tick', () => {
   });
 });
 
+describe('playback speed', () => {
+  it('multiplies the frame time, so 1x is the designed pace', () => {
+    expect(clock.tick(STEPS, playing(1), 0.5, 1)).toEqual(playing(1.5));
+    expect(clock.tick(STEPS, playing(1), 0.5, 2)).toEqual(playing(2));
+    expect(clock.tick(STEPS, playing(1), 0.5, 4)).toEqual(playing(3));
+    expect(clock.tick(STEPS, paused(1), 0.5, 4)).toEqual(paused(1));
+  });
+
+  it('scales every step duration by the same factor in wall time', () => {
+    for (const speed of [1, 2, 4]) {
+      // Play the walkthrough in 50 ms frames and record the wall time each step starts.
+      const starts: number[] = [0];
+      let s = playing(0);
+      let wall = 0;
+      while (clock.stepIndexAt(STEPS, s.t) < STEPS.length - 1) {
+        const before = clock.stepIndexAt(STEPS, s.t);
+        s = clock.tick(STEPS, s, 0.05, speed);
+        wall += 0.05;
+        if (clock.stepIndexAt(STEPS, s.t) !== before) starts.push(wall);
+      }
+      const expected = clock.stepStarts(STEPS).map((t) => clock.wallSeconds(t, speed));
+      starts.forEach((w, i) => expect(w).toBeCloseTo(expected[i], 1));
+      expect(clock.wallSeconds(clock.walkDuration(STEPS), speed)).toBeCloseTo(12 / speed, 9);
+    }
+  });
+
+  it('stops at a finite end at any speed', () => {
+    expect(clock.tick(STEPS.slice(0, 3), playing(11), 1, 4)).toEqual(paused(12));
+  });
+});
+
 describe('seek', () => {
   it('jumps to a time and keeps the playing state', () => {
     expect(clock.seek(STEPS, playing(1), 8)).toEqual(playing(8));

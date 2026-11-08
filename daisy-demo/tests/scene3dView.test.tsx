@@ -218,4 +218,48 @@ describe('Take me there (D120, D121)', () => {
     );
     await waitFor(() => expect(pin()).toBeNull());
   });
+
+  describe('the call to action under the tab switch', () => {
+    const cta = () => document.querySelector<HTMLElement>('[data-tour="take-me-there"]');
+    const onTheRadio = () => document.querySelector('.scene-pin');
+
+    it('is not there while earlier steps show, where the pin on the radio is instead', async () => {
+      render(<App />);
+      expect(cta()).toBeNull();
+      act(() => usePlayerCommands.getState().requestYourTurn());
+      await screen.findByRole('button', { name: /Take me there/ });
+      // One step back from "Your turn": the pin is on the radio again and the call to action is gone.
+      fireEvent.click(screen.getByRole('button', { name: 'Previous step' }));
+      await waitFor(() => expect(cta()).toBeNull());
+      expect(onTheRadio()).toBeTruthy();
+      expect(screen.getAllByRole('button', { name: /Take me there/ })).toHaveLength(1);
+    });
+
+    it('shows at "Your turn" in place of the pin: one button, not two', async () => {
+      const button = await openAtYourTurn();
+      expect(cta()).toBe(button);
+      expect(cta()?.closest('.scene-cta')).toBeTruthy();
+      expect(onTheRadio()).toBeNull();
+      expect(screen.getAllByRole('button', { name: /Take me there/ })).toHaveLength(1);
+    });
+
+    it('opens the 3D view of the featured radio, and is gone while it is up', async () => {
+      await flyDown(await openAtYourTurn());
+      expect(fake.last()?.input.radio).toBe(featuredRadio(PLAY_MODEL));
+      expect(cta()).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Back to map' }));
+      await waitFor(() => expect(view()).toBeNull());
+      expect(cta()).toBeTruthy();
+    });
+
+    it('steps aside while its radio is failed, and returns when it is repaired', async () => {
+      await openAtYourTurn();
+      const radio = featuredRadio(PLAY_MODEL);
+      act(() => useBuildStore.getState().toggleRadio(radio, PLAY_TIMELINE.yourTurnS));
+      await waitFor(() => expect(cta()).toBeNull());
+      // Reset repairs it and lets the clock run on, as a viewer would.
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+      await waitFor(() => expect(cta()).toBeTruthy(), { timeout: 4000 });
+    });
+  });
 });

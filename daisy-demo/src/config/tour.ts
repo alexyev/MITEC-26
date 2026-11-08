@@ -217,7 +217,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'replay',
       title: 'That is the tour',
-      body: `Replay it any time from the ? button. The name at the top left opens the home page. On the ${f.buildTab} map, Take me there flies down to radio ${f.cornerRadio}'s corner module in 3D.`,
+      body: `Replay it any time from the ? button. The name at the top left opens the home page. On the ${f.buildTab} tab, Take me there flies down to radio ${f.cornerRadio}'s corner module in 3D: first as a pin on the radio, then front and centre under the tab switch once the walkthrough ends.`,
       targets: ['tour', 'brand'],
       merge: true,
       tab: 'build',

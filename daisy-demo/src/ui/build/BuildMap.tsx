@@ -8,6 +8,7 @@ import type { Graph } from '../../engine/network';
 import type { PlayModel } from '../../engine/playModel';
 import { prefersReducedMotion, readColorTokens } from '../kit/tokens';
 import { fitViewport, screenToWorld, worldToScreen, type Viewport } from '../map/viewport';
+import { TakeMeThereCta } from '../scene3d/TakeMeThereCta';
 import { TakeMeTherePin } from '../scene3d/TakeMeTherePin';
 import {
   coverageSpill,
@@ -36,6 +37,8 @@ export interface BuildMapProps {
   onHover: (hit: BuildHit | null, x: number, y: number) => void;
   onClickRadio: (radio: number) => void;
   pin?: BuildMapPin | null;
+  /** The call to action under the tab switch: the same action as the pin, once the walkthrough has ended. */
+  cta?: BuildMapPin | null;
 }
 
 /** Fit the section and its coverage edge, centered on the section, between the panels. */
@@ -59,6 +62,7 @@ export function BuildMap({
   onHover,
   onClickRadio,
   pin,
+  cta,
 }: BuildMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -206,6 +210,16 @@ export function BuildMap({
     );
   }
 
+  const calling =
+    cta && viewport ? (
+      <TakeMeThereCta
+        label={model.radios[cta.radio].label}
+        loading={cta.loading}
+        onClick={() => cta.onOpen(viewport)}
+        onIntent={cta.onIntent}
+      />
+    ) : null;
+
   return (
     <div className="map" ref={containerRef}>
       <canvas
@@ -218,6 +232,7 @@ export function BuildMap({
       />
       {ticket}
       {pinned}
+      {calling}
     </div>
   );
 }

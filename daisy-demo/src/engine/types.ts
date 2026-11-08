@@ -40,11 +40,15 @@ export interface SiteConfig {
   laneAxis: LaneAxis;
   minRowClearanceM: number; // pitch must be at least depth + this value
   acreM2: number;
+  /** Base pad at the center (D34): lane rows and units along the lane left empty; 0 for no pad. */
+  basePadLanes: number;
+  basePadUnits: number;
 }
 
 /**
- * Generated site. Unit ids are row-major: `id = row * cols + col`, where `row` is the lane row
- * across the whole site and `col` is the unit column across the whole site (both in the lane frame).
+ * Generated site. Unit ids are row-major in (`row`, `col`) and skip the base pad (D34), so look a unit
+ * up with `unitRow` and `unitCol`; `row` is the lane row across the whole site and `col` the unit column
+ * across the whole site (both in the lane frame).
  * World frame: x grows east, y grows north. With `laneAxis = 'EW'` lanes run along x.
  */
 export interface Site {
@@ -98,6 +102,10 @@ export interface Site {
    */
   columnCorridorX: Float32Array;
   roads: Rect[];
+  /** World rectangle of the base pad, which holds no units (D34); null when the site has no pad. */
+  basePad: Rect | null;
+  /** Where the base stands: the center of the pad (the site center when there is none). */
+  base: { x: number; y: number };
   warnings: string[];
 }
 

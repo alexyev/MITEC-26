@@ -88,6 +88,18 @@ describe('buildSchedule', () => {
   describe('centerOut (default)', () => {
     const s = buildSchedule(site);
     const ux = (i: number) => site.centers[2 * i];
+    // Unit columns are the distinct unit x values; mirrored columns form the pairs the build advances by.
+    const xs = [...new Set(Array.from({ length: site.count }, (_, i) => ux(i)))].sort(
+      (a, b) => a - b,
+    );
+    const perX = new Map<number, number>();
+    for (let i = 0; i < site.count; i++) perX.set(ux(i), (perX.get(ux(i)) ?? 0) + 1);
+    /** Units in each column pair, from the center out. */
+    const pairSizes: number[] = [];
+    for (let k = Math.floor(xs.length / 2) - 1; k >= 0; k--) {
+      pairSizes.push(perX.get(xs[k])! + perX.get(xs[xs.length - 1 - k])!);
+    }
+    const pairEnds = pairSizes.reduce<number[]>((acc, n) => [...acc, (acc.at(-1) ?? 0) + n], []);
 
     it('is the default order and starts at the center line of the site', () => {
       expect(BUILD.order).toBe('centerOut');
@@ -95,8 +107,9 @@ describe('buildSchedule', () => {
       // The block grid is centered in the site (D3); its trailing 2 m gap puts the unit centers 1 m west.
       expect(Math.abs(s.centerX - site.widthM / 2)).toBeLessThanOrEqual(1.01);
       // The first units built are the two innermost unit columns, one on each side of the center line.
-      for (let rank = 0; rank < 2 * site.rows; rank++) {
-        expect(Math.abs(ux(s.buildOrderIds[rank]) - s.centerX)).toBeLessThan(site.unitPitchM);
+      const innermost = Math.abs(xs[xs.length / 2] - s.centerX);
+      for (let rank = 0; rank < pairSizes[0]; rank++) {
+        expect(Math.abs(ux(s.buildOrderIds[rank]) - s.centerX)).toBeCloseTo(innermost, 3);
       }
       // Day 1 splits evenly between the west and the east face.
       let west = 0;
@@ -143,18 +156,12 @@ describe('buildSchedule', () => {
       }
     });
 
-    it('advances every lane row evenly: each face is a straight north-south front', () => {
-      // After every full column pair, each lane row has the same number of placed units per face.
+    it('advances column pair by column pair: each face is a straight north-south front', () => {
+      // After k full column pairs, exactly the units of the k innermost columns on each face are placed.
       for (const pairs of [3, 10, 40]) {
-        const perRowWest = new Int32Array(site.rows);
-        const perRowEast = new Int32Array(site.rows);
-        for (let rank = 0; rank < pairs * 2 * site.rows; rank++) {
-          const i = s.buildOrderIds[rank];
-          if (ux(i) < s.centerX) perRowWest[site.unitRow[i]]++;
-          else perRowEast[site.unitRow[i]]++;
-        }
-        expect(new Set(perRowWest)).toEqual(new Set([pairs]));
-        expect(new Set(perRowEast)).toEqual(new Set([pairs]));
+        const inner = new Set(xs.slice(xs.length / 2 - pairs, xs.length / 2 + pairs));
+        const placed = new Set(Array.from(s.buildOrderIds.subarray(0, pairEnds[pairs - 1])));
+        for (let i = 0; i < site.count; i++) expect(placed.has(i)).toBe(inner.has(ux(i)));
       }
       // Within a day the build alternates west and east, so the faces never differ by more than one unit.
       for (let day = 1; day <= s.buildDays; day += 11) {
@@ -186,11 +193,14 @@ describe('buildSchedule', () => {
     });
 
     it('flags a commission front that runs through a partly commissioned column pair', () => {
-      const pair = 2 * site.rows;
-      for (let day = BUILD.placeToCommissionDays + 1; day < s.buildDays; day += 3) {
+      const ends = new Set(pairEnds);
+      let partial = 0;
+      for (let day = BUILD.placeToCommissionDays + 1; day < s.buildDays; day++) {
         const f = frontsAt(s, day);
-        expect(f.commissionFrontPartial).toBe(f.commissionedCount % pair !== 0);
+        expect(f.commissionFrontPartial).toBe(!ends.has(f.commissionedCount));
+        if (f.commissionFrontPartial) partial++;
       }
+      expect(partial).toBeGreaterThan(0);
       expect(frontsAt(s, 0).commissionFrontPartial).toBe(false);
       expect(frontsAt(s, s.lastDay).commissionFrontPartial).toBe(false);
     });
@@ -202,13 +212,13 @@ describe('buildSchedule', () => {
     });
   });
 
-  it('fromBase defaults to an origin at the site center', () => {
+  it('fromBase defaults to an origin at the site center: the first unit is the nearest to it', () => {
     const s = buildSchedule(site, { ...BUILD, order: 'fromBase' });
-    const first = s.buildOrderIds[0];
-    expect(Math.abs(site.centers[2 * first] - site.widthM / 2)).toBeLessThan(site.unitPitchM);
-    expect(Math.abs(site.centers[2 * first + 1] - site.heightM / 2)).toBeLessThan(
-      site.rowPitchM * 2,
-    );
+    const d = (i: number) =>
+      Math.hypot(site.centers[2 * i] - site.widthM / 2, site.centers[2 * i + 1] - site.heightM / 2);
+    let nearest = Infinity;
+    for (let i = 0; i < site.count; i++) nearest = Math.min(nearest, d(i));
+    expect(d(s.buildOrderIds[0])).toBeCloseTo(nearest, 3);
   });
 
   it('westToEast fronts are x coordinates that sweep the width of the site', () => {

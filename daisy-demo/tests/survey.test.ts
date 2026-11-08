@@ -11,16 +11,16 @@ import {
 
 const site = generateSite();
 const area = unitGridRect(site);
-const base = { x: site.widthM / 2, y: site.heightM / 2 };
+const base = site.base;
 const plans = new Map(
   Array.from({ length: SURVEY.maxVehicles }, (_, i) => [i + 1, planSurvey(area, base, i + 1)]),
 );
 const plan = (n: number) => plans.get(n)!;
 
 describe('survey area', () => {
-  it('is the unit grid of the full site, about 3,640 m x 1,972 m', () => {
-    expect(area.w).toBeCloseTo(3638, 0);
-    expect(area.h).toBeCloseTo(1971.7, 0);
+  it('is the unit grid of the full site, about 3,983 m x 1,813 m (north-south lanes, D33)', () => {
+    expect(area.w).toBeCloseTo(3983.4, 0);
+    expect(area.h).toBeCloseTo(1813, 0);
     expect(area.x).toBeGreaterThan(0);
     expect(area.y).toBeGreaterThan(0);
   });

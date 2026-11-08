@@ -82,7 +82,6 @@ Later work follows the same rule: add a control only together with its function,
 The header link of T1.3 became the "by Alexander Yevchenko" credit at the bottom center.
 The text below is kept as the record of the T1.3 choice.
 
-
 The theme follows exowatt.com, inspected in the browser; where it conflicts with spec section 10.1, the Exowatt look wins.
 
 - Page background: warm tan `#EAE8E3`.
@@ -155,19 +154,20 @@ A legend `fill` or `circle` swatch uses the token's area tint (`--c-<token>-area
 
 ## D30 - The v3 site: 23,000 units and one lane pitch (T3.1)
 
-The site is 2,000 acres with exactly 23,000 units: 25 units per lane, 10 block columns (250 units per lane row) and 92 lane rows.
-This replaces the 80,000-unit numbers of D2 and D3; the 92 lane rows spread over 5 block rows of 18 or 19 lanes, as D2 describes.
-With so few lane rows the lane pitch is about 21.6 m, so the corridor between two lanes (about 19.2 m clear) is wider than a 10 m road.
+The site is 2,000 acres with exactly 23,000 units and 25 units per lane.
+With the north-south lanes of D33 and the base pad of D34, that is 5 block columns along the lanes (125 units per lane row) and 186 lane rows in 10 block rows of 18 or 19 lanes, as D2 describes.
+This replaces the 80,000-unit numbers of D2 and D3.
+With so few lane rows the lane pitch is about 21.5 m, so the corridor between two lanes (about 19 m clear) is wider than a 10 m road.
 The old pitch solver still used a 12.4 m center distance (unit depth plus road) across each block-row road, which made the lanes either side of a road closer together than the lanes inside a block, and pushed the pitch to 22.1 m.
 When the even pitch over all lane rows is at least the unit depth plus the road width, the generator now uses that even pitch everywhere and centers each block-row road in the lane corridor where the block rows meet.
-The lane pitch is then 21.64 m everywhere, and the unit grid is 3,638 m by 1,972 m.
+The lane pitch is then 21.52 m everywhere, and the unit grid is 3,983 m (east-west) by 1,813 m (north-south).
 On denser sites, where the even pitch is smaller than a road, the generator keeps the old rule; the road rectangle formula gives the same position there.
 
 ## D31 - Survey paths and the surveyed-ground model (T3.2)
 
 Spec 8.2 leaves a few details open; `src/engine/survey.ts` uses the simplest choice for each.
 
-- The base is at the site center (D5), and the survey area is the unit grid, 3,638 m by 1,972 m (`unitGridRect` in `site.ts`).
+- The base is on its pad at the site center (D5, D34), and the survey area is the unit grid, 3,983 m by 1,813 m (`unitGridRect` in `site.ts`), pad included.
 - A strip of width W gets `ceil(W / swathM)` passes spaced evenly at `W / passes`, which is at most `swathM`, so the passes tile the strip exactly and no ground is driven twice.
 - Each pass runs the full height of the area at the center of its sub-strip.
   The first pass starts at the north or south end nearer the base (south on a tie, which is the case for the center base).
@@ -179,7 +179,7 @@ Spec 8.2 leaves a few details open; `src/engine/survey.ts` uses the simplest cho
 - The map draws the surveyed ground as one rectangle per started pass (`surveyedRects`), which matches the cell share to within 1%.
 - Unit conversions (m per km, Wh per kWh, hours per day) are in `src/config/units.ts`, because the engine allows no other numeric literals (D7).
 
-With 1, 3 and 6 4x4s the survey takes 45.5 h, 15.3 h and 7.9 h, and the 4x4-hours stay between 45.5 and 47.1.
+With 1, 3 and 6 4x4s the survey takes 46.0 h, 15.5 h and 8.0 h, and the 4x4-hours stay between 46.0 and 47.6.
 
 ## D32 - The pricing file follows the cost workbook (T3.3)
 
@@ -188,5 +188,47 @@ Two values are constants inside the workbook's formulas rather than Inputs cells
 The six setups keep the workbook's row order; `defaultSetup` is HaLow with integrated antennas, the workbook's recommendation.
 The `PricingConfig` types of v2.1 are removed from `types.ts`; the file's type, `Pricing`, lives in `pricing.ts` with the engine that reads it (spec 13).
 `NetworkCost` carries the contract fields of spec 13.1, where `moduleUsd` and `batteryUsd` are the prices of one module and one pack, plus the totals (`modulesUsd`, `batteriesUsd`, `subtotalUsd`), the pack size and the module grid (`gridCols` x `gridRows`) for the cost breakdown.
-On the v3 site, lane pitch 21.64 m, HaLow gives M = 19 rather than the 20 of spec 10.2, but the grid is the same 9 x 5 = 45 modules and the total the same $74,616.
+The golden tests use the workbook's own layout and reproduce its totals; the v3 site gives different numbers for HaLow, see D33.
 `PRICING` in `pricing.ts` is the shipped file, validated once when the app loads; its errors go to the console, and the cost section shows a warning when `PRICING.errors` is not empty.
+
+## D33 - P3 units stand north-south (captain's feedback)
+
+The captain asked for the units to be vertically aligned, not horizontal, in both tabs.
+`SITE.laneAxis` is now `'NS'`: lanes run north-south, so every unit has its 12.2 m long axis north-south and lanes are spaced east-west; the generator already supported both axes.
+The site stays a 2:1 rectangle of 4,023 m by 2,012 m with exactly 23,000 units: a lane is still 25 units (355 m), 5 block columns fit along the 2,012 m height, and 186 lane rows (with the pad of D34) fill the width at a 21.52 m pitch.
+The survey does not depend on the lane direction; its north-south passes now run along the lanes.
+The build still advances east and west from the center line, now one lane row pair at a time.
+
+The cost formulas of spec 10.2 count modules along a lane row and across lane rows, so the HaLow grid changes with the direction: `ceil(125 / 29) x ceil(186 / 19)` = 5 x 10 = 50 modules (was 9 x 5 = 45), 18 battery packs (was 17), and a total of $80,619 ($3.51 per container, $0.14 per kWh, 0.047% of the P3 hardware) instead of $74,616.
+The workbook's own layout still gives its own totals (the golden tests); only the demo's site differs.
+The spec's statement that the full-site grid equals the 9 x 5 play-model grid (open question 2) no longer holds; the cost readout reads the module count from `pricing.ts`.
+
+## D34 - The base has its own pad (captain's feedback)
+
+The captain asked for the base, which will be larger, to have its own area rather than a marker on top of the units.
+`SITE.basePadLanes` x `SITE.basePadUnits` (10 lane rows x 25 units, one block length) unit places at the center of the unit grid are left empty, and the pad reaches halfway to the neighbouring units: about 215 m east-west by 365 m north-south (about 19 acres, 1% of the site).
+To keep exactly 23,000 units the generator adds the missing places as extra lane rows; this needs the pad to remove a whole number of lane rows' worth of units (10 x 25 = 250 = 2 x 125), which one block length of 10 lanes does.
+The pad is symmetric about the center line, so the center-out build stays mirrored (the faces never differ by more than one unit).
+Unit ids stay row-major but skip the pad, so a unit is found by `unitRow` and `unitCol` rather than `row * cols + col` (this amends D1).
+`Site.basePad` is the pad rectangle and `Site.base` its center, where the base stands; the survey's 4x4s start and end there.
+The map draws the pad as a rounded area in the neutral site tones with the white base marker at its center.
+
+## D35 - The unit layer is drawn at screen resolution (supersedes the raster pyramid of D12)
+
+With the units standing north-south, a 2.44 m wide lane is under half a pixel at the full-site fit, and the downsampled raster of D12 blurred the lanes into a faint grey, so the direction of the units did not show.
+The map now draws every visible unit at screen resolution, at least `MAP.unitMinPx` (1 CSS px) across, into a cache canvas that is redrawn only when the view or the build day changes; each frame copies the cache.
+Planned units are outlines once they are `MAP.unitOutlineFromPx` (4 px) or more in both directions, and filled below that, where an outline would cover them anyway.
+23,000 units redraw in a few milliseconds, so panning and zooming stay smooth, and the survey plays at 60 fps.
+
+## D36 - Survey tab details (T3.4)
+
+- A run in "Your turn" plays on the player clock (D21): Send records the player time and plays, so Space pauses and resumes the run, and the view stays a pure function of the inputs and `t`.
+  When the last 4x4 is back, the run ends, the player pauses and the stepper unlocks; Restart also unlocks it and puts the walkthrough's 3 4x4s back.
+- Seeking back into the walkthrough puts the defaults back, because the walkthrough always shows 3 4x4s.
+- The planned path shows only what is still ahead of each 4x4: the drive out, the remaining passes, and the drive back once it starts, so the plan reads as strips rather than spokes from the base.
+  Passes closer than `SURVEY_VIEW.minPassGapPx` on screen are thinned out (every k-th pass), and zooming in shows every pass.
+- 4x4s at the base park in a row under the base marker, so the fleet reads as a fleet; the hover card works on parked 4x4s too.
+- The readout card has one row for the site (acres and units) and one for elapsed and total hours, and puts the hourly rate next to the 4x4-hours, so the whole card, survey cost included, fits at 1280 x 720 without scrolling.
+- The Done caption reads "Done in 16 h with 3 4x4s. ..." so it fits on one line of the player bar.
+- The kit has no text button, so the Send button is styled in `src/ui/survey/survey.css` from the tokens (spec 6.5: 32 px, radius 8, light fill, dark text).
+- By the captain's request the brand chip and the browser tab title read "Exowatt: Scaling Deployment" (`UI.brand`, `index.html`).

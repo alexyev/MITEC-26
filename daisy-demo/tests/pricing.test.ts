@@ -92,18 +92,20 @@ describe('networkCost on the v3 site', () => {
   const layout = siteLayoutSummary(generateSite(), BUILD);
 
   it('reads the layout from the site model', () => {
-    expect(layout).toMatchObject({ units: 23_000, unitsPerLaneRow: 250, laneRows: 92 });
+    expect(layout).toMatchObject({ units: 23_000, unitsPerLaneRow: 125, laneRows: 186 });
     expect(layout.unitPitchM).toBeCloseTo(14.2, 6);
   });
 
-  it('gives HaLow integrated a 9 x 5 grid of 45 modules for about $74.6k (0.04% of P3 hardware)', () => {
+  it('gives HaLow integrated a 5 x 10 grid of 50 modules for about $80.6k (0.05% of P3 hardware)', () => {
+    // North-south lanes (D33): 125 units along a lane and 186 lane rows, so ceil(125 / 29) x ceil(186 / 19).
     const c = networkCost(pricing, layout);
-    expect([c.gridCols, c.gridRows, c.modules]).toEqual([9, 5, 45]);
-    expect(c.packs).toBe(17);
-    expect(Math.round(c.totalUsd)).toBe(74_616);
-    expect(c.perContainerUsd).toBeCloseTo(3.24, 2);
-    expect(c.perKwhUsd).toBeCloseTo(0.13, 2);
-    expect(c.shareOfP3 * 100).toBeCloseTo(0.04, 2);
+    expect([c.n, c.m]).toEqual([29, 19]);
+    expect([c.gridCols, c.gridRows, c.modules]).toEqual([5, 10, 50]);
+    expect(c.packs).toBe(18);
+    expect(Math.round(c.totalUsd)).toBe(80_619);
+    expect(c.perContainerUsd).toBeCloseTo(3.51, 2);
+    expect(c.perKwhUsd).toBeCloseTo(0.14, 2);
+    expect(c.shareOfP3 * 100).toBeCloseTo(0.047, 3);
   });
 
   it('refuses an unknown setup id', () => {

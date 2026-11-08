@@ -429,3 +429,69 @@ A failed radio is a red cross in a red ring.
 ## D56 - Hover cards never cover a panel (round 2)
 
 `placeHoverCard` tries the four corners around the pointer (right and below first) and takes the first that clears every panel, the top row, the cost chip and the map tools, else the one that covers the least of them.
+
+## D60 - Survey paths stay off the base pad (survey round 2, captain's feedback)
+
+The captain asked that the 4x4s not drive over the base while they survey.
+`planSurvey` now takes the base pad (`Site.basePad`, D34) and plans around it; the pad is not surveyed, and no other ground is left out.
+
+- A strip that overlaps the pad is split at the pad's east and west edges into sections, each with `ceil(width / swathM)` evenly spaced columns, so the column boundaries meet the pad edges exactly and no sliver beside the pad is missed.
+  A section narrower than `SURVEY.minSectionM` (1 m) joins its neighbor.
+- A column beside the pad is surveyed in two half-passes, one from each end of the area to the pad edge, so every pass stops at the pad instead of crossing it.
+- A 4x4 sweeps its strip from the edge nearest the base and surveys the side of the pad it reaches first; it sweeps the other side on its way back toward the start, so it ends next to the pad.
+  The pad section has an even number of columns, so its first side ends where it began, and the section after the pad an odd number, so the 4x4 ends on the pad's far side; at most one column is added for this, and the spacing stays at most `swathM`.
+- A strip whose west or east edge is at the base (an even fleet) starts there, next to the pad; the strip that contains the base starts at its west edge, as before (spec 8.2).
+- Moves that the straight line would take across the pad go around it by its corners (`routeAround`, the shortest way on a six-point visibility graph); with the rules above this only happens for fleets larger than the stepper allows.
+- A 4x4 leaves and enters the pad at its edge, where the straight line between the base and its first or last point meets the pad, so the base, inside the pad, is the only place a 4x4 is when it is on the pad.
+- Cells whose center is on the pad have no survey hour (NaN) and do not count toward the surveyed share; the surveyed rectangles cover the area exactly, less the pad.
+- `tests/survey.test.ts` checks for 1 to 8 4x4s that no leg crosses the pad (by `crossesRect` and by sampling every leg each metre), that no surveyed rectangle overlaps it, and that the surveyed ground is the whole area but the pad, with no overlaps.
+
+The times barely move: 46.0, 15.5 and 8.0 h with 1, 3 and 6 4x4s, and the 4x4-hours stay between 46.0 and 47.4.
+From the walkthrough's Done step on, the frame is exactly at the finish, so rounding in the step starts never leaves the last 4x4 at the pad edge instead of parked.
+
+## D61 - A drone follows each 4x4, online through its Starlink (survey round 2, captain's request)
+
+Each 4x4 carries a drone that flies with it; the drone's only link is its 4x4, whose Starlink carries the data, so a drone is online exactly when its 4x4 is (always, on this tab).
+
+- The drone flies while its 4x4 is out on the site and rides docked on it at the base (`droneFlying`).
+- On the map it follows `SURVEY_VIEW.droneTrailPx` (20 px) behind its 4x4 along the path the 4x4 drove (`trailPoint`), so it trails it down a pass and round each turn, never further back than where the 4x4 left the pad.
+  The distance is fixed on screen, so it reads the same at every zoom.
+- The mark is a small four-rotor drone (crossed arms, rotor rings and a body) in the work amber on a dark halo, on a short solid blue link to its 4x4: amber is equipment at work and blue is data moving (spec 5.2), so no new hue is needed.
+  The legend adds "Drone" (a new `drone` swatch in the kit's `LegendSwatch`) and "Drone link".
+- Hovering a drone shows its card ("Drone #2", "Online · via 4x4 #2 Starlink · Following"); the 4x4's card has a Drone row (flying or docked, linked), the base's card counts drones online, and the readout's CONNECT section shows "Drones online · via 4x4".
+- The survey model does not change: the drone captures the same strip from the air at the 4x4's pace, so the survey time stays the 4x4's.
+  None of the research files gives a drone survey rate or swath, so the demo does not claim a faster survey.
+- Captions: "Each 4x4 gets its own strip; the paths stop at the base pad, never cross it." (Paths), "Each 4x4 carries Starlink and a drone that follows it, online through the 4x4." (Survey), and the Done caption now says more 4x4s finish sooner in the same 4x4-hours, since Starlink and drones are per 4x4.
+
+## D62 - The survey cost shows only sourced prices (survey round 2, captain's request)
+
+The survey cost adds what each 4x4 needs besides its hours: a Starlink kit with its mounting, Starlink service for the survey, and a drone.
+
+- `pricing.json` `survey` holds `starlinkKitUsd` ($649, Starlink Mini with shipping), `starlinkMountUsd` ($150, mounting and power) and `starlinkPlanUsdPerMonth` ($250, Business Mobile Priority), the cost workbook's Alternatives sheet cells B59, B62 and B60, and `starlinkBillingDays` (30, the workbook's month in B61).
+  Service is billed per terminal in whole months of the survey time, at least one.
+- By the captain's request, only a sourced price is shown as a cost: a number from the team's workbook or the research files.
+  `survey.unverified` lists the keys whose value is a placeholder; `vehicleHourUsd` keeps the spec's $150 but is listed there, and `droneUsd` is `null` because no research file prices a drone.
+  `surveyCost` returns null for any part without a sourced price, the sum of the sourced parts, and whether that sum is complete.
+- The Survey tab's "Team estimate · not quotes" chip is removed, as on the Build tab (D53); no "to confirm" label is shown anywhere.
+  Where a part has no sourced price, the card says what the figure leaves out ("Without the 4x4 hire and the 3 drones: no sourced price yet.") instead of showing a placeholder.
+- When a sourced hourly rate or drone price lands in the file (and leaves `unverified`), the 4x4 hire and drones rows appear, and the chip reads "Survey cost" with the whole total.
+
+With 3 4x4s the sourced cost is $3.15k: 3 x $799 for the kits and mounting, and 3 x 1 month x $250 of service.
+
+## D63 - The survey cost is small and off to the side, with the alternatives behind it (survey round 2)
+
+The survey tab uses the Build tab's cost pattern (D54) rather than a second one: a quiet chip at the right of the top row ("Survey connectivity $3.15k"), a card under it with the cost, the 4x4-hours and the breakdown with a bar for each share, and "Compare alternatives", which opens a sheet over the dimmed view.
+
+- The chip, card and sheet reuse the Build tab's classes from `ui/build/build.css` (`cost-chip`, `cost-card`, `build-breakdown`, `alts-*`); the components are the Survey tab's own (`SurveyCostChip`, `SurveyAlternativesSheet`), because the Build tab's are typed to the network cost.
+  The survey rows have no bar column, since only one approach has a cost to scale against.
+- The cost left the readout card, which now holds MODEL and CONNECT only and fits at 1280 x 720 with the drone row.
+- The card opens by itself during the walkthrough's Done step, next to the caption with the finish time.
+- The comparison lists our approach (4x4s with drones, Starlink on each) and four others, each with a one-line trade-off (`SURVEY_ALTERNATIVES`): a survey crew with GPS rovers, drones only with ground control, an aerial survey contractor, and the quadruped robot (GO2) from Exowatt's challenge video.
+  No research file prices any of them, so only ours shows a figure, marked "Starlink only" while it is incomplete; the footnote names the sources (the workbook for Starlink, the brief and video for the GO2, the connectivity research for RTK).
+
+## D64 - No "Starlink on every machine" alternative (survey round 2, captain's request)
+
+The Build & failure sheet showed "Starlink on every machine" at about $33.6k, below our $80.6k network.
+The captain asked to remove it, since it does not solve the links going down: each machine has only its own dish, with no local link between machines, crews or units, and a blocked dish leaves the machine alone.
+The option is gone from the sheet (`ui/build/alternatives.ts`), from `engine/alternatives.ts` and from `config/alternatives.ts` (`STARLINK_PER_MACHINE`), and `AlternativeSite` keeps only the site area, which is all the remaining options use.
+"Starlink and Wi-Fi access points" stays, and the Survey tab's Starlink on each 4x4 (D61, D62) is unchanged, as is the survey comparison, which has no Starlink-on-every-machine option either.

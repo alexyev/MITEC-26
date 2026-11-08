@@ -233,6 +233,7 @@ describe('Legend', () => {
       { token: 'signal', label: 'Link', shape: 'line' },
       { token: 'base', label: 'Base', shape: 'square' },
       { token: 'done', label: 'Surveyed', shape: 'fill' },
+      { token: 'work', label: 'Drone', shape: 'drone' },
     ];
     const { container } = render(<Legend items={items} />);
     expect(screen.getByRole('heading', { name: 'Legend' })).toBeTruthy();

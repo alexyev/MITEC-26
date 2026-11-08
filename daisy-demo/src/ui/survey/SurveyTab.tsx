@@ -5,7 +5,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { SITE } from '../../config/defaults';
 import { SURVEY } from '../../config/survey';
 import { PRICING, surveyCost } from '../../engine/pricing';
-import type { SurveyCost } from '../../engine/pricing';
 import { droneFlying, surveyedFraction } from '../../engine/survey';
 import { getSiteModel } from '../../state/model';
 import { getSurveyPlan, useSurveyStore } from '../../state/survey';
@@ -23,7 +22,7 @@ import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
 import { stepStarts } from '../player/clock';
 import { usePlayer } from '../player/usePlayer';
-import { formatHours, formatInt, formatKm, formatSharePct, formatUsd } from './format';
+import { formatHours, formatInt, formatKm, formatSharePct } from './format';
 import {
   droneMarkers,
   drawDroneLinks,
@@ -36,6 +35,7 @@ import {
   vehicleMarkers,
 } from './surveyLayers';
 import type { SurveyHit } from './surveyLayers';
+import { SurveyCostChip } from './SurveyCostChip';
 import { surveySteps, walkthroughFrame, yourTurnFrame } from './walkthrough';
 import './survey.css';
 
@@ -227,17 +227,9 @@ export function SurveyTab() {
             unit="h"
           />
         </Section>
-        <Section label="Cost">
-          {errors.length > 0 ? (
-            <p className="survey-warning" role="alert">
-              The pricing file has {errors.length} error{errors.length === 1 ? '' : 's'}; see the
-              console.
-            </p>
-          ) : null}
-          <SurveyCostRows cost={cost} />
-        </Section>
       </Panel>
 
+      <SurveyCostChip cost={cost} pricingErrors={errors.length} focus={frame.step === 'done'} />
       <Legend items={LEGEND} />
       <PlayerBar
         player={player}
@@ -257,39 +249,4 @@ function activity(kind: string, done: boolean, hours: number): string {
   if (kind === 'pass' || kind === 'shift') return 'Surveying';
   if (kind === 'transit') return 'Driving';
   return done || hours > 0 ? 'Back at base' : 'At base';
-}
-
-/**
- * The survey cost (D62): the 4x4-hours, then each part that has a sourced price. A part without one shows no
- * figure, so the card never shows a placeholder as a cost; the total shows only when every part is priced.
- */
-function SurveyCostRows({ cost }: { cost: SurveyCost }) {
-  const n = cost.vehicles;
-  const starlink =
-    cost.starlinkHardwareUsd !== null && cost.starlinkServiceUsd !== null
-      ? cost.starlinkHardwareUsd + cost.starlinkServiceUsd
-      : null;
-  const months = `${cost.starlinkMonths} month${cost.starlinkMonths === 1 ? '' : 's'}`;
-  return (
-    <>
-      <Kpi
-        label="4x4-hours"
-        value={formatHours(cost.vehicleHours)}
-        unit={cost.vehicleHoursUsd === null ? 'h' : `h · ${formatUsd(cost.vehicleHoursUsd)}`}
-      />
-      {cost.dronesUsd !== null ? (
-        <Kpi label={`Drones · ${n}`} value={formatUsd(cost.dronesUsd)} />
-      ) : null}
-      {starlink !== null ? (
-        <Kpi
-          label={`Starlink · ${n} kit${n === 1 ? '' : 's'}, ${months}`}
-          value={formatUsd(starlink)}
-          headline={!cost.complete}
-        />
-      ) : null}
-      {cost.complete ? (
-        <Kpi label="Survey cost" value={formatUsd(cost.pricedUsd)} headline />
-      ) : null}
-    </>
-  );
 }

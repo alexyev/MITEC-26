@@ -62,3 +62,42 @@ export const SURVEY_VIEW = {
   /** Pointer distance within which a 4x4 or the base shows its hover card (spec 6.8). */
   hitRadiusPx: 12,
 };
+
+/**
+ * Survey approaches of the Alternatives comparison (D62, D63), each with a one-line trade-off. None of the
+ * research files prices them, so only our approach shows a cost (its Starlink, from the cost workbook).
+ */
+export const SURVEY_ALTERNATIVES: { id: string; label: string; verdict: string }[] = [
+  {
+    id: 'ours',
+    label: '4x4s with drones · Starlink on each',
+    verdict: 'Ground and air capture on one strip; every 4x4 and drone online anywhere on site.',
+  },
+  {
+    id: 'gpsCrew',
+    label: 'Survey crew with GPS rovers',
+    verdict: 'Proven and simple, but slow on foot, and RTK rovers need a correction link on site.',
+  },
+  {
+    id: 'droneOnly',
+    label: 'Drones only, with ground control',
+    verdict: 'Fast aerial capture, but a crew still sets the ground control, and no ground pass.',
+  },
+  {
+    id: 'contractor',
+    label: 'Aerial survey contractor',
+    verdict: 'No fleet to buy or run, but the schedule is theirs and the data comes back later.',
+  },
+  {
+    id: 'quadruped',
+    label: 'Quadruped robot (GO2)',
+    verdict: "In Exowatt's challenge video; it shows NO LINK once it is away from the site base.",
+  },
+];
+
+/** Where the comparison's facts come from, for its footnote. */
+export const SURVEY_ALTERNATIVES_SOURCES = {
+  workbook: "the team's cost workbook (Alternatives sheet: Starlink kit, mounting and plan)",
+  brief: "Exowatt's challenge brief and video",
+  research: "the team's off-grid connectivity research",
+};

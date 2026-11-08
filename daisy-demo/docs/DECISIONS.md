@@ -180,3 +180,13 @@ Spec 8.2 leaves a few details open; `src/engine/survey.ts` uses the simplest cho
 - Unit conversions (m per km, Wh per kWh, hours per day) are in `src/config/units.ts`, because the engine allows no other numeric literals (D7).
 
 With 1, 3 and 6 4x4s the survey takes 45.5 h, 15.3 h and 7.9 h, and the 4x4-hours stay between 45.5 and 47.1.
+
+## D32 - The pricing file follows the cost workbook (T3.3)
+
+`pricing.json` replaces the v2.1 file (bulk tiers, range scaling, per-module flat costs) with the keys of the team's workbook, as spec 10.1 shows; `PRICING_FORMAT.md` lists the workbook cell of every key.
+Two values are constants inside the workbook's formulas rather than Inputs cells, so the file names them: `battery.fleetExtraPacks` (the `+2` packs of the reused fleet) and `battery.groundBoxFromWh` (the 1,000 Wh from which a pack sits on the ground).
+The six setups keep the workbook's row order; `defaultSetup` is HaLow with integrated antennas, the workbook's recommendation.
+The `PricingConfig` types of v2.1 are removed from `types.ts`; the file's type, `Pricing`, lives in `pricing.ts` with the engine that reads it (spec 13).
+`NetworkCost` carries the contract fields of spec 13.1, where `moduleUsd` and `batteryUsd` are the prices of one module and one pack, plus the totals (`modulesUsd`, `batteriesUsd`, `subtotalUsd`), the pack size and the module grid (`gridCols` x `gridRows`) for the cost breakdown.
+On the v3 site, lane pitch 21.64 m, HaLow gives M = 19 rather than the 20 of spec 10.2, but the grid is the same 9 x 5 = 45 modules and the total the same $74,616.
+`PRICING` in `pricing.ts` is the shipped file, validated once when the app loads; its errors go to the console, and the cost section shows a warning when `PRICING.errors` is not empty.

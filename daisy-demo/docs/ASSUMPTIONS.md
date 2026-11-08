@@ -100,3 +100,12 @@ This replaces the site numbers in "Site and layout" and "Build schedule" above.
 - Each 4x4 carries a Starlink terminal, so it is online everywhere on the site.
 - A survey pass records a 20 m swath at 8 km/h; the legs between the base and a strip run at 20 km/h.
 - The survey method, swath, speeds and the $150 hourly 4x4 cost are placeholders (spec section 14).
+
+## Cost (spec section 10, T3.3)
+
+This replaces "Pricing (spec section 5)" above.
+
+- Every price and cost assumption is the team's estimate from `corner-module-cost-model.xlsx`, not a supplier quote, while `pricing.verified = false`; every cost shows "Team estimate · not quotes".
+- The default design is HaLow with integrated antennas: 45 corner modules in a 9 x 5 grid on the full site, 17 battery packs in a reused fleet, and one base, for about $74.6k ($3.24 per container, 0.04% of the P3 hardware).
+- A reused fleet of battery packs moves with the build front, so it only needs packs for the modules placed in the last 30 days, plus 20% spares and 2 packs.
+- The survey costs $150 per 4x4-hour, a placeholder that is not in the workbook yet.

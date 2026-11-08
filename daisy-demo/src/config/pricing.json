@@ -1,61 +1,137 @@
 {
   "verified": false,
+  "source": "Team estimate, Nov 7 2026 (corner-module-cost-model.xlsx)",
   "currency": "USD",
-  "presets": {
-    "mesh5": {
-      "rangeRefM": 300,
-      "tiers": [
-        { "minQty": 1, "unitPrice": 900 },
-        { "minQty": 100, "unitPrice": 780 },
-        { "minQty": 1000, "unitPrice": 650 },
-        { "minQty": 10000, "unitPrice": 540 }
-      ],
-      "rangeScaling": { "mode": "power", "exponent": 0.5 },
-      "rangePricePoints": []
+  "project": { "kwhPerUnit": 25, "p3UnitPriceUsd": 7500 },
+  "placement": { "spacingFactor": 0.85 },
+  "battery": {
+    "bridgeDays": 30,
+    "depthOfDischarge": 0.8,
+    "usdPerKwh": 400,
+    "reusedFleet": true,
+    "fleetSpares": 0.2,
+    "fleetExtraPacks": 2,
+    "heatOversize": 0.15,
+    "bmsPremium": 0.1,
+    "shadedBoxUsd": 40,
+    "groundBoxUsd": 90,
+    "groundBoxFromWh": 1000
+  },
+  "module": { "sunShieldUsd": 15 },
+  "labor": { "wageUsdPerH": 29.36, "burden": 1.8 },
+  "base": { "count": 1, "unitPriceUsd": 8000 },
+  "spares": 0.05,
+  "contingency": 0.1,
+  "defaultSetup": "halowIntegrated",
+  "setups": [
+    {
+      "id": "bleOffShelf",
+      "label": "BLE · off-the-shelf antennas",
+      "rangeM": 80,
+      "radioUsd": 12.09,
+      "radiosPerModule": 2,
+      "radioTariff": 0.125,
+      "hostUsd": 20,
+      "hostTariff": 0,
+      "antennaUsd": 55.19,
+      "antennasPerModule": 4,
+      "enclosureUsd": 16.84,
+      "enclosureTariff": 0.1,
+      "bracketUsd": 40,
+      "hardwareUsd": 20,
+      "laborHPerModule": 0.5,
+      "avgPowerW": 0.4
     },
-    "halow": {
-      "rangeRefM": 500,
-      "tiers": [
-        { "minQty": 1, "unitPrice": 250 },
-        { "minQty": 100, "unitPrice": 210 },
-        { "minQty": 1000, "unitPrice": 170 },
-        { "minQty": 10000, "unitPrice": 140 }
-      ],
-      "rangeScaling": { "mode": "power", "exponent": 0.5 },
-      "rangePricePoints": []
+    {
+      "id": "bleIntegrated",
+      "label": "BLE · integrated antennas",
+      "rangeM": 80,
+      "radioUsd": 12.09,
+      "radiosPerModule": 2,
+      "radioTariff": 0.125,
+      "hostUsd": 20,
+      "hostTariff": 0,
+      "antennaUsd": 8,
+      "antennasPerModule": 4,
+      "enclosureUsd": 16.84,
+      "enclosureTariff": 0.1,
+      "bracketUsd": 40,
+      "hardwareUsd": 20,
+      "laborHPerModule": 0.5,
+      "avgPowerW": 0.4
     },
-    "lora": {
-      "rangeRefM": 1500,
-      "tiers": [
-        { "minQty": 1, "unitPrice": 120 },
-        { "minQty": 100, "unitPrice": 95 },
-        { "minQty": 1000, "unitPrice": 75 },
-        { "minQty": 10000, "unitPrice": 60 }
-      ],
-      "rangeScaling": { "mode": "power", "exponent": 0.5 },
-      "rangePricePoints": []
+    {
+      "id": "loraIntegrated",
+      "label": "LoRa · integrated antennas",
+      "rangeM": 1500,
+      "radioUsd": 16.74,
+      "radiosPerModule": 2,
+      "radioTariff": 0,
+      "hostUsd": 20,
+      "hostTariff": 0,
+      "antennaUsd": 8,
+      "antennasPerModule": 4,
+      "enclosureUsd": 16.84,
+      "enclosureTariff": 0.1,
+      "bracketUsd": 40,
+      "hardwareUsd": 20,
+      "laborHPerModule": 0.5,
+      "avgPowerW": 0.3
     },
-    "ble": {
-      "rangeRefM": 80,
-      "tiers": [
-        { "minQty": 1, "unitPrice": 40 },
-        { "minQty": 100, "unitPrice": 30 },
-        { "minQty": 1000, "unitPrice": 22 },
-        { "minQty": 10000, "unitPrice": 16 }
-      ],
-      "rangeScaling": { "mode": "power", "exponent": 0.5 },
-      "rangePricePoints": []
+    {
+      "id": "halowIntegrated",
+      "label": "HaLow · integrated antennas",
+      "rangeM": 500,
+      "radioUsd": 91.8,
+      "radiosPerModule": 2,
+      "radioTariff": 0,
+      "hostUsd": 419.5,
+      "hostTariff": 0,
+      "antennaUsd": 8,
+      "antennasPerModule": 4,
+      "enclosureUsd": 40,
+      "enclosureTariff": 0.1,
+      "bracketUsd": 40,
+      "hardwareUsd": 20,
+      "laborHPerModule": 0.75,
+      "avgPowerW": 2.5
+    },
+    {
+      "id": "halowOffShelf",
+      "label": "HaLow · off-the-shelf antennas",
+      "rangeM": 500,
+      "radioUsd": 91.8,
+      "radiosPerModule": 2,
+      "radioTariff": 0,
+      "hostUsd": 419.5,
+      "hostTariff": 0,
+      "antennaUsd": 120.89,
+      "antennasPerModule": 4,
+      "enclosureUsd": 40,
+      "enclosureTariff": 0.1,
+      "bracketUsd": 40,
+      "hardwareUsd": 20,
+      "laborHPerModule": 0.75,
+      "avgPowerW": 2.5
+    },
+    {
+      "id": "mesh5Rajant",
+      "label": "5 GHz mesh · Rajant ES1",
+      "rangeM": 300,
+      "radioUsd": 2485.63,
+      "radiosPerModule": 1,
+      "radioTariff": 0,
+      "hostUsd": 0,
+      "hostTariff": 0,
+      "antennaUsd": 92.39,
+      "antennasPerModule": 4,
+      "enclosureUsd": 0,
+      "enclosureTariff": 0,
+      "bracketUsd": 40,
+      "hardwareUsd": 20,
+      "laborHPerModule": 0.75,
+      "avgPowerW": 5
     }
-  },
-  "perModule": {
-    "cornerBracketAndCable": 35,
-    "antennaSet": 40,
-    "installLabor": 60,
-    "batteryBridge": 80
-  },
-  "base": { "unitPrice": 8000, "powerW": 200 },
-  "tempFrontRelay": { "unitPrice": 1500, "powerW": 6, "reusable": true },
-  "sparesPct": 5,
-  "contingencyPct": 10,
-  "tierMode": "allUnits"
+  ],
+  "survey": { "vehicleHourUsd": 150 }
 }

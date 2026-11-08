@@ -1,45 +1,12 @@
-// Shared engine contract: site and schedule types, pricing types, and the Params / Result interfaces of spec section 9.
+// Shared engine contract: site and schedule types, and the Params / Result interfaces of spec section 9.
 // Pure types only (plus the Zone enum); all agents import from here so every module agrees on one data shape.
+import type { Pricing } from './pricing';
 
 // ---------------------------------------------------------------------------
-// Pricing (shape of src/config/pricing.json, spec section 5.1)
+// Radio presets (the pricing file's shape lives in pricing.ts)
 // ---------------------------------------------------------------------------
 
 export type PresetId = 'ble' | 'lora' | 'halow' | 'mesh5';
-
-export interface PriceTier {
-  minQty: number;
-  unitPrice: number;
-}
-
-export interface RangePricePoint {
-  rangeM: number;
-  unitPrice: number;
-}
-
-export interface PresetPricing {
-  rangeRefM: number;
-  tiers: PriceTier[];
-  rangeScaling: { mode: 'power'; exponent: number };
-  rangePricePoints: RangePricePoint[];
-}
-
-export interface PricingConfig {
-  verified: boolean;
-  currency: string;
-  presets: Record<PresetId, PresetPricing>;
-  perModule: {
-    cornerBracketAndCable: number;
-    antennaSet: number;
-    installLabor: number;
-    batteryBridge: number;
-  };
-  base: { unitPrice: number; powerW: number };
-  tempFrontRelay: { unitPrice: number; powerW: number; reusable: boolean };
-  sparesPct: number;
-  contingencyPct: number;
-  tierMode: 'allUnits' | 'incremental';
-}
 
 // ---------------------------------------------------------------------------
 // Site (spec section 3.1 - 3.3)
@@ -250,7 +217,7 @@ export interface Params {
   buildOrder: string;
   bases: { id: string; x: number; y: number; failed: boolean }[];
   failedModuleUnitIds: number[];
-  pricing: PricingConfig; // from pricing.json or the editor
+  pricing: Pricing; // from pricing.json
 }
 
 export interface Result {

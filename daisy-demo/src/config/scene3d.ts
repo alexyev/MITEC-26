@@ -4,7 +4,10 @@
 import { MODULE, SITE, UNIT_HEIGHT_M } from './defaults';
 
 export const SCENE3D = {
-  /** A P3 unit (D122): the 40 ft footprint and height of SITE, and the details of a container's frame. */
+  /**
+   * A P3 unit (D122, D150): the 40 ft footprint and height of SITE, and the details of a container's frame,
+   * doors, railing, porthole, vents and branding.
+   */
   unit: {
     lengthM: SITE.unitWidthM,
     widthM: SITE.unitDepthM,
@@ -25,36 +28,101 @@ export const SCENE3D = {
     /** Dust and shade at the foot of the walls: the darkening at the ground, gone this high up. */
     groundDark: 0.72,
     groundFadeM: 1.1,
-    /** Doors on the south end: two leaves, two locking bars on each. */
+    /**
+     * Doors on the south end (D150): two leaves ribbed across, two locking bars on each with a handle, and
+     * hinges on the outer edges.
+     */
     lockBarsPerLeaf: 2,
     lockBarRadiusM: 0.024,
     lockBarInsetM: 0.32,
     doorSeamM: 0.012,
+    handleHeightM: 1.15,
+    hingesPerLeaf: 4,
+    /** A railing around the roof (D150): posts at most this far apart, inset from the edges, one top rail. */
+    railing: { heightM: 0.36, insetM: 0.07, barM: 0.045, maxSpacingM: 1.55 },
+    /**
+     * The receiver porthole high on the east wall (D150), where its tracker's lens focuses the sun: about a
+     * third of the way from the north end, above the end of the wordmark as in the reference. A steel plate
+     * with a round window in a ring, a hinge and a latch.
+     */
+    porthole: {
+      fromNorthEndM: 3.95,
+      belowRoofM: 0.78,
+      plateM: [0.62, 0.7] as const,
+      ringRadiusM: 0.23,
+      ringTubeM: 0.032,
+      windowRadiusM: 0.2,
+    },
+    /**
+     * Louvered vents and a small access hatch on the east wall, as the reference places them around the
+     * porthole and under the end of the wordmark: distance of the center from the north end, height above the
+     * ground, size.
+     */
+    vents: [
+      { fromNorthEndM: 3.0, atM: 1.69, wM: 0.45, hM: 0.33 },
+      { fromNorthEndM: 3.0, atM: 1.16, wM: 0.45, hM: 0.33 },
+      { fromNorthEndM: 3.62, atM: 1.16, wM: 0.45, hM: 0.33 },
+      { fromNorthEndM: 5.75, atM: 0.8, wM: 0.45, hM: 0.33 },
+    ],
+    ventSlats: 6,
+    hatch: { fromNorthEndM: 6.32, atM: 0.55, wM: 0.48, hM: 0.36 },
+    /**
+     * The white EXOWATT wordmark with its ring mark on both long walls (D151), from the reference's
+     * proportions: cap height as a share of the wall's height, centered along the wall at this height.
+     */
+    branding: { capShare: 0.13, centerAtM: 1.62, texturePx: 2048 },
   },
 
   /**
-   * The sun-tracking Fresnel lens array on the roof (D122), stylized: two rows of lenses along the unit, each
-   * row on its own north-south tracker that tilts the lenses toward the sun.
+   * Each unit's sun tracker (D152): a white pole on a base plate east of the unit, near the porthole; at its
+   * head a yoke turns a horizontal axle, which carries the Fresnel lens on an arm to one side and the
+   * corrugated fin on the other. A live unit's lens faces the sun with its axis through the porthole, so it
+   * focuses there; a unit not yet powered stows its lens flat.
    */
-  lens: {
-    rows: 2,
-    perRow: 9,
-    panelAcrossM: 1.06,
-    panelAlongM: 1.22,
-    /** The aluminium frame shows this far around the acrylic, and the slab thicknesses. */
-    frameM: 0.035,
-    glassM: 0.018,
-    frameDepthM: 0.045,
-    /** Tracker axis height above the roof, its tube radius, and the posts that carry it. */
-    pivotM: 0.62,
-    tubeRadiusM: 0.045,
-    postsPerRow: 4,
-    postM: 0.07,
-    /** Concentric grooves drawn on each lens. */
-    rings: 22,
-    /** How much darker the rings' dark side is, 0 to 1. */
-    ringDepth: 0.16,
+  tracker: {
+    /** The lens center sits this far from the porthole along the sun's direction: its focal length. */
+    focalM: 3.5,
+    /** The lens: a grid of square panes in a white frame. */
+    panes: 3,
+    paneM: 0.94,
+    mullionM: 0.04,
+    frameM: 0.065,
+    frameDepthM: 0.07,
+    /**
+     * Where the lens center sits from the axle's center, in the tracker's tilting frame: along the axle (to
+     * the west side), up the lens's face, and out toward the sun.
+     */
+    lensAlongM: 1.85,
+    lensUpM: 0.8,
+    lensOutM: 0.34,
+    /** The sub-frame behind the lens that the arm holds, as a share of the lens's size, and its offset. */
+    subFrameShare: 0.62,
+    subFrameBackM: 0.13,
+    beamM: 0.075,
+    /** The axle: its radius and half its length. */
+    axleRadiusM: 0.1,
+    axleHalfM: 0.98,
+    /**
+     * The corrugated fin on the axle's east half: width, length up its face, its ribs (count, depth and the
+     * sheet's thickness), how far it sits behind the axle and where its center is along the axle.
+     */
+    fin: { wM: 0.9, lM: 3.0, ribs: 5, depthM: 0.055, thickM: 0.012, offsetM: 0.17, alongM: 0.52 },
+    /** The pole and its base plate, and how far below the axle the yoke that turns it starts. */
+    poleRadiusM: 0.105,
+    plateRadiusM: 0.42,
+    plateM: 0.04,
+    yokeBelowM: 0.34,
+    /** A stowed lens lies flat: the tilt from level, in degrees, of a lens with no power. */
+    stowElevationDeg: 90,
+    /**
+     * Each pane's concentric grooves (a normal map), and its sheen: the clear acrylic's opacity, the radial
+     * streaks' strongest, and their seed.
+     */
+    rings: 18,
     texturePx: 256,
+    clearOpacity: 0.3,
+    sheenOpacity: 0.85,
+    sheenSeed: 5,
   },
 
   /** The corner module (spec 4, D123): bolted to the north-east top corner, its arm sticking out diagonally. */
@@ -112,18 +180,22 @@ export const SCENE3D = {
     labelMarginPx: 20,
   },
 
-  /** The sun: azimuth from north toward east, and elevation; a clear late morning. */
-  sun: { azimuthDeg: 150, elevationDeg: 40 },
+  /**
+   * The sun: azimuth from north toward east, and elevation; a clear late morning, in the south-east so the
+   * east walls' receiver portholes face it and the trackers' lenses turn toward the landing view (D152).
+   */
+  sun: { azimuthDeg: 125, elevationDeg: 42 },
 
   camera: {
     fovDeg: 40,
     nearM: 0.1,
     farM: 14000,
     /**
-     * Where the flight lands (D125), around the module: distance, azimuth (0 is from the south, positive
-     * toward the east) and elevation. Standing in the lane corridor south-east of the module.
+     * Where the flight lands (D125, D153), around the module: distance, azimuth (0 is from the south, positive
+     * toward the east) and elevation. Standing in the lane corridor north-east of the module, far enough round
+     * that its unit's tracker stands whole on the left of the frame.
      */
-    end: { distanceM: 12.5, azimuthDeg: 120, elevationDeg: 8 },
+    end: { distanceM: 13.5, azimuthDeg: 128, elevationDeg: 7 },
     /** Looking around once landed: drag to orbit the module, scroll to come closer or step back. */
     orbit: {
       minDistanceM: 2.6,

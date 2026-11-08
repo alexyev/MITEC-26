@@ -1,6 +1,7 @@
-// Procedural textures of the 3D view (D122): the corrugated walls, the Fresnel lens grooves and the sand
-// grain, made in code so the scene needs no image files.
+// Procedural textures of the 3D view (D122, D151, D152): the corrugated walls, the Fresnel lens grooves and
+// sheen, the EXOWATT wordmark and the sand grain, made in code so the scene needs no image files.
 import {
+  CanvasTexture,
   DataTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
@@ -10,6 +11,7 @@ import {
   UnsignedByteType,
 } from 'three';
 import { createRng } from '../../engine/rng';
+import { BRAND_LAYOUT } from './geometry';
 
 const BYTE = 255;
 
@@ -87,16 +89,37 @@ export function fresnelNormalMap(rings: number, px: number): DataTexture {
 }
 
 /**
- * The same grooves as faint light and dark rings, multiplied into the lens color, so the lenses read as
- * Fresnel lenses from any angle and not as solar panels.
+ * The light a Fresnel pane catches (D152): faint radial streaks from its center, as the grooves of a real
+ * lens throw the light, over a clear base; a coverage map (opacity) for one pane (UV 0..1), repeated per pane.
+ * `base` is the clear acrylic's opacity, `streak` the streaks' strongest.
  */
-export function fresnelRingMap(rings: number, px: number, depth: number): DataTexture {
+export function fresnelSheenMap(
+  px: number,
+  base: number,
+  streak: number,
+  seed: number,
+): DataTexture {
+  const rng = createRng(seed);
+  const bins = 160;
+  const rays = Array.from({ length: bins }, () => Math.pow(rng.next(), 5));
+  const ray = (a: number) => {
+    const x = ((a / (Math.PI * 2)) * bins + bins) % bins;
+    const i = Math.floor(x);
+    const f = x - i;
+    const s = f * f * (3 - 2 * f);
+    return rays[i] + (rays[(i + 1) % bins] - rays[i]) * s;
+  };
   const data = new Uint8Array(px * px * 4);
   for (let y = 0; y < px; y++) {
     for (let x = 0; x < px; x++) {
-      const r = Math.hypot((x + 0.5) / px - 0.5, (y + 0.5) / px - 0.5) * 2;
-      const f = (r * rings) % 1;
-      const l = Math.round((1 - depth * (0.5 + 0.5 * Math.cos(f * Math.PI * 2))) * BYTE);
+      const u = (x + 0.5) / px - 0.5;
+      const v = (y + 0.5) / px - 0.5;
+      const r = Math.min(1, Math.hypot(u, v) * 2);
+      // Streaks fade out toward the pane's edge and stay off its very center, where the grooves are flat.
+      const reach = Math.sin(Math.PI * Math.pow(r, 0.7)) * (1 - 0.35 * r);
+      const glow = Math.exp(-r * r * 18) * 0.5;
+      const a = base + (streak - base) * Math.min(1, ray(Math.atan2(v, u)) * reach * 1.6 + glow);
+      const l = Math.round(Math.min(1, a) * BYTE);
       const i = (y * px + x) * 4;
       data[i] = l;
       data[i + 1] = l;
@@ -104,8 +127,135 @@ export function fresnelRingMap(rings: number, px: number, depth: number): DataTe
       data[i + 3] = BYTE;
     }
   }
-  const tex = mipmapped(new DataTexture(data, px, px, RGBAFormat, UnsignedByteType));
-  tex.colorSpace = SRGBColorSpace;
+  return mipmapped(new DataTexture(data, px, px, RGBAFormat, UnsignedByteType));
+}
+
+/** A stroke between two points of a letter, its ends cut level, as a filled quad. */
+function slant(
+  ctx: CanvasRenderingContext2D,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  width: number,
+): void {
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const hw = (width / 2) * (len / Math.abs(y1 - y0));
+  ctx.beginPath();
+  ctx.moveTo(x0 - hw, y0);
+  ctx.lineTo(x0 + hw, y0);
+  ctx.lineTo(x1 + hw, y1);
+  ctx.lineTo(x1 - hw, y1);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/**
+ * The EXOWATT lockup from the reference (D151): the ring mark (three slightly irregular concentric rings, as if
+ * drawn by hand) and the wordmark in a geometric sans, all drawn with one stroke weight. White on black as a
+ * coverage map, so it filters and mipmaps cleanly; the material's color paints it. Layout in `BRAND_LAYOUT`.
+ */
+export function brandTexture(widthPx: number): CanvasTexture {
+  const b = BRAND_LAYOUT;
+  const C = widthPx / b.widthCaps;
+  const canvas = document.createElement('canvas');
+  canvas.width = widthPx;
+  canvas.height = Math.ceil(b.heightCaps * C);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('The 3D view could not draw its wordmark.');
+  // Coverage, not color: black is bare wall, white is paint (the paint's color is --c-scene-mark).
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'white';
+  ctx.strokeStyle = 'white';
+  const sw = b.strokeCaps * C;
+  const cy = canvas.height / 2;
+
+  // The ring mark: three rings, the inner ones nudged up and left, each a little out of round.
+  const mx = (b.marginCaps + b.markCaps / 2) * C;
+  const rings = [
+    { r: 1.21, dx: 0, dy: 0, wobble: [0.018, 0.012], phase: 0.4 },
+    { r: 0.83, dx: -0.04, dy: -0.07, wobble: [0.022, 0.014], phase: 2.1 },
+    { r: 0.46, dx: -0.07, dy: -0.12, wobble: [0.03, 0.016], phase: 4.3 },
+  ];
+  ctx.lineWidth = sw;
+  for (const ring of rings) {
+    ctx.beginPath();
+    const steps = 180;
+    for (let k = 0; k <= steps; k++) {
+      const a = (k / steps) * Math.PI * 2;
+      const r =
+        ring.r *
+        C *
+        (1 +
+          ring.wobble[0] * Math.sin(2 * a + ring.phase) +
+          ring.wobble[1] * Math.sin(3 * a + ring.phase * 1.7));
+      const x = mx + ring.dx * C + r * Math.cos(a);
+      const y = cy + ring.dy * C + r * Math.sin(a);
+      if (k === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+  }
+
+  // The wordmark, letter by letter, between the cap line and the baseline.
+  const top = cy - C / 2;
+  const bottom = cy + C / 2;
+  const mid = cy;
+  let x = (b.marginCaps + b.markCaps + b.gapCaps) * C;
+  for (const [letter, wCaps] of b.letters) {
+    const w = wCaps * C;
+    const hs = sw / 2;
+    switch (letter) {
+      case 'E':
+        ctx.fillRect(x, top, sw, C);
+        ctx.fillRect(x, top, w, sw);
+        ctx.fillRect(x, mid - hs, w * 0.92, sw);
+        ctx.fillRect(x, bottom - sw, w, sw);
+        break;
+      case 'X':
+        slant(ctx, x + hs * 1.2, top, x + w - hs * 1.2, bottom, sw);
+        slant(ctx, x + w - hs * 1.2, top, x + hs * 1.2, bottom, sw);
+        break;
+      case 'O': {
+        const r = w / 2;
+        ctx.lineWidth = sw;
+        ctx.beginPath();
+        ctx.arc(x + r, cy, r - hs, 0, Math.PI * 2);
+        ctx.stroke();
+        break;
+      }
+      case 'W': {
+        const q = (w - sw * 1.2) / 4;
+        const x0 = x + hs * 1.2;
+        slant(ctx, x0, top, x0 + q, bottom, sw);
+        slant(ctx, x0 + 2 * q, top, x0 + q, bottom, sw);
+        slant(ctx, x0 + 2 * q, top, x0 + 3 * q, bottom, sw);
+        slant(ctx, x0 + 4 * q, top, x0 + 3 * q, bottom, sw);
+        break;
+      }
+      case 'A': {
+        const apex = x + w / 2;
+        slant(ctx, apex, top, x + hs * 1.2, bottom, sw);
+        slant(ctx, apex, top, x + w - hs * 1.2, bottom, sw);
+        const barY = top + C * 0.66;
+        const inset = (w / 2) * (1 - 0.66) + hs * 0.4;
+        ctx.fillRect(x + inset, barY - hs, w - 2 * inset, sw);
+        break;
+      }
+      case 'T':
+        ctx.fillRect(x, top, w, sw);
+        ctx.fillRect(x + w / 2 - hs, top, sw, C);
+        break;
+    }
+    x += w + b.letterGapCaps * C;
+  }
+
+  const tex = new CanvasTexture(canvas);
+  tex.generateMipmaps = true;
+  tex.minFilter = LinearMipmapLinearFilter;
+  tex.magFilter = LinearFilter;
   return tex;
 }
 

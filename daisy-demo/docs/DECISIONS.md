@@ -840,6 +840,7 @@ Exowatt has not published drawings of the P3, so the unit is a 40 ft container a
   The lenses are pale acrylic with concentric grooves (a normal map and a faint ring pattern), so they read as lenses and not as solar panels.
 - **Spacing as on the map:** units 14.2 m apart along a lane (the 2 m column gap) and lanes 21 m apart (an 18.56 m lane corridor).
 - All units are instances of a few merged meshes, one per material, so the whole section is a handful of draw calls.
+- **Update (P3 model round, captain's request).** The captain's reference of the real P3 replaced the lens array with a sun tracker beside each unit, and added the roof railing, the receiver porthole, vents and the EXOWATT wordmark (D150 to D152).
 
 ## D123 - The corner module in 3D (3D round)
 
@@ -867,6 +868,7 @@ Exowatt has not published drawings of the P3, so the unit is a 40 ft container a
 - **Looking around:** drag to orbit the module and scroll to come closer (2.6 m) or step back (48 m); the camera stays above a 1.4 m eye height and below 62 degrees.
 - **Back to map** flies the same path in reverse (2.6 s) from wherever the viewer is, to the map's view at the window's current size, then crossfades back; Escape does the same.
 - **Reduced motion:** both ways are cuts, with no flight and no crossfade.
+- **Update (P3 model round).** The landing is now at 128 degrees, 13.5 m out and 7 degrees up, so the module's own unit shows its wordmark, porthole and tracker (D153).
 
 ## D126 - The look, the palette and the frame rate (3D round)
 
@@ -877,6 +879,7 @@ Exowatt has not published drawings of the P3, so the unit is a 40 ft container a
 - **Frame rate**, measured in Chrome on an Apple M4 Pro: 60 fps through the whole flight at 1280 x 720 and 1440 x 900, at device pixel ratio 1 and 2, with no frame over 16.8 ms; 60 fps through a full orbit of the module at 1440 x 900 and pixel ratio 2.
   Building the scene and compiling its shaders takes about 80 ms on the click, before anything moves.
   The pixel ratio is capped at 2, and the scene renders only while the camera moves.
+- **Update (P3 model round).** The sun is now at azimuth 125 degrees, 42 degrees up, so the receiver portholes on the east walls face it (D152); the frame rate with the new model is in D153.
 
 ## D130 - The home screen's daisy, "Daisy Does It!" and the bare-domain credit (home polish, captain's request)
 
@@ -953,6 +956,64 @@ The follow makes the point of the survey's connectivity: the drone is online thr
 
 Opening the demo from the home screen mounts the map while the home screen still scales it to 104% (D90), and `MapView` sized its canvas from that scaled box, so the whole map drew 4% off and hover and clicks missed what they pointed at until the window was resized.
 It now sizes the canvas from the container's layout size (`clientWidth` and `clientHeight`), which a transform does not change.
+
+## D150 - The P3 from the captain's reference (P3 model round, captain's request)
+
+The captain sent a render of the real Exowatt P3, an orange container beside a white pole-mounted tracker that holds a Fresnel lens and a corrugated fin, and asked for the 3D view's model to match it.
+It replaces D122's lens array on the roof.
+
+- **The footprint stays.** The reference's containers read as 20 ft boxes, about 2.3 times as long as they are tall, so about 6 m.
+  The site model keeps the 40 ft unit from the team's research (12.2 m by 2.44 m by 2.9 m, D122), so the lanes, the gaps and the 2D map are unchanged.
+  The details keep the reference's sizes against the wall's height, so a 40 ft unit reads as the same product, longer; the length is the captain's call (`SITE.unitWidthM`).
+- **The container** keeps its corrugated walls, frame, castings and pile caps.
+  The door leaves at the south end are ribbed across, and their locking bars are painted, with handles and hinges.
+  A railing runs round the roof: posts 0.36 m high at most 1.55 m apart, and a top rail.
+  Four louvered vents and an access hatch sit on the east wall, where the reference has them around the porthole and under the end of the wordmark.
+- **The receiver porthole** is a steel plate with a ring, a satin metal window, a hinge and a latch, high on the east wall (its center 0.78 m below the roof) and 3.95 m from the north end, above the end of the wordmark as in the reference.
+- **The paint** (`--c-scene-unit`) moves from `#e2702a` to `#dc5f2a`, the redder orange of the reference.
+
+## D151 - The EXOWATT wordmark (P3 model round)
+
+- White EXOWATT with its ring mark sits on both long walls, centered, in the reference's proportions: a cap height of 13% of the wall (0.38 m), the mark 2.7 caps across and the word about 8 caps wide, widely spaced, so the lockup is 4.6 m long.
+- It is drawn in code on a canvas (`brandTexture` in `textures.ts`), with no font or image file.
+  The letters are geometric strokes, since E, X, O, W, A and T need only bars, slants and a circle, and the mark is three slightly irregular concentric rings, as in the reference.
+- The drawing is a coverage map on a decal with its own UV set, so it filters and mipmaps cleanly at any distance.
+  The decal shares the wall's corrugation normal map, so the paint follows the ridges, and its color is `--c-scene-mark`.
+
+## D152 - Each unit's sun tracker, focused into its porthole (P3 model round)
+
+- **The tracker** is a white pole (`--c-scene-tracker`) on a base plate with a flange and gussets, east of its unit.
+  At its head a yoke turns a level axle, with a drum and collars.
+  The axle carries the corrugated fin (0.9 m by 3 m, five ribs, with a slim mast) on its east half, and on its west end an arm and a sub-frame that hold the lens: a white frame of 3 by 3 square Fresnel panes, 3 m across.
+  An actuator runs from the drum to the sub-frame.
+- **The aim.** The lens faces the sun, and its center sits 3.5 m from the porthole along the sun's direction, so the lens's axis runs through the porthole and focuses the sun there.
+  The axle is level and square to the sun's azimuth, and the fin and the lens tilt on it together.
+  The pole stands where that puts the head: about 3.5 m east of the wall, level with the porthole along the unit, its axle 3.8 m up, with the lens's center 4.6 m up and 1.5 m south of the porthole.
+  `trackerLayout` in `geometry.ts` derives all of it from the sun's direction.
+- **The sun moves** from azimuth 150 to 125 degrees and from 40 to 42 degrees up: still late morning, now in the south-east.
+  At 150 degrees the light reached the east walls 67 degrees from square, too grazing to be a believable focus, and every lens stood edge-on to the landing view.
+  At 125 degrees it is 52 degrees, the lenses turn toward the landing view, and the corrugation still shows; the shadows fall north-west.
+- **The panes** are clear acrylic (`--c-scene-lens`, 30% opaque) that reflects the sky, seen from both sides.
+  Each pane has its own concentric grooves as a normal map and the light they catch as faint radial streaks from its center (`fresnelSheenMap`), like the starbursts in the reference.
+- **Build states (D102).** A live unit's lens tracks the sun; a placed or commissioned unit, not yet powered, stows its lens flat.
+  Planned units are not drawn, as before.
+- **Tests** (`tests/scene3dP3.test.ts`): the porthole faces the sun from high on the east wall, above the wordmark's end; the live lens faces the sun with its axis through the porthole at the focal length; the lens and the fin clear the container and its railing, live and stowed; and the tracker keeps more than 2 m from the module's antennas, south of the unit's north end.
+
+## D153 - The landing, the frame rate and the bundle (P3 model round)
+
+- **The landing** moves round to 128 degrees, 13.5 m out and 7 degrees up (from 120 degrees, 12.5 m and 8 degrees).
+  The module's own unit shows its wordmark and porthole, and its tracker stands whole on the left of the frame below the card, while the module stays in the middle with its beams in a V.
+  The landing test now raycasts the real container and tracker geometry of every unit near the line of sight from the eye: none of them is between the camera and the module.
+- **Frame rate**, measured in Chrome on an Apple M4 Pro with a 120 Hz display: the flight and a full orbit of the module hold 120 fps at 1280 x 720 and 1440 x 900, at pixel ratio 1 and 2, with no flight frame over 9.3 ms and no orbit frame over 16.7 ms.
+  Drawing a frame and reading it back takes 5.6 ms at the landing at 1440 x 900 and pixel ratio 2, against 4.6 ms on main: 37 draw calls and 5.1 million triangles with the shadow pass, against 33 and 2.2 million.
+  That leaves about three times the 60 fps budget on this machine.
+- **How.** A unit is about 3,700 triangles: 2,400 for the container and 1,300 for the tracker.
+  Every repeated part is one instanced mesh per material, with the materials shared by every unit, and the flat or see-through parts (the wordmark, the panes, the porthole's window) cast no shadow.
+  Splitting the units into tiles, so the camera and the shadow box skip the ones they cannot see, was tried and dropped: it saved little time and multiplied the draw calls.
+  From the click to the start of the flight takes about 170 ms.
+- **Bundle** (minified, and gzip -9), against main at 14bc998: the main JS is unchanged at 341.5 kB, and the main CSS grows by 49 bytes for the two new tokens.
+  The 3D chunk grows from 594.8 kB to 607.9 kB (150.0 kB to 154.5 kB gzipped).
+  The fin is a hand-built sweep rather than three.js's `ExtrudeGeometry`, which would have added another 28 kB.
 
 ## D160 - Every panel starts folded (panels round, captain's request)
 

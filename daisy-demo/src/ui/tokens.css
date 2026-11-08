@@ -125,10 +125,12 @@
   --callout-w: 320px; /* The tour callout: a panel's width, so it fits beside the map's fit area */
 
   /* The 3D view of a radio's corner (D120): the site in daylight. Story colors keep their meaning there. */
-  --c-scene-unit: #e2702a; /* The P3's paint, Exowatt orange */
-  --c-scene-steel: #a7adb3; /* Galvanized steel: the lens tracker, the bracket arm, the mast */
+  --c-scene-unit: #dc5f2a; /* The P3's paint, Exowatt orange as in the captain's reference (D150) */
+  --c-scene-steel: #a7adb3; /* Galvanized steel: the porthole plate, the bracket arm, the mast */
   --c-scene-dark: #33363a; /* Corner castings, pile caps, door gear, cable */
   --c-scene-lens: #c9dde3; /* Fresnel lens acrylic */
+  --c-scene-tracker: #dfe4e9; /* The sun tracker's white powder coat (D152) */
+  --c-scene-mark: #fdfcfa; /* The EXOWATT wordmark's white paint (D151) */
   --c-scene-module: #e6e8ea; /* The corner module's enclosure and antenna radomes */
   --c-scene-ground: #d2b089; /* Desert sand */
   --c-scene-graded: #c8a982; /* The graded site around the lanes */

@@ -1,5 +1,5 @@
-// Unit layer: a pre-rendered raster of all units for zoomed-out views, and a vector pass over the visible units
-// when zoomed in. Both color units by state (not placed: outline, placed: grey, commissioned: orange).
+// Unit layer: every visible unit drawn at screen resolution, at least `minPx` across, into a cache canvas that
+// is redrawn only when the view or the unit states change (decision D35). Units are colored by state.
 import type { SiteModel } from '../../state/model';
 
 export interface UnitColors {
@@ -8,98 +8,54 @@ export interface UnitColors {
   commissioned: string;
 }
 
-export interface RasterLevel {
-  canvas: HTMLCanvasElement;
-  /** Raster pixels per meter. */
-  pxPerM: number;
+/** World meters to target pixels: x right, y down from `oy`. */
+export interface PixelTransform {
+  scale: number;
+  ox: number;
+  oy: number;
 }
 
 /**
- * Pre-rendered unit layer as a mip pyramid: level 0 at `pxPerM`, every next level at half the resolution.
- * Drawing from the level closest to the screen scale avoids the moire of one large downscale.
- */
-export interface UnitRaster {
-  levels: RasterLevel[];
-}
-
-/** Create the offscreen canvases that cover the whole site, down to about `minPx` pixels wide. */
-export function createUnitRaster(model: SiteModel, pxPerM: number, minPx: number): UnitRaster {
-  const levels: RasterLevel[] = [];
-  for (let r = pxPerM; levels.length === 0 || model.site.widthM * r >= minPx; r /= 2) {
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(model.site.widthM * r);
-    canvas.height = Math.ceil(model.site.heightM * r);
-    levels.push({ canvas, pxPerM: r });
-  }
-  return { levels };
-}
-
-/** The smallest level that still has at least `devicePxPerM` resolution (level 0 when none has). */
-export function pickLevel(raster: UnitRaster, devicePxPerM: number): RasterLevel {
-  let best = raster.levels[0];
-  for (const level of raster.levels) if (level.pxPerM >= devicePxPerM) best = level;
-  return best;
-}
-
-/**
- * Draw the units of every state with one path per state. `toPx` maps world meters to the target pixels;
- * `visible` limits the pass to a world rectangle (all units when omitted).
+ * Draw the units of every state with one path per state. Each unit is at least `minPx` wide and tall, so a
+ * 2.44 m unit stays a visible line when the whole site is on screen. Planned units are thin outlines once
+ * they are at least `outlineFromPx` in both directions; below that an outline would cover the unit anyway,
+ * so they are filled. `visible` limits the pass to a world rectangle.
  */
 export function drawUnits(
   ctx: CanvasRenderingContext2D,
   model: SiteModel,
   states: Uint8Array,
   colors: UnitColors,
-  toPx: { scale: number; ox: number; oy: number },
-  visible?: { x0: number; y0: number; x1: number; y1: number },
+  toPx: PixelTransform,
+  visible: { x0: number; y0: number; x1: number; y1: number },
+  minPx: number,
+  outlineFromPx: number,
 ): void {
   const { site, unitW, unitH } = model;
   const { scale, ox, oy } = toPx;
-  const w = unitW * scale;
-  const h = unitH * scale;
+  const w = Math.max(minPx, unitW * scale);
+  const h = Math.max(minPx, unitH * scale);
+  const outline = Math.min(w, h) >= outlineFromPx;
   const paths = [new Path2D(), new Path2D(), new Path2D()];
   const hw = unitW / 2;
   const hh = unitH / 2;
   for (let i = 0; i < site.count; i++) {
     const x = site.centers[2 * i];
     const y = site.centers[2 * i + 1];
-    if (
-      visible &&
-      (x + hw < visible.x0 || x - hw > visible.x1 || y + hh < visible.y0 || y - hh > visible.y1)
-    )
+    if (x + hw < visible.x0 || x - hw > visible.x1 || y + hh < visible.y0 || y - hh > visible.y1)
       continue;
-    paths[states[i]].rect(ox + (x - hw) * scale, oy - (y + hh) * scale, w, h);
+    paths[states[i]].rect(ox + x * scale - w / 2, oy - y * scale - h / 2, w, h);
   }
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = colors.planned;
-  ctx.stroke(paths[0]);
+  if (outline) {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = colors.planned;
+    ctx.stroke(paths[0]);
+  } else {
+    ctx.fillStyle = colors.planned;
+    ctx.fill(paths[0]);
+  }
   ctx.fillStyle = colors.placed;
   ctx.fill(paths[1]);
   ctx.fillStyle = colors.commissioned;
   ctx.fill(paths[2]);
-}
-
-/** Re-render the raster for new unit states: draw level 0, then halve it into each next level. */
-export function renderUnitRaster(
-  raster: UnitRaster,
-  model: SiteModel,
-  states: Uint8Array,
-  colors: UnitColors,
-): void {
-  raster.levels.forEach((level, i) => {
-    const ctx = level.canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, level.canvas.width, level.canvas.height);
-    if (i === 0) {
-      drawUnits(ctx, model, states, colors, {
-        scale: level.pxPerM,
-        ox: 0,
-        oy: model.site.heightM * level.pxPerM,
-      });
-    } else {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(raster.levels[i - 1].canvas, 0, 0, level.canvas.width, level.canvas.height);
-    }
-  });
 }

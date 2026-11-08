@@ -6,17 +6,21 @@ import type { BuildConfig, SiteConfig } from '../engine/types';
 export const SITE: SiteConfig = {
   areaAcres: 2000,
   aspect: 2.0,
-  targetUnits: 80_000,
+  targetUnits: 23_000,
   unitWidthM: 12.2,
   unitDepthM: 2.44,
   unitGapM: 2.0,
-  unitsPerLane: 20,
+  unitsPerLane: 25,
   lanesPerBlock: 20,
   roadWidthM: 10,
   edgeMarginM: 20,
-  laneAxis: 'EW',
+  /** Lanes run north-south, so every P3 unit stands with its long axis north-south (D33). */
+  laneAxis: 'NS',
   minRowClearanceM: 1.0,
   acreM2: 4046.8564224,
+  /** The base pad at the center: 10 lane rows by one block length (25 units) with no units (D34). */
+  basePadLanes: 10,
+  basePadUnits: 25,
 };
 
 /** Allowed relative deviation of the generated unit count from the target (spec T1.1: within 2%). */
@@ -159,6 +163,8 @@ export const PERF_TARGETS_MS = {
  * map fits use `mapFitPaddingPx` so targets land in the gap between the panels.
  */
 export const UI = {
+  /** Brand chip at the top left and the browser tab title (index.html), by the captain's request. */
+  brand: 'Exowatt: Scaling Deployment',
   /** Credit at the bottom center (spec 6.2); opens in a new tab. */
   credit: { label: 'by Alexander Yevchenko', url: 'https://alexanderyevchenko.com' },
   /** Floating layout in CSS px (spec 6.2): screen margin, top row, panel width, player width. */
@@ -189,12 +195,9 @@ export const UI = {
 
 /** Map view (spec 10.3, T1.3). Colors live in src/ui/theme.css. */
 export const MAP = {
-  /** Resolution of the pre-rendered unit layer in pixels per meter. */
-  rasterPxPerM: 1.5,
-  /** Smallest level of the raster pyramid, in pixels across the site. */
-  rasterMinLevelPx: 512,
-  /** Above this many device pixels per meter the units are drawn as vectors (visible units only). */
-  vectorAbovePxPerM: 1.6,
+  /** Units are drawn at least this many CSS pixels across, and as outlines from this size up (D35). */
+  unitMinPx: 1,
+  unitOutlineFromPx: 4,
   /** Zoom limits: the minimum is a fraction of the fit scale; the maximum is in CSS pixels per meter. */
   minZoomOfFit: 0.6,
   maxPxPerM: 40,
@@ -210,4 +213,6 @@ export const MAP = {
   baseMarkerPx: 5,
   baseHaloPx: 4,
   baseCornerPx: 1.5,
+  /** Corner radius of the base pad (D34), in CSS pixels. */
+  basePadCornerPx: 3,
 };

@@ -83,3 +83,31 @@ The main view says "Simulated · Illustrative values".
 - All prices are placeholders while `pricing.verified = false`.
   The cost panel shows "Placeholder prices - verify before pitch" until then.
 - See `PRICING_FORMAT.md` for the file format.
+
+## Site and layout, v3 (spec section 3.1, T3.1)
+
+This replaces the site numbers in "Site and layout" and "Build schedule" above.
+
+- The site is 2,000 acres with exactly 23,000 P3 units, the team's number from Exowatt, in a 2:1 rectangle of about 4,023 m by 2,012 m.
+- Lanes run north-south, so every unit stands with its long axis north-south (decision D33).
+- A lane has 25 units; 5 block columns give 125 units per lane row, and 186 lane rows give 23,250 places.
+- The base has its own pad at the center, about 215 m by 365 m, where 250 places stay empty, so there are exactly 23,000 units (decision D34).
+- The lane pitch is 21.52 m everywhere; each road between block rows runs in the corridor between two lanes (decision D30).
+- The unit grid, which the 4x4s survey, is 3,983 m by 1,813 m.
+- At 200 units per day the build takes 115 days.
+
+## 4x4 survey (spec section 8, T3.2)
+
+- 4x4s survey the unit-grid rectangle before any unit is placed, on coordinated autonomous paths.
+- Each 4x4 carries a Starlink terminal, so it is online everywhere on the site.
+- A survey pass records a 20 m swath at 8 km/h; the legs between the base and a strip run at 20 km/h.
+- The survey method, swath, speeds and the $150 hourly 4x4 cost are placeholders (spec section 14).
+
+## Cost (spec section 10, T3.3)
+
+This replaces "Pricing (spec section 5)" above.
+
+- Every price and cost assumption is the team's estimate from `corner-module-cost-model.xlsx`, not a supplier quote, while `pricing.verified = false`; every cost shows "Team estimate · not quotes".
+- The default design is HaLow with integrated antennas: 50 corner modules in a 5 x 10 grid on the full site, 18 battery packs in a reused fleet, and one base, for about $80.6k ($3.51 per container, 0.05% of the P3 hardware); on the workbook's east-west layout the same design is 45 modules and $74.6k (decision D33).
+- A reused fleet of battery packs moves with the build front, so it only needs packs for the modules placed in the last 30 days, plus 20% spares and 2 packs.
+- The survey costs $150 per 4x4-hour, a placeholder that is not in the workbook yet.

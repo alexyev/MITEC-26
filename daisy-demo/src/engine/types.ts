@@ -1,45 +1,12 @@
-// Shared engine contract: site and schedule types, pricing types, and the Params / Result interfaces of spec section 9.
+// Shared engine contract: site and schedule types, and the Params / Result interfaces of spec section 9.
 // Pure types only (plus the Zone enum); all agents import from here so every module agrees on one data shape.
+import type { Pricing } from './pricing';
 
 // ---------------------------------------------------------------------------
-// Pricing (shape of src/config/pricing.json, spec section 5.1)
+// Radio presets (the pricing file's shape lives in pricing.ts)
 // ---------------------------------------------------------------------------
 
 export type PresetId = 'ble' | 'lora' | 'halow' | 'mesh5';
-
-export interface PriceTier {
-  minQty: number;
-  unitPrice: number;
-}
-
-export interface RangePricePoint {
-  rangeM: number;
-  unitPrice: number;
-}
-
-export interface PresetPricing {
-  rangeRefM: number;
-  tiers: PriceTier[];
-  rangeScaling: { mode: 'power'; exponent: number };
-  rangePricePoints: RangePricePoint[];
-}
-
-export interface PricingConfig {
-  verified: boolean;
-  currency: string;
-  presets: Record<PresetId, PresetPricing>;
-  perModule: {
-    cornerBracketAndCable: number;
-    antennaSet: number;
-    installLabor: number;
-    batteryBridge: number;
-  };
-  base: { unitPrice: number; powerW: number };
-  tempFrontRelay: { unitPrice: number; powerW: number; reusable: boolean };
-  sparesPct: number;
-  contingencyPct: number;
-  tierMode: 'allUnits' | 'incremental';
-}
 
 // ---------------------------------------------------------------------------
 // Site (spec section 3.1 - 3.3)
@@ -73,11 +40,15 @@ export interface SiteConfig {
   laneAxis: LaneAxis;
   minRowClearanceM: number; // pitch must be at least depth + this value
   acreM2: number;
+  /** Base pad at the center (D34): lane rows and units along the lane left empty; 0 for no pad. */
+  basePadLanes: number;
+  basePadUnits: number;
 }
 
 /**
- * Generated site. Unit ids are row-major: `id = row * cols + col`, where `row` is the lane row
- * across the whole site and `col` is the unit column across the whole site (both in the lane frame).
+ * Generated site. Unit ids are row-major in (`row`, `col`) and skip the base pad (D34), so look a unit
+ * up with `unitRow` and `unitCol`; `row` is the lane row across the whole site and `col` the unit column
+ * across the whole site (both in the lane frame).
  * World frame: x grows east, y grows north. With `laneAxis = 'EW'` lanes run along x.
  */
 export interface Site {
@@ -131,6 +102,10 @@ export interface Site {
    */
   columnCorridorX: Float32Array;
   roads: Rect[];
+  /** World rectangle of the base pad, which holds no units (D34); null when the site has no pad. */
+  basePad: Rect | null;
+  /** Where the base stands: the center of the pad (the site center when there is none). */
+  base: { x: number; y: number };
   warnings: string[];
 }
 
@@ -250,7 +225,7 @@ export interface Params {
   buildOrder: string;
   bases: { id: string; x: number; y: number; failed: boolean }[];
   failedModuleUnitIds: number[];
-  pricing: PricingConfig; // from pricing.json or the editor
+  pricing: Pricing; // from pricing.json
 }
 
 export interface Result {

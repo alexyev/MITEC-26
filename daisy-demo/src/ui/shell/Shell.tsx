@@ -40,7 +40,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </main>
         <div className="overlay">
           <div className="top-left">
-            <div className="brand">Daisy chain</div>
+            <div className="brand">{UI.brand}</div>
           </div>
           <div className="top-center">
             <Segmented options={TABS} value={tab} onChange={setTab} ariaLabel="View" />

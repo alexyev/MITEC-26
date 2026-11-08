@@ -7,17 +7,20 @@ import type { Pricing } from '../src/engine/pricing';
 import { getSurveyPlan } from '../src/state/survey';
 import { SurveyCostChip, surveyCostRows, unpricedText } from '../src/ui/survey/SurveyCostChip';
 import { surveyAlternatives } from '../src/ui/survey/surveyAlternatives';
+import { utvKitCost } from '../src/ui/survey/utvKit';
+import { CAPTAIN_ESTIMATE_USD, LIDAR_GRADES, UTV_KIT } from '../src/config/utvKit';
 
 // D63: the survey cost is a quiet chip in the Build tab's pattern (D54), with the alternatives behind it.
 afterEach(cleanup);
 
 const plan = getSurveyPlan(3);
 const cost = surveyCost(PRICING.pricing, 3, plan.vehicleHours, plan.finishH);
+const kit = utvKitCost(PRICING.pricing);
 
 function renderChip(focus = false) {
   return render(
     <div className="shell">
-      <SurveyCostChip cost={cost} pricingErrors={0} focus={focus} />
+      <SurveyCostChip cost={cost} kit={kit} pricingErrors={0} focus={focus} />
     </div>,
   );
 }
@@ -49,7 +52,7 @@ describe('SurveyCostChip (D63)', () => {
     expect(text).not.toContain('$6.9');
     expect(text.toLowerCase()).not.toContain('to confirm');
     expect(text.toLowerCase()).not.toContain('estimate');
-    expect(text).toContain('Without the 4x4 hire and the 3 drones');
+    expect(text).toContain('Without the UTV hire: no sourced hourly rate yet');
   });
 
   it('opens the alternatives: every survey approach with its trade-off, only ours priced', () => {
@@ -76,13 +79,13 @@ describe('survey cost rows and alternatives', () => {
     expect(rows.reduce((s, r) => s + r.usd, 0)).toBe(cost.pricedUsd);
   });
 
-  it('price the 4x4s and drones too, and drop the note, once their prices are sourced', () => {
+  it('price the UTVs and drones too, and drop the note, once their prices are sourced', () => {
     const p = structuredClone(PRICING.pricing) as Pricing;
     p.survey.unverified = [];
     p.survey.droneUsd = 2000;
     const full = surveyCost(p, 3, plan.vehicleHours, plan.finishH);
     expect(surveyCostRows(full).map((r) => r.label)).toEqual([
-      '4x4 hire',
+      'UTV hire',
       'Drones',
       'Starlink kits',
       'Starlink service',
@@ -107,5 +110,54 @@ describe('survey cost rows and alternatives', () => {
       costNote: 'Starlink only',
     });
     for (const r of rows.slice(1)) expect(r.totalUsd).toBeNull();
+  });
+});
+
+describe('the survey UTV, all in (D84)', () => {
+  it('prices every part with a source, and leaves the unpriced integration out of the total', () => {
+    for (const p of UTV_KIT) expect(p.source.length).toBeGreaterThan(0);
+    expect(kit.rows.map((r) => r.id)).toEqual([
+      'utv',
+      'lidar',
+      'rtk',
+      'compute',
+      'starlink',
+      'drone',
+      'integration',
+    ]);
+    expect(kit.unpriced.map((r) => r.id)).toEqual(['integration']);
+    // Ranger XP 1000 $22,594, 2 x $4,500 lidar, $1,023 RTK, $3,258 compute, $799 Starlink, $24,989 drone.
+    expect(kit.totalUsd).toBe(22_594 + 9_000 + 1_023 + 3_258 + 799 + 24_989);
+    expect(kit.groundUsd).toBe(kit.totalUsd - 24_989);
+    expect(kit.serviceUsdPerMonth).toBe(250);
+  });
+
+  it("answers the captain's $50k: the ground kit fits under it, the drone does not", () => {
+    expect(kit.groundUsd).toBeLessThan(CAPTAIN_ESTIMATE_USD);
+    expect(kit.totalUsd).toBeGreaterThan(CAPTAIN_ESTIMATE_USD);
+    // Survey-grade lidar alone, front and back, is over $50k.
+    const slam = LIDAR_GRADES.find((g) => g.id === 'slam')!;
+    expect(slam.lowUsd * slam.count).toBeGreaterThan(CAPTAIN_ESTIMATE_USD);
+  });
+
+  it('opens the survey UTV sheet from the cost card, with the drawing, the parts and the grades', () => {
+    renderChip(true);
+    fireEvent.click(screen.getByRole('button', { name: /One survey UTV, all in/ }));
+    const sheet = screen.getByRole('dialog', { name: 'The survey UTV' });
+    expect(sheet.querySelector('svg[role=img]')).toBeTruthy();
+    for (const label of [
+      'Lidar · front',
+      'Lidar · back',
+      'RTK GNSS',
+      'Starlink Mini',
+      'Rugged compute',
+      'Drone dock',
+    ])
+      expect(sheet.textContent).toContain(label);
+    expect(sheet.textContent).toContain('$61.7k');
+    expect(sheet.textContent).toContain('No public price');
+    expect(sheet.textContent).toContain('Mobile mapping system');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'The survey UTV' })).toBeNull();
   });
 });

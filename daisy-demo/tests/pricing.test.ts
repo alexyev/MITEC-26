@@ -128,7 +128,7 @@ describe('surveyCost (D62)', () => {
     expect(pricing.survey.starlinkBillingDays).toBe(30);
   });
 
-  it('prices a Starlink kit, its mounting and one month of service for each 4x4', () => {
+  it('prices a Starlink kit, its mounting and one month of service for each UTV', () => {
     const c = surveyCost(pricing, 3, 46.4, 15.5);
     expect(c.starlinkMonths).toBe(1);
     expect(c.starlinkHardwareUsd).toBe(3 * (649 + 150));
@@ -156,7 +156,7 @@ describe('surveyCost (D62)', () => {
     expect(c.pricedUsd).toBe(3 * 799 + 3 * 250);
   });
 
-  it('adds the 4x4-hours and the drones once their prices are sourced', () => {
+  it('adds the UTV-hours and the drones once their prices are sourced', () => {
     const p = withSurvey({ unverified: [], droneUsd: 2000 });
     const c = surveyCost(p, 3, 46, 15.5);
     expect(c.vehicleHoursUsd).toBe(46 * 150);

@@ -25,14 +25,15 @@ describe('survey walkthrough', () => {
       SURVEY_WALK.doneS,
       Infinity,
     ]);
-    for (const s of steps) expect(s.caption.length).toBeLessThanOrEqual(90);
+    for (const s of steps) expect(s.caption.length).toBeLessThanOrEqual(80);
   });
 
   it('puts the numbers of the run in the Done caption', () => {
     expect(steps[3].caption).toBe(
-      'Done in 5.4 h with 3 4x4s. More 4x4s finish sooner in about the same 4x4-hours.',
+      'Done in 3.7 h with 3 UTVs, in a day. More UTVs: less time, same UTV-hours.',
     );
-    expect(surveySteps(getSurveyPlan(1))[3].caption).toContain('with 1 4x4.');
+    expect(surveySteps(getSurveyPlan(1))[3].caption).toContain('with 1 UTV, in 2 days.');
+    expect(steps[1].caption).toContain('passes 40 m apart');
   });
 
   it('shows the right state at the start of every step (seeking)', () => {
@@ -62,7 +63,7 @@ describe('survey walkthrough', () => {
     );
   });
 
-  it('zooms in on 4x4 #1 halfway down a pass, slows down, and zooms back out (D82)', () => {
+  it('zooms in on UTV #1 halfway down a pass, slows down, and zooms back out (D82)', () => {
     const clock = surveyClock(plan);
     const c = SURVEY_CLOSE_UP;
     const v = plan.vehicles[c.vehicle];
@@ -88,7 +89,7 @@ describe('survey walkthrough', () => {
       expect(close.pxPerM).toBe(c.pxPerM);
       if (close.blend === 1) {
         held += dt;
-        // Fully zoomed in, 4x4 #1 stays near the center and drives a pass at the close-up's screen speed.
+        // Fully zoomed in, UTV #1 stays near the center and drives a pass at the close-up's screen speed.
         const at = vehicleAt(v, h);
         // On a southbound pass, so it drives into the close-up from the top of the map.
         expect(at.kind).toBe('pass');
@@ -103,7 +104,8 @@ describe('survey walkthrough', () => {
     expect(clock.hoursAt(clock.durationS)).toBeCloseTo(plan.finishH, 9);
     // The close-up adds its own seconds to the step, at a pace near real time.
     expect(clock.durationS).toBeGreaterThan(plan.finishH / fast + c.holdS);
-    expect(formatPace(clock.closeUpHPerS)).toBe('8 s');
+    // About five times real time: 1 s plays 4.8 s of the UTV at 20 km/h.
+    expect(formatPace(clock.closeUpHPerS)).toBe('4.8 s');
   });
 
   it('marks the close-up in the frame and plays "Your turn" runs without one', () => {

@@ -81,12 +81,12 @@ The setup ids are `bleOffShelf`, `bleIntegrated`, `loraIntegrated`, `halowIntegr
 
 | Key                              | Workbook cell           | Meaning                                                                                 |
 | -------------------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
-| `survey.vehicleHourUsd`          | not in the workbook yet | Cost of one 4x4-hour of survey; the spec's placeholder of $150, listed in `unverified`. |
-| `survey.starlinkKitUsd`          | Alternatives!B59        | Starlink Mini kit with shipping, one per 4x4.                                           |
-| `survey.starlinkMountUsd`        | Alternatives!B62        | Mounting and power for the kit on a 4x4.                                                |
+| `survey.vehicleHourUsd`          | not in the workbook yet | Cost of one UTV-hour of survey; the spec's placeholder of $150, listed in `unverified`. |
+| `survey.starlinkKitUsd`          | Alternatives!B59        | Starlink Mini kit with shipping, one per UTV.                                           |
+| `survey.starlinkMountUsd`        | Alternatives!B62        | Mounting and power for the kit on a UTV.                                                |
 | `survey.starlinkPlanUsdPerMonth` | Alternatives!B60        | Starlink service per terminal and month.                                                |
 | `survey.starlinkBillingDays`     | Alternatives!B61        | Days billed as one month (the workbook divides by 30).                                  |
-| `survey.droneUsd`                | not in the workbook     | One drone that follows a 4x4; `null` while there is no sourced price.                   |
+| `survey.droneUsd`                | not in the workbook     | One drone that follows a UTV; `null` while there is no sourced price.                   |
 | `survey.unverified`              | -                       | Keys whose value is a placeholder: kept in the file, never shown as a cost (D62).       |
 
 A survey price is `null` or a number of at least 0; the demo shows it only when it is a number and not listed in `unverified`.

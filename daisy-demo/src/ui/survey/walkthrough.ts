@@ -2,10 +2,10 @@
 // Pure functions of the plan and t (spec rule 6), so seeking and stepping back show the right state.
 import { SURVEY, SURVEY_CLOSE_UP, SURVEY_WALK } from '../../config/survey';
 import { UNITS } from '../../config/units';
-import { vehicleAt } from '../../engine/survey';
+import { surveySchedule, vehicleAt } from '../../engine/survey';
 import type { Point, SurveyLeg, SurveyPlan } from '../../engine/survey';
 import type { WalkStep } from '../player/types';
-import { formatHours } from './format';
+import { formatHours, formatInt } from './format';
 
 export type SurveyStepId = 'site' | 'paths' | 'survey' | 'done' | 'yourTurn';
 
@@ -22,7 +22,7 @@ function smoothIntegral(u: number): number {
 }
 
 /**
- * The Survey step's clock (D82): survey hours at the playback rate, except for a close-up on one 4x4 halfway
+ * The Survey step's clock (D82): survey hours at the playback rate, except for a close-up on one UTV halfway
  * down a pass, where the clock eases down to `slowHPerS` while the map zooms in, holds, and eases back up
  * while the map zooms out. Hours and zoom are pure functions of the step time, so seeking works.
  */
@@ -43,7 +43,7 @@ export interface CloseUp {
   pxPerM: number;
   /** 0 is the view before the close-up, 1 is fully zoomed in. */
   blend: number;
-  /** The 4x4 the close-up shows (0-based). */
+  /** The UTV the close-up shows (0-based). */
   vehicle: number;
 }
 
@@ -73,8 +73,8 @@ function buildSurveyClock(plan: SurveyPlan): SurveyClock {
   const slow = c.screenSpeedPxS / c.pxPerM / (plan.config.surveySpeedKmh * UNITS.mPerKm);
   const holdH = c.holdS * slow;
   const rampH = (c.rampS * (fast + slow)) / 2;
-  // The first southbound pass the 4x4 drives from `atShare` of its drive time; the hold is centered on its
-  // middle. Southbound, the 4x4 drives into the close-up from the top of the map, clear of the player bar.
+  // The first southbound pass the UTV drives from `atShare` of its drive time; the hold is centered on its
+  // middle. Southbound, the UTV drives into the close-up from the top of the map, clear of the player bar.
   const at = c.atShare * vehicle.driveH;
   const southbound = (l: SurveyLeg) => l.kind === 'pass' && l.y1 < l.y0;
   const pass =
@@ -126,36 +126,39 @@ function buildSurveyClock(plan: SurveyPlan): SurveyClock {
 /** The five steps of the Survey tab; the Survey step lasts the survey time at the playback rate. */
 export function surveySteps(plan: SurveyPlan): WalkStep[] {
   const count = plan.vehicles.length;
-  const fleet = `${count} 4x4${count === 1 ? '' : 's'}`;
+  const fleet = `${count} UTV${count === 1 ? '' : 's'}`;
+  const { days: n } = surveySchedule(plan);
+  // "Field day" is spelled out in the readout; the caption stays on one line at 1280 x 720.
+  const days = n === 1 ? 'in a day' : `in ${n} days`;
   const steps: (WalkStep & { id: SurveyStepId })[] = [
     {
       id: 'site',
       label: 'Site',
-      caption: '2,000 acres and 23,000 P3 units to place. First, 4x4s survey the ground.',
+      caption: '2,000 acres and 23,000 P3 units to place. First, UTVs survey the ground.',
       durationS: SURVEY_WALK.siteS,
     },
     {
       id: 'paths',
       label: 'Paths',
-      caption: 'Each 4x4 gets its own strip; the paths stop at the base pad, never cross it.',
+      caption: `Each UTV gets a strip, in passes ${formatInt(plan.config.swathM)} m apart around the built-up base pad.`,
       durationS: SURVEY_WALK.pathsS,
     },
     {
       id: 'survey',
       label: 'Survey',
-      caption: 'Each 4x4 carries Starlink and a drone that follows it, online through the 4x4.',
+      caption: 'Each UTV scans the ground with lidar, and its drone scans it from above.',
       durationS: surveyClock(plan).durationS,
     },
     {
       id: 'done',
       label: 'Done',
-      caption: `Done in ${formatHours(plan.finishH)} h with ${fleet}. More 4x4s finish sooner in about the same 4x4-hours.`,
+      caption: `Done in ${formatHours(plan.finishH)} h with ${fleet}, ${days}. More UTVs: less time, same UTV-hours.`,
       durationS: SURVEY_WALK.doneS,
     },
     {
       id: 'yourTurn',
       label: 'Your turn',
-      caption: 'Your turn: change the number of 4x4s and press Send.',
+      caption: 'Your turn: change the number of UTVs and press Send.',
       durationS: Infinity,
     },
   ];
@@ -195,7 +198,7 @@ export function walkthroughFrame(steps: WalkStep[], plan: SurveyPlan, t: number)
   const surveyStart = starts[steps.findIndex((s) => s.id === 'survey')];
   const clock = surveyClock(plan);
   const s = t - surveyStart;
-  // From the Done step on, the run is over exactly: rounding in the step starts must not leave a 4x4 short of
+  // From the Done step on, the run is over exactly: rounding in the step starts must not leave a UTV short of
   // the base, where it would still show as driving with its drone in the air.
   const over = step === 'done' || step === 'yourTurn';
   const closeUp = step === 'survey' ? clock.closeUpAt(s) : null;

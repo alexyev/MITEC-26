@@ -1,4 +1,4 @@
-// Survey tab state (spec 8.1): the 4x4 count, the "Your turn" mode and the player time of Send.
+// Survey tab state (spec 8.1): the UTV count, the "Your turn" mode and the player time of Send.
 // Plans are pure functions of the count, so they are computed once per count and cached.
 import { SURVEY } from '../config/survey';
 import { unitGridRect } from '../engine/site';
@@ -10,7 +10,7 @@ import type { YourTurnMode } from '../ui/survey/walkthrough';
 
 const plans = new Map<number, SurveyPlan>();
 
-/** The survey plan for `count` 4x4s on the full site, from the base on its pad at the center (D5, D34, D60). */
+/** The survey plan for `count` UTVs on the full site, from the base on its pad at the center (D5, D34, D60). */
 export function getSurveyPlan(count: number): SurveyPlan {
   let plan = plans.get(count);
   if (!plan) {

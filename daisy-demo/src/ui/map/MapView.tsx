@@ -1,6 +1,6 @@
 // Site map (spec 10.3, T1.3): unit layer, zones of both build faces, the center base, pan, zoom, fit and scale bar.
 // The view lives in refs and redraws on animation frames, so panning never re-renders React. Tabs add their own
-// layers under and over the units (the survey's ground, paths and 4x4s).
+// layers under and over the units (the survey's ground, paths and UTVs).
 import { useCallback, useEffect, useRef } from 'react';
 import { Maximize2, Minus, Plus } from 'lucide-react';
 import { MAP, UI } from '../../config/defaults';

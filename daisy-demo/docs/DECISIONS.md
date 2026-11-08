@@ -544,3 +544,85 @@ This supersedes the "failure only after the build" of D51 and the after-build fa
 The readout card and the legend share the right side, and at 1280 x 720 the card with STRESS-TEST fits only beside a 7-row legend (D47).
 The legend adds "Route before reroute" (the dashed grey of D55, through `LegendItem.colorVar`) and drops "P3 unit": the units are the grey blocks the build sets down, and their hover card names them.
 The robot needs no legend row: its badge on the map names it while it sends.
+
+## D80 - Sourced survey rates (survey round 3, captain's question about the 11.6 h)
+
+The captain asked where the survey time came from.
+The 11.6 h on the captain's screenshot was the old model with 4 UTVs: a 20 m swath at 8 km/h on passes and 20 km/h in transit, placeholders from the v3 spec rewrite with no source (spec section 14).
+With 1, 3 and 6 UTVs it gave 46.0 h, 15.5 h and 8.0 h.
+The rates are now sourced, each with its source and the date it was read next to its value in `src/config/survey.ts`:
+
+- **Transit, 24 km/h:** the 15 mph UTV limit on a utility-scale solar build (Cobra-Barrett Solar Project "Rules of the Road"; 10 mph near active work, which a pre-construction site has none of).
+- **Pass spacing:** a ground-only RTK survey asks for passes 15 m apart on ground with relief, 15-30 m on flat ground and never more than 50 m (OptiSurface's field survey guide); a lidar drone at Propeller's 60 m ceiling for the Zenmuse L2, with 50% side overlap and the L2's 70 degree swath, flies lines 42 m apart.
+  The drone maps the ground between the passes, so the passes can be 40 m apart (D83 keeps 40 m for the UTV's own lidar).
+- **Pass speed:** RTK point logging runs at 7 km/h with turns (an 80-acre ATV grid at 50 ft spacing in about 3 hours, RPLS.com forum) to 15 km/h (OptiSurface: one point every 5 m at 1 s); D83 raises it for mobile lidar.
+
+## D81 - The base pad is built up: no path, UTV or drone on it (survey round 3, captain's request)
+
+The captain asked that the UTVs avoid the base area, since it is already built up.
+Reproduced on main (161dac2) in the browser at 1280 x 720 and 1440 x 900, before and after Send: the planned passes, transit legs and the drawn paths already stopped at the pad (D60), so the captain's screenshot, with passes through the pad, was from a deploy before PR 8.
+Two things still sat on the pad on main: the parked UTVs (in a row under the base marker, inside the pad) and the first and last leg of every UTV, which started and ended at the base inside the pad.
+With 8 UTVs, the strip boundary between the 4th and 5th strip was also drawn through the pad.
+
+- **One gate.** The UTVs leave and return at the pad's gate (`SurveyPlan.gate`), the middle of the pad's edge on the side where the survey starts (south, below the base); `VehiclePlan.home` is the gate, so a UTV at the base is at the gate, never on the pad.
+  Every leg, the first and last included, routes around the pad from the gate (`routeAround`); before, legs left the pad wherever the line to the base crossed its edge.
+- **Parked outside.** Before Send and after the return the fleet parks in a row just outside the gate (`SURVEY_VIEW.parkedBelowPx`), never on the pad, at any zoom.
+- **Drawn as built up.** The pad is filled, hatched (`MAP.basePadHatchPx`) and outlined in a lighter edge (`--c-pad-fill`, `--c-pad-hatch`, `--c-pad-edge`), and the legend's "Base" row is now "Base · built up" with a hatched pad swatch around the base marker (`LegendItem.shape` 'pad').
+  The strip boundaries break around the pad, and the base's hover card reads "Built up".
+- **Tests.** `tests/survey.test.ts` checks for 1 to 8 UTVs that every UTV position and drone position, sampled over the whole run, is off the pad, and that the first and last leg start and end at the gate.
+  `tests/surveyLayers.test.ts` records the rendered planned paths and strip boundaries for 1 to 8 UTVs, at 25 moments of the run, fitted and zoomed in up to 60x on the pad at both sizes, and checks that no stroked segment crosses the pad and that no UTV, parked UTV (halo included) or drone is drawn on it.
+
+## D82 - Slower playback and a close-up on a UTV and its drone (survey round 3, captain's request)
+
+The captain asked to slow down so the drone following its UTV can be seen.
+
+- **Slower speeds.** The shared speed control is ¼×, ½×, 1×, 2× and 4× (`UI.player.speeds`), with 1× (`UI.player.normalSpeed`) where both tabs open; the slower speeds are labeled with fractions so the control stays compact, and their tooltips read "0.25× · slower" and "0.5× · slower".
+  The clock multiplies its frame time by the speed (D52), so both tabs work at every speed; the clock tests cover all five.
+- **A slower pace at 1×.** Half an hour of work plays in 1 s (`SURVEY.playbackHoursPerS`, 1 h before), and the player note reads it in minutes ("Sped up: 30 min of work plays in 1 s").
+- **The close-up.** Partway through the Survey step the map zooms in on UTV #1 halfway down a southbound pass (`SURVEY_CLOSE_UP`): over 1.6 s the zoom eases to 1.8 px/m while the clock eases down to about five times real time, holds for 5 s while the UTV drives through the middle of the screen with its drone behind it on its link, and eases back out to the view it started from.
+  Southbound, the UTV drives in from the open top of the map rather than from under the player bar.
+  The clock's hours are the integral of the eased rate, so they are continuous and never run faster than the playback rate; hours, zoom and labels are pure functions of the step time, so seeking and stepping work (`surveyClock` in `ui/survey/walkthrough.ts`).
+  In the hold the UTV and the drone carry labels ("UTV #1 · Starlink", "Drone #1 · via UTV"), faded in only as the zoom lands, and the player note reads "Up close: 1 s plays 4.8 s of work".
+  With reduced motion the close-up cuts in and out instead of zooming.
+- **The camera.** `MapView` takes an optional `camera` (target, zoom, blend), and `cameraViewport` slides the target on a straight screen line to the center of the area between the panels while the zoom eases geometrically.
+  Panning or zooming hands the view back to the viewer until the camera clears; a cleared camera restores the view it started from, also when a seek skips the zoom out.
+- **The drone stays distinct.** A drone follows at least 20 px on screen, and at least 18 m on the ground (`SURVEY_VIEW.droneTrailM`), so its link reads in the close-up too.
+
+## D83 - Mobile lidar, field days and the overheads (survey round 3, captain's follow-up)
+
+The captain asked whether the survey time includes refueling, turns and navigation, and to update it given how fast lidar is.
+The model now adds every overhead the sources allow, and adopts vehicle-mounted mobile lidar on the UTVs.
+
+- **Mobile lidar on each UTV.** Mobile lidar collects at road speed: TxDOT's design-grade specification sets its density at 60 mph, and YellowScan's Fly & Drive drives at 50 km/h typically.
+  TxDOT cautions against ground models more than 50 ft past the pavement edge, about 20 m from the vehicle, so a pass covers about 40 m: `swathM` stays 40.
+  The pace is then the site's, not the sensor's: 20 km/h on passes, under the 24 km/h UTV limit, to keep the scanner steady on unpaved ground.
+  The drone keeps its role: it flies the UTV's line at 60 m with its own lidar (Propeller allows up to 9 m/s), and its 84 m swath sees every point twice and fills what the ground scanner cannot see.
+- **U-turns.** The shift between passes is a half circle 40 m across, driven at 10 km/h (`turnSpeedKmh`), a team estimate: no source gives UTV turn times, and tractor studies time whole headlands.
+- **Drone battery swaps.** The drone flies 35 min on a set of batteries (`droneFlightMin`): DJI rates the Matrice 350 RTK at 55 min with no payload, and the L2 and a landing reserve take the rest.
+  It then lands on its UTV, which stops for 3 min (`droneSwapMin`, a team estimate) while the hot-swappable TB65 batteries are changed.
+- **Refueling.** A Polaris Ranger XP 1000 carries 11.5 gal, and owners report about 130 miles a tank at slow speeds, so a UTV refuels every 180 km (`fuelRangeKm`), for 15 min where it stands (`refuelMin`, a team estimate); the drone swaps batteries during the refuel.
+  Only a single UTV surveying the whole site drives that far (about 200 km).
+- **Field days.** A field day is a 10-hour shift (`shiftH`, the shift solar builders post for site crews) that starts with 30 min setting up and checking the RTK base (`baseSetupH`, Trimble).
+  `surveySchedule` counts the days the work needs and adds a setup to each.
+- **On the map,** a stop is a `stop` leg: the UTV stands, its drone docks on it, and its hover card reads "Drone battery swap" or "Refueling".
+  No stop is made on the way home.
+- **In the readout,** the Elapsed row carries one note for the UTV that finishes last: its field days, then hours of driving, turns, drone swaps, fuel (when it refuels) and base setup, for example "1 field day: 3.2 h driving, 0.2 h turns, 0.3 h drone swaps, 0.5 h base setup".
+  The readout still fits at 1280 x 720 with one UTV, whose note is the longest.
+- **Times.** With 1, 3 and 6 UTVs the work on site takes 11.1 h, 3.7 h and 2.0 h, in 2, 1 and 1 field days (12.1 h, 4.2 h and 2.5 h with the base setups); before this round it was 46.0 h, 15.5 h and 8.0 h of driving only.
+  The UTV-hours stay within 5% from 1 to 6 UTVs (11.0 h to 11.4 h), so the Done caption reads "More UTVs: less time, same UTV-hours", and the captions say "in a day" or "in 2 days" to stay on one line at 1280 x 720.
+- **Not in the time:** processing the lidar data into a ground model, and placing ground control and checkpoints (TxDOT asks for at least 30 ground-truth points), which the UTVs' RTK can shoot along their passes.
+
+## D84 - "UTV", the survey UTV's kit and what one costs (survey round 3, captain's request)
+
+The captain asked to say UTV instead of 4x4, to show what a survey UTV would look like kitted out with lidar front and back, and whether $50k is a good all-in estimate for one.
+
+- **UTV everywhere.** Every user-facing "4x4" (labels, captions, hover cards, the legend, the cost card, the alternatives and the map's strip labels) now reads "UTV", as do the code comments, tests and the current docs (`ASSUMPTIONS.md`, `PRICING_FORMAT.md`) and D80 onward; the code's identifiers were already "vehicle".
+- **The drawing.** `UtvIllustration` is a side view of a utility UTV of the Polaris Ranger class, about 80 units to the meter: roll cage, cab, cargo bed, a lidar scanner on a bracket at each end with its scan fan to the ground, the RTK GNSS antenna and the Starlink Mini on the roof, a rugged computer and the drone's dock in the bed, and the lidar drone lifting off the dock.
+  It is line art in the map's colors, all from tokens: amber for the drone (as on the map), blue for the lidar's scan, neutral greys for the vehicle; callouts name each part.
+- **Where it is.** The cost card has a row "One survey UTV, all in" with the price, which opens the sheet "The survey UTV" in the Alternatives sheet pattern: the drawing, the parts with their prices, the total, and the lidar grades.
+- **The kit, each part with its source and date in `src/config/utvKit.ts`:** the UTV (Polaris Ranger XP 1000, $21,499 MSRP plus $1,095 destination), two robotics-grade lidar scanners (Hesai XT32 class, $4,500 each), an RTK GNSS receiver (Emlid Reach M2 with antenna, $1,023), rugged compute (Connect Tech Rudi-NX with a Jetson Orin NX, $3,258), the Starlink Mini with its mounting and power ($799, the cost workbook), and the drone (DJI Matrice 350 RTK, $12,559, with the Zenmuse L2 lidar, $12,430).
+  Integration and calibration (mounts, wiring, lidar-to-GNSS calibration) has no public price, so it shows "No public price" and is left out of the total.
+- **Total:** $61.7k a UTV all in, without integration; $36.7k for the UTV and its ground kit without the drone; Starlink service is $250 a month on top.
+- **The lidar grades** the sheet compares, front and back: robotics grade, $9k for two (priced); a survey-grade SLAM scanner (Stonex X120GO with its vehicle mount, $37.75k each, $75.5k for two); a mobile mapping system of the Trimble MX9 or Leica Pegasus TRK class, $400k to $1.2M a rig.
+- **The captain's $50k** covers the UTV and its robotics-grade ground kit ($36.7k) with about $13k for integration, but not the M350 and L2 drone too ($25.0k, so $61.7k); with survey-grade lidar it is well over (the two SLAM scanners alone are $75.5k).
+- The fleet's survey cost in the card is unchanged (Starlink only, D62); its note now says the hourly UTV rate has no source and points to the UTV's kit, which prices the drones.

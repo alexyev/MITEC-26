@@ -62,7 +62,7 @@ describe('vehicleMarkers', () => {
     }
   });
 
-  it('never draws a parked 4x4, halo included, on the pad, at any zoom and fleet size', () => {
+  it('never draws a parked UTV, halo included, on the pad, at any zoom and fleet size', () => {
     const reach = SURVEY_VIEW.vehicleRadiusPx + SURVEY_VIEW.vehicleHaloPx;
     for (const v of VIEWS) {
       const { inside } = padOnScreen(v);
@@ -75,7 +75,7 @@ describe('vehicleMarkers', () => {
     }
   });
 
-  it('puts a driving 4x4 at its position on the map', () => {
+  it('puts a driving UTV at its position on the map', () => {
     const hours = plan.finishH / 2;
     for (const m of vehicleMarkers(plan, hours, view)) {
       const p = worldToScreen(view, m.state.x, m.state.y);
@@ -88,7 +88,7 @@ describe('vehicleMarkers', () => {
 describe('hitTest', () => {
   const markers = vehicleMarkers(plan, plan.finishH / 3, view);
 
-  it('finds the 4x4 under the pointer within the hit radius', () => {
+  it('finds the UTV under the pointer within the hit radius', () => {
     const m = markers[2];
     expect(hitTest(plan, markers, view, m.sx + 5, m.sy - 5)).toEqual({ kind: 'vehicle', id: 2 });
     expect(hitTest(plan, markers, view, m.sx + SURVEY_VIEW.hitRadiusPx + 1, m.sy)).not.toEqual({
@@ -97,12 +97,12 @@ describe('hitTest', () => {
     });
   });
 
-  it('finds the base when no 4x4 is closer, and nothing on empty ground', () => {
+  it('finds the base when no UTV is closer, and nothing on empty ground', () => {
     expect(hitTest(plan, markers, view, base.sx, base.sy)).toEqual({ kind: 'base' });
     expect(hitTest(plan, markers, view, 2, 2)).toBeNull();
   });
 
-  it('prefers a parked 4x4 over the base it is parked under', () => {
+  it('prefers a parked UTV over the base it is parked under', () => {
     const parked = vehicleMarkers(plan, 0, view);
     expect(hitTest(plan, parked, view, parked[1].sx, parked[1].sy)).toEqual({
       kind: 'vehicle',
@@ -112,13 +112,13 @@ describe('hitTest', () => {
 });
 
 describe('droneMarkers (D61)', () => {
-  it('shows no drone while the fleet is parked: each rides docked on its 4x4', () => {
+  it('shows no drone while the fleet is parked: each rides docked on its UTV', () => {
     for (const hours of [0, plan.finishH + 1]) {
       expect(droneMarkers(plan, vehicleMarkers(plan, hours, view), hours, view)).toEqual([]);
     }
   });
 
-  it('puts each flying drone the trail distance behind its 4x4 on screen', () => {
+  it('puts each flying drone the trail distance behind its UTV on screen', () => {
     const v = plan.vehicles[0];
     const passes = v.legs.filter((l) => l.kind === 'pass');
     const pass = passes[Math.floor(passes.length / 2)];
@@ -132,7 +132,7 @@ describe('droneMarkers (D61)', () => {
     expect(d.sx).toBeCloseTo(m.sx, 6);
   });
 
-  it('lets the pointer find a drone, as well as its 4x4', () => {
+  it('lets the pointer find a drone, as well as its UTV', () => {
     const hours = plan.finishH / 3;
     const vehicles = vehicleMarkers(plan, hours, view);
     const drones = droneMarkers(plan, vehicles, hours, view);
@@ -170,7 +170,7 @@ describe('drawPaths (D60)', () => {
   const inside = (x: number, y: number) =>
     x > a.sx + 1e-6 && x < b.sx - 1e-6 && y > a.sy + 1e-6 && y < b.sy - 1e-6;
 
-  it('draws no planned path, 4x4 or drone on the pad, for every fleet size and zoom (D81)', () => {
+  it('draws no planned path, UTV or drone on the pad, for every fleet size and zoom (D81)', () => {
     for (const v of VIEWS) {
       const { rect, inside } = padOnScreen(v);
       for (let n = 1; n <= SURVEY.maxVehicles; n++) {

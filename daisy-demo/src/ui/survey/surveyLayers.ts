@@ -1,5 +1,5 @@
-// Survey map layers (spec 5, 8): surveyed ground, strip boundaries, the planned paths ahead of each 4x4,
-// the 4x4s with their online dots, and their drones on a link to them. Pure drawing from the plan and the hour.
+// Survey map layers (spec 5, 8): surveyed ground, strip boundaries, the planned paths ahead of each UTV,
+// the UTVs with their online dots, and their drones on a link to them. Pure drawing from the plan and the hour.
 import { SURVEY_VIEW } from '../../config/survey';
 import { droneFlying, surveyedRects, trailPoint, vehicleAt } from '../../engine/survey';
 import type { SurveyLeg, SurveyPlan, VehicleState } from '../../engine/survey';
@@ -8,7 +8,7 @@ import type { MapColors } from '../kit/tokens';
 import { worldToScreen } from '../map/viewport';
 import type { Viewport } from '../map/viewport';
 
-/** Where a 4x4 is drawn, for drawing and hit-testing alike. */
+/** Where a UTV is drawn, for drawing and hit-testing alike. */
 export interface VehicleMarker {
   id: number;
   sx: number;
@@ -17,7 +17,7 @@ export interface VehicleMarker {
 }
 
 /**
- * Screen positions of the 4x4s at `hours`. A 4x4 at the base (before Send and after its return) parks in a
+ * Screen positions of the UTVs at `hours`. A UTV at the base (before Send and after its return) parks in a
  * row just outside the pad's gate (D81), never on the built-up pad, so the fleet reads as a fleet instead of
  * one stacked dot.
  */
@@ -43,17 +43,17 @@ export function vehicleMarkers(plan: SurveyPlan, hours: number, view: Viewport):
 }
 
 /**
- * Where a flying drone is drawn: behind its 4x4 along the path, a fixed distance on screen (D61), or a fixed
+ * Where a flying drone is drawn: behind its UTV along the path, a fixed distance on screen (D61), or a fixed
  * distance on the ground when the map is zoomed in far enough for that to be longer (D82).
  */
 export interface DroneMarker {
-  /** The id of its 4x4. */
+  /** The id of its UTV. */
   id: number;
   sx: number;
   sy: number;
 }
 
-/** The drones in the air at `hours`; a drone at the base rides docked on its 4x4 and is not drawn. */
+/** The drones in the air at `hours`; a drone at the base rides docked on its UTV and is not drawn. */
 export function droneMarkers(
   plan: SurveyPlan,
   vehicles: VehicleMarker[],
@@ -70,7 +70,7 @@ export function droneMarkers(
     });
 }
 
-/** What the pointer is over: a 4x4 or a drone (nearest first), the base, or nothing. */
+/** What the pointer is over: a UTV or a drone (nearest first), the base, or nothing. */
 export type SurveyHit =
   { kind: 'vehicle'; id: number } | { kind: 'drone'; id: number } | { kind: 'base' } | null;
 
@@ -99,7 +99,7 @@ export function hitTest(
   return Math.hypot(b.sx - sx, b.sy - sy) <= r ? { kind: 'base' } : null;
 }
 
-/** Surveyed ground: one fill for every pass rectangle of every 4x4 (spec 5.2, `--c-done`); never the pad. */
+/** Surveyed ground: one fill for every pass rectangle of every UTV (spec 5.2, `--c-done`); never the pad. */
 export function drawSurveyed(
   ctx: CanvasRenderingContext2D,
   view: Viewport,
@@ -120,7 +120,7 @@ export function drawSurveyed(
 }
 
 /**
- * Strip boundaries in the neutral border color, broken around the built-up base pad (D81), and a "4x4 #n"
+ * Strip boundaries in the neutral border color, broken around the built-up base pad (D81), and a "UTV #n"
  * label over each strip.
  */
 export function drawStrips(ctx: CanvasRenderingContext2D, view: Viewport, plan: SurveyPlan): void {
@@ -150,7 +150,7 @@ export function drawStrips(ctx: CanvasRenderingContext2D, view: Viewport, plan: 
   ctx.textBaseline = 'bottom';
   for (const v of plan.vehicles) {
     const cx = worldToScreen(view, v.strip.x + v.strip.w / 2, 0).sx;
-    ctx.fillText(`4x4 #${v.id + 1}`, cx, top - SURVEY_VIEW.stripLabelGapPx);
+    ctx.fillText(`UTV #${v.id + 1}`, cx, top - SURVEY_VIEW.stripLabelGapPx);
   }
 }
 
@@ -168,10 +168,10 @@ function line(
 }
 
 /**
- * The planned path still ahead of each 4x4, dashed amber (spec 8.1): the drive out, the passes, and the
+ * The planned path still ahead of each UTV, dashed amber (spec 8.1): the drive out, the passes, and the
  * drive back once it starts. Paths never cross the base pad (D60). When the passes are closer than
  * `minPassGapPx` on screen, only every k-th pass is drawn, so the plan reads as lanes and not as a solid
- * fill; the pass the 4x4 is on is always drawn. Zoom in to see every pass.
+ * fill; the pass the UTV is on is always drawn. Zoom in to see every pass.
  */
 export function drawPaths(
   ctx: CanvasRenderingContext2D,
@@ -192,12 +192,12 @@ export function drawPaths(
       const current = leg.t0H <= hours;
       // A shift between passes is one pass spacing; with passes left out it only adds noise.
       if (leg.kind === 'shift' && stride > 1) continue;
-      // Drives between the parts of a strip and back to the base show once the 4x4 is on them, so the plan
+      // Drives between the parts of a strip and back to the base show once the UTV is on them, so the plan
       // reads as strips, not spokes.
       if (leg.kind === 'transit' && leg.t0H > 0 && !current) continue;
       // Thinned by column, so the two half-passes of a column beside the pad are kept or left out together.
       if (leg.kind === 'pass' && !current && (leg.column ?? 0) % stride !== 0) continue;
-      // The current leg starts at the 4x4; before Send the 4x4 is parked by the gate, so the leg starts at
+      // The current leg starts at the UTV; before Send the UTV is parked by the gate, so the leg starts at
       // the gate, on the pad's edge, and no dash crosses the pad (D60, D81).
       if (current && now.kind !== 'base') line(ctx, view, now.x, now.y, leg);
       else line(ctx, view, leg.x0, leg.y0, leg);
@@ -207,7 +207,7 @@ export function drawPaths(
   ctx.setLineDash([]);
 }
 
-/** The 4x4s: amber dots on a dark halo, each with a small blue online dot (Starlink, spec 8.3). */
+/** The UTVs: amber dots on a dark halo, each with a small blue online dot (Starlink, spec 8.3). */
 export function drawVehicles(
   ctx: CanvasRenderingContext2D,
   markers: VehicleMarker[],
@@ -244,7 +244,7 @@ export function drawVehicles(
   }
 }
 
-/** The link from each flying drone to its 4x4: a short solid blue line, the drone's data path (D61). */
+/** The link from each flying drone to its UTV: a short solid blue line, the drone's data path (D61). */
 export function drawDroneLinks(
   ctx: CanvasRenderingContext2D,
   vehicles: VehicleMarker[],
@@ -301,7 +301,7 @@ function drawDroneMark(
   ctx.fill();
 }
 
-/** The flying drones: amber four-rotor marks on a dark halo, like the 4x4s they follow. */
+/** The flying drones: amber four-rotor marks on a dark halo, like the UTVs they follow. */
 export function drawDrones(
   ctx: CanvasRenderingContext2D,
   drones: DroneMarker[],
@@ -323,7 +323,7 @@ export function drawDrones(
 }
 
 /**
- * The close-up's labels (D82): the name of the 4x4 the map zoomed in on and of its drone, beside each mark,
+ * The close-up's labels (D82): the name of the UTV the map zoomed in on and of its drone, beside each mark,
  * faded in with the zoom (`alpha`).
  */
 export function drawCloseUpLabels(
@@ -351,10 +351,10 @@ export function drawCloseUpLabels(
     ctx.strokeText(text, x, y);
     ctx.fillText(text, x, y);
   };
-  label(`4x4 #${id + 1} · Starlink`, v.sx + gap, v.sy);
+  label(`UTV #${id + 1} · Starlink`, v.sx + gap, v.sy);
   if (d) {
     ctx.fillStyle = cssVar('--text-2');
-    label(`Drone #${id + 1} · via 4x4`, d.sx + gap, d.sy);
+    label(`Drone #${id + 1} · via UTV`, d.sx + gap, d.sy);
   }
   ctx.restore();
 }

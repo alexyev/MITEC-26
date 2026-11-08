@@ -61,7 +61,7 @@ export interface StepperProps {
   value: number;
   onChange: (value: number) => void;
   label: string;
-  /** Locks the stepper, for example while the 4x4s are driving. */
+  /** Locks the stepper, for example while the UTVs are driving. */
   disabled?: boolean;
 }
 

@@ -5,4 +5,5 @@ export const UNITS = {
   mPerKm: 1000,
   whPerKwh: 1000,
   hoursPerDay: 24,
+  minPerH: 60,
 };

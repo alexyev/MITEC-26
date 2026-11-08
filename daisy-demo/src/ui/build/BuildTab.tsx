@@ -1,7 +1,7 @@
 // Build & failure tab (spec 9, D70): the play model built from the center out, a radio failure mid-build traced
 // through a frontier robot's data, the rest of the build, then "Your turn", where any radio can fail.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { Pause, Play, RotateCcw } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { forwardedAt, hopsAt, queueAt, type SimChange } from '../../engine/packetSim';
 import { PRICING } from '../../engine/pricing';
@@ -226,6 +226,14 @@ function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProp
   };
 }
 
+type StartMode = 'start' | 'pause' | 'resume' | 'replay';
+const START_LABEL: Record<StartMode, string> = {
+  start: 'Start',
+  pause: 'Pause',
+  resume: 'Resume',
+  replay: 'Replay',
+};
+
 export function BuildTab() {
   const resetInputs = useBuildStore((s) => s.resetInputs);
   const corner = useCornerView();
@@ -301,6 +309,21 @@ export function BuildTab() {
   const pin = atEnd ? null : offer;
   const cta = atEnd ? offer : null;
 
+  // The panel's Start button drives the same player as the bar's Play and Space: Start from the top, Pause while
+  // playing, Resume when paused partway, and Replay from step 1 once "Your turn" has played out.
+  const startMode: StartMode = player.playing
+    ? 'pause'
+    : atEnd
+      ? 'replay'
+      : player.t > 0
+        ? 'resume'
+        : 'start';
+  const onStart = useCallback(() => {
+    if (startMode === 'pause') player.pause();
+    else if (startMode === 'replay') player.restart();
+    else player.play();
+  }, [startMode, player]);
+
   const card = hover ? hoverCardFor(hover, scene, userChanges, t, pointer) : null;
   const anyFailed = scene.failed.some((f, i) => f === 1 && i < PLAY_MODEL.radios.length);
   const stepId = steps[player.stepIndex]?.id ?? '';
@@ -338,10 +361,30 @@ export function BuildTab() {
       <Panel corner="tl" title="Build & failure">
         <Section label="Try it" data-tour="try-it">
           <p className="build-hint">Click a radio to fail it. Click it again to repair it.</p>
-          <button type="button" className="build-btn" onClick={onReset} disabled={!anyFailed}>
-            <RotateCcw size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
-            Reset
-          </button>
+          <div className="build-actions">
+            <button
+              type="button"
+              className="build-start"
+              onClick={onStart}
+              aria-label={`${START_LABEL[startMode]} walkthrough`}
+              data-tour="start"
+            >
+              {startMode === 'pause' ? (
+                <Pause size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
+              ) : (
+                <Play size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
+              )}
+              {START_LABEL[startMode]}
+            </button>
+            <button type="button" className="build-btn" onClick={onReset} disabled={!anyFailed}>
+              <RotateCcw
+                size={UI.icon.sizePx}
+                strokeWidth={UI.icon.strokeWidth}
+                aria-hidden="true"
+              />
+              Reset
+            </button>
+          </div>
         </Section>
         <StepList player={player} steps={steps} />
       </Panel>

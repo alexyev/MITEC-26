@@ -22,6 +22,11 @@ export interface SimChange {
   tS: number;
   radio: number;
   kind: 'fail' | 'repair' | 'on';
+  /**
+   * The radios send their own packets for this long from the change (D103): a click in "Your turn" plays out
+   * as a bounded burst of traffic that settles, never as an endless stream.
+   */
+  trafficS?: number;
 }
 
 /**
@@ -44,6 +49,11 @@ export interface SimInput {
   startS: number;
   /** Nothing is simulated after this time (Infinity for a live simulation that keeps running). */
   endS: number;
+  /**
+   * The radios send their own packets from `startS` until this time (default Infinity: always), and again for
+   * `trafficS` after every change that has one (D103). Hellos, detection and routing run all the time.
+   */
+  trafficUntilS?: number;
   changes: SimChange[];
   /** Radios that are on at `startS` (default: all); the others switch on with an 'on' change. */
   online?: Uint8Array;
@@ -141,6 +151,11 @@ export interface SimResult {
   maxQueue: Timeline;
   /** Per radio: failed intervals [from, to), `to` = Infinity while failed. */
   down: { from: number; to: number }[][];
+  /**
+   * Nothing happens after this time (D103): the time of the last event once no event is left to process, so
+   * no packet moves, no queue changes and no route changes from then on. Infinity while events are waiting.
+   */
+  quietFromS: number;
 }
 
 const enum Ev {
@@ -154,6 +169,12 @@ const enum Ev {
   Flush,
   On,
   SourceGen,
+}
+
+/** A span of time [fromS, toS) in which the radios send their own packets (D103). */
+interface TrafficWindow {
+  fromS: number;
+  toS: number;
 }
 
 interface HeapItem {
@@ -368,6 +389,7 @@ export function createSim(input: SimInput): LiveSim {
     sentBy: Array.from({ length: all }, () => []),
     maxQueue: { tS: [], value: [] },
     down: Array.from({ length: n }, () => []),
+    quietFromS: Infinity,
   };
   const packetHops: number[] = [];
   let maxQueue = 0;
@@ -516,6 +538,48 @@ export function createSim(input: SimInput): LiveSim {
     relink(t);
   };
 
+  // Radio traffic (D103): every radio sends one packet per interval on its own phase, but only inside the
+  // traffic windows, so the traffic of a story stops when the story does. One pending send per radio, and a
+  // token per radio retires a send that a new window has moved earlier.
+  const windows: TrafficWindow[] = [];
+  const genAt = new Float64Array(n).fill(Infinity);
+  const genToken = new Int32Array(n);
+  const inWindow = (t: number): boolean => windows.some((w) => w.fromS <= t && t < w.toS);
+  /** The first send of radio i at or after `after` that falls inside a window, or Infinity. */
+  const firstSend = (i: number, after: number): number => {
+    for (const w of windows) {
+      if (w.toS <= after) continue;
+      const at = nextHelloAt(sendPhase[i], play.packetIntervalS, Math.max(after, w.fromS));
+      if (at < w.toS) return at;
+    }
+    return Infinity;
+  };
+  const scheduleSend = (i: number, at: number): void => {
+    genToken[i]++;
+    genAt[i] = at;
+    if (Number.isFinite(at)) heap.push(at, Ev.Gen, i, genToken[i]);
+  };
+  /** Add a window, merged with the ones it overlaps, and bring forward any radio whose next send is later. */
+  const addWindow = (fromS: number, toS: number): void => {
+    if (!(toS > fromS)) return;
+    const w = { fromS, toS };
+    for (let k = windows.length - 1; k >= 0; k--) {
+      const o = windows[k];
+      if (o.fromS <= w.toS && w.fromS <= o.toS) {
+        w.fromS = Math.min(w.fromS, o.fromS);
+        w.toS = Math.max(w.toS, o.toS);
+        windows.splice(k, 1);
+      }
+    }
+    windows.push(w);
+    windows.sort((a, b) => a.fromS - b.fromS);
+    for (let i = 0; i < n; i++) {
+      if (i === base) continue;
+      const at = firstSend(i, Math.max(fromS, frontier));
+      if (at < genAt[i]) scheduleSend(i, at);
+    }
+  };
+
   let frontier = startS;
   const changeEvent = { fail: Ev.Fail, repair: Ev.Repair, on: Ev.On } as const;
   const addChange = (c: SimChange): SimChange => {
@@ -524,6 +588,7 @@ export function createSim(input: SimInput): LiveSim {
     if (applied.tS > endS || !isRadio) return applied;
     result.changes.push(applied);
     heap.push(applied.tS, changeEvent[applied.kind], applied.radio);
+    if (applied.trafficS) addWindow(applied.tS, applied.tS + applied.trafficS);
     return applied;
   };
 
@@ -533,19 +598,24 @@ export function createSim(input: SimInput): LiveSim {
   for (const c of [...input.changes].sort((a, b) => a.tS - b.tS)) {
     if (c.tS >= startS) addChange(c);
   }
-  for (let i = 0; i < n; i++) {
-    if (i === base) continue;
-    heap.push(nextHelloAt(sendPhase[i], play.packetIntervalS, startS), Ev.Gen, i);
-  }
+  addWindow(startS, input.trafficUntilS ?? Infinity);
   sources.forEach((s, k) => {
     const first = Math.max(startS, s.fromS);
     if (first < s.toS) heap.push(first, Ev.SourceGen, k);
   });
 
+  let lastEventS = startS;
   const advanceTo = (until: number): void => {
     const limit = Math.min(until, endS);
-    while (heap.size > 0 && heap.peekTime() <= limit) step(heap.pop());
+    while (heap.size > 0 && heap.peekTime() <= limit) {
+      const ev = heap.pop();
+      // A send that a new traffic window moved earlier is retired, and is not an event.
+      if (ev.type === Ev.Gen && ev.b !== genToken[ev.a]) continue;
+      lastEventS = ev.t;
+      step(ev);
+    }
     frontier = Math.max(frontier, limit);
+    result.quietFromS = heap.size === 0 ? lastEventS : Infinity;
   };
 
   function step(ev: HeapItem): void {
@@ -553,7 +623,8 @@ export function createSim(input: SimInput): LiveSim {
     switch (ev.type) {
       case Ev.Gen: {
         const r = ev.a;
-        heap.push(t + play.packetIntervalS, Ev.Gen, r);
+        const next = t + play.packetIntervalS;
+        scheduleSend(r, inWindow(next) ? next : firstSend(r, next));
         if (!truth[r]) break;
         const p = result.packetSource.length;
         result.packetSource.push(r);

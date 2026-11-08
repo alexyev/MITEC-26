@@ -9,8 +9,10 @@ import type { FaceZones } from '../../engine/types';
 import { getSiteModel, unitStates } from '../../state/model';
 import { DockPortal } from '../kit/dock';
 import { IconButton } from '../kit/IconButton';
+import { TERRAIN } from '../../config/terrain';
 import { cssVar, readColorTokens } from '../kit/tokens';
 import type { MapColors } from '../kit/tokens';
+import { useBackdrop } from './backdrop';
 import { drawUnits } from './units';
 import type { UnitColors } from './units';
 import {
@@ -38,13 +40,16 @@ interface Palette extends UnitColors {
   siteGround: string;
 }
 
-/** Map colors from the story tokens (spec 5.2): planned units are thin grey outlines, placed units grey. */
+/**
+ * Map colors from the story tokens (spec 5.2, D102): the P3 units in Exowatt orange by build state, planned
+ * ones as thin outlines, placed ones dark, commissioned ones brighter.
+ */
 function readPalette(el: HTMLElement): Palette {
   const c = readColorTokens(el);
   return {
     planned: c.unitPlanned,
-    placed: c.unit,
-    commissioned: c.unit,
+    placed: c.unitPlaced,
+    commissioned: c.unitCommissioned,
     edge: c.work,
     work: c.unitPlanned,
     buildFront: c.work,
@@ -55,7 +60,7 @@ function readPalette(el: HTMLElement): Palette {
     padFill: cssVar('--c-pad-fill', el),
     padHatch: cssVar('--c-pad-hatch', el),
     padEdge: cssVar('--c-pad-edge', el),
-    siteGround: cssVar('--highlight', el),
+    siteGround: c.siteFill,
   };
 }
 
@@ -114,6 +119,8 @@ export interface MapViewProps {
   onTap?: (pointer: MapPointer) => void;
   /** Shows the pointing-hand cursor, for example over something a click acts on. */
   clickable?: boolean;
+  /** Where this map stands in the desert backdrop (D101). */
+  terrainOrigin?: { x: number; y: number };
 }
 
 /** A press that moves less than this, in CSS pixels, is a click, not a pan (D141). */
@@ -129,7 +136,9 @@ export function MapView({
   onCameraRelease,
   onTap,
   clickable = false,
+  terrainOrigin = TERRAIN.origin.survey,
 }: MapViewProps) {
+  const backdrop = useBackdrop(terrainOrigin);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scaleBarRef = useRef<HTMLDivElement>(null);
@@ -339,11 +348,14 @@ export function MapView({
         };
       }
 
+      // The desert under everything (D101), on its own canvas: redrawn only when the view changes.
+      backdrop.draw(v, dpr);
+
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // The site: a faint ground tint inside its boundary, so the parcel reads as land.
+      // The site: a faint lift inside its boundary, so the parcel reads on the desert (D37, D101).
       const tl = worldToScreen(v, 0, model.site.heightM);
       ctx.fillStyle = palette.siteGround;
       ctx.fillRect(tl.sx, tl.sy, model.site.widthM * v.scale, model.site.heightM * v.scale);
@@ -475,7 +487,7 @@ export function MapView({
     };
     frameRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [model]);
+  }, [model, backdrop]);
 
   // Pan with the pointer, zoom with the wheel or a trackpad pinch.
   useEffect(() => {
@@ -555,6 +567,7 @@ export function MapView({
 
   return (
     <div className="map" ref={containerRef}>
+      <canvas ref={backdrop.canvasRef} className="map-backdrop" aria-hidden="true" />
       <canvas
         ref={canvasRef}
         className={clickable ? 'map-canvas clickable' : 'map-canvas'}

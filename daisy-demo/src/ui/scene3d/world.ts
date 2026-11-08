@@ -30,7 +30,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { SCENE3D } from '../../config/scene3d';
-import { RadioBuild, type PlayModel } from '../../engine/playModel';
+import { RadioBuild, UnitState, type PlayModel } from '../../engine/playModel';
 import { createRng } from '../../engine/rng';
 import type { Scene as MapScene } from '../build/scene';
 import { cssVar } from '../kit/tokens';
@@ -404,7 +404,7 @@ export function buildWorld(renderer: WebGLRenderer, input: WorldInput): World {
   // The units placed by the time the viewer flew down, each with its lens array tilted toward the sun.
   const tilt = Math.atan2(sunDir.x, sunDir.y);
   const unitsAt = model.units
-    .filter((u) => map.unitPlaced[u.id])
+    .filter((u) => map.unitState[u.id] !== UnitState.Planned)
     .map((u) => new Vector3(u.x, 0, -u.y));
   instanced(p3Parts(tilt).merged(), unitsAt);
 

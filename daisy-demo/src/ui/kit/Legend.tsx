@@ -45,6 +45,21 @@ export function LegendSwatch({
     case 'square':
       mark = <rect x="4" y="2" width="8" height="8" rx="1" fill={c} />;
       break;
+    case 'outline':
+      // A planned P3 unit (D102): a thin outline, standing north-south as on the map.
+      mark = <rect x="5.5" y="1.5" width="5" height="9" rx="0.5" fill="none" stroke={c} />;
+      break;
+    case 'states':
+      // The P3 units' build states (D102): planned, placed, commissioned and live, left to right.
+      mark = (
+        <g>
+          <rect x="0.5" y="1.5" width="2.5" height="9" fill="none" stroke="var(--c-unit-planned)" />
+          <rect x="4.5" y="1" width="3" height="10" fill="var(--c-unit-placed)" />
+          <rect x="8.5" y="1" width="3" height="10" fill="var(--c-unit-commissioned)" />
+          <rect x="12.5" y="1" width="3" height="10" fill={c} />
+        </g>
+      );
+      break;
     case 'drone':
       // Crossed arms, a small body and four rotor rings, as the survey map draws a drone.
       mark = (

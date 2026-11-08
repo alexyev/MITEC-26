@@ -22,10 +22,16 @@ export interface MapColors extends Record<ColorToken, string> {
   signalFill: string;
   signalLink: string;
   dataRoute: string;
+  /** The P3 units by build state (D102); live is `unit`. */
   unitPlanned: string;
+  unitPlaced: string;
+  unitCommissioned: string;
   workPath: string;
+  /** Surveyed ground: a light veil over the desert. */
+  doneFill: string;
   ground: string;
   outline: string;
+  siteFill: string;
   halo: string;
 }
 
@@ -48,9 +54,13 @@ export function readColorTokens(el: Element = document.documentElement): MapColo
     signalLink: v('--c-signal-link'),
     dataRoute: v('--c-data-route'),
     unitPlanned: v('--c-unit-planned'),
+    unitPlaced: v('--c-unit-placed'),
+    unitCommissioned: v('--c-unit-commissioned'),
     workPath: v('--c-work-path'),
+    doneFill: v('--c-done-fill'),
     ground: v('--c-map-bg'),
     outline: v('--c-map-outline'),
+    siteFill: v('--c-site-fill'),
     halo: v('--c-map-halo'),
   };
 }

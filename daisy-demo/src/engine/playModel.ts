@@ -1,7 +1,7 @@
 // Play model of the Build & failure tab (spec 9.1, 9.2): north-south lanes of P3 units on the 10 x 5 radio grid,
 // the base on its own pad at the center, and the staged build that only works inside coverage (D46, D51).
 import { SITE } from '../config/defaults';
-import { PLAY, type PlayConfig } from '../config/play';
+import { PLAY, UnitState, type PlayConfig } from '../config/play';
 import type { Rect, SiteConfig } from './types';
 
 /** A P3 unit. World frame: x grows east, y grows north; the play-model rectangle starts at (0, 0). */
@@ -37,7 +37,7 @@ export interface PlayRadio {
   y: number;
   /** Build stage of its unit. */
   stage: number;
-  /** Build time at which its unit is placed (the radio shows amber), and at which it switches on: the end of
+  /** Build time at which its unit is placed (the radio shows violet), and at which it switches on: the end of
    *  its stage, when the stage's connection work is done. */
   placedS: number;
   onS: number;
@@ -426,4 +426,19 @@ export function unitStatusAt(
   const team = model.stages[unit.stage].teams[unit.team];
   const done = clock.frac >= routeShare(unit.routeIndex, team.route.length);
   return { kind: 'work', phase: clock.phase, done };
+}
+
+export { UnitState };
+
+/** A unit's build state at a build time. */
+export function unitStateAt(model: PlayModel, unitId: number, elapsedS: number): UnitState {
+  const unit = model.units[unitId];
+  if (unit.placedS > elapsedS) return UnitState.Planned;
+  const status = unitStatusAt(model, unitId, elapsedS);
+  if (status.kind === 'live') return UnitState.Live;
+  const connection = model.config.frontierPhases.findIndex((p) => p.id === 'connection');
+  if (status.kind === 'work' && status.phase === connection && status.done) {
+    return UnitState.Commissioned;
+  }
+  return UnitState.Placed;
 }

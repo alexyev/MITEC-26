@@ -37,7 +37,7 @@ export function WhyUtvSheet({ why, onClose }: WhyUtvSheetProps) {
   const { utv, dog } = why.comparison;
   const pace = [
     { label: 'UTV', acresPerH: utv.acresPerH, token: 'work' as const },
-    { label: 'GO2', acresPerH: dog.acresPerH, token: 'unit' as const },
+    { label: 'GO2', acresPerH: dog.acresPerH, token: 'neutral' as const },
   ];
   const sources = [...GO2_SOURCES, ...GO2_KIT.map((p) => p.source)];
   const host = document.querySelector('.shell') ?? document.body;

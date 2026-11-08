@@ -3,7 +3,7 @@
 import { MAP, ROUTING } from '../../config/defaults';
 import { PLAY_VIEW, type EquipmentGlyph } from '../../config/play';
 import type { Graph } from '../../engine/network';
-import { RadioBuild, type PlayModel } from '../../engine/playModel';
+import { RadioBuild, UnitState, type PlayModel } from '../../engine/playModel';
 import { canvasFont, cssVar, type MapColors } from '../kit/tokens';
 import { worldToScreen, type Viewport } from '../map/viewport';
 import type { Scene } from './scene';
@@ -114,7 +114,6 @@ export function drawScene(
   ctx.fill();
   drawCoverageEdge(ctx, circles, c, opt);
 
-  // Units: planned as thin low-alpha outlines, placed as grey blocks.
   // The base yard: its own cell at the center, outlined in the base color.
   const yard = model.base.yard;
   const inset = PLAY_VIEW.yardInsetM;
@@ -155,26 +154,34 @@ export function drawScene(
     ctx.restore();
   }
 
-  // Units stand with their long side north-south.
+  // Units stand with their long side north-south, in Exowatt orange by build state (D102): planned as thin
+  // outlines, then placed (dark), commissioned (brighter) and live (full orange) as solid blocks.
   const uw = model.unitSizeXM * s;
   const ud = model.unitSizeYM * s;
   ctx.beginPath();
   for (const u of model.units) {
-    if (scene.unitPlaced[u.id]) continue;
+    if (scene.unitState[u.id] !== UnitState.Planned) continue;
     const p = worldToScreen(v, u.x - model.unitSizeXM / 2, u.y + model.unitSizeYM / 2);
     ctx.rect(p.sx + 1 / 2, p.sy + 1 / 2, uw - 1, ud - 1);
   }
   ctx.strokeStyle = c.unitPlanned;
   ctx.lineWidth = 1;
   ctx.stroke();
-  ctx.beginPath();
-  for (const u of model.units) {
-    if (!scene.unitPlaced[u.id]) continue;
-    const p = worldToScreen(v, u.x - model.unitSizeXM / 2, u.y + model.unitSizeYM / 2);
-    ctx.rect(p.sx, p.sy, uw, ud);
+  const solid: [UnitState, string][] = [
+    [UnitState.Placed, c.unitPlaced],
+    [UnitState.Commissioned, c.unitCommissioned],
+    [UnitState.Live, c.unit],
+  ];
+  for (const [state, color] of solid) {
+    ctx.beginPath();
+    for (const u of model.units) {
+      if (scene.unitState[u.id] !== state) continue;
+      const p = worldToScreen(v, u.x - model.unitSizeXM / 2, u.y + model.unitSizeYM / 2);
+      ctx.rect(p.sx, p.sy, uw, ud);
+    }
+    ctx.fillStyle = color;
+    ctx.fill();
   }
-  ctx.fillStyle = c.unit;
-  ctx.fill();
 
   // Links between alive nodes.
   ctx.beginPath();
@@ -538,8 +545,9 @@ function drawStageLabel(
 }
 
 /**
- * A machine mark (D51): a dark rounded tile with the machine's side view. A working machine is amber with a
- * blue online dot and a soft work pulse; a machine without coverage is grey and stopped, with a red ring.
+ * A machine mark (D51): a dark rounded tile with the machine's side view. A working machine is violet (work in
+ * progress, D100) with a blue online dot and a soft work pulse; a machine without coverage is grey and stopped,
+ * with a red ring.
  */
 function drawMachine(
   ctx: CanvasRenderingContext2D,

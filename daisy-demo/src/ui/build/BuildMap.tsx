@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { UI } from '../../config/defaults';
 import { PLAY, PLAY_VIEW } from '../../config/play';
+import { TERRAIN } from '../../config/terrain';
+import { useBackdrop } from '../map/backdrop';
 import type { Graph } from '../../engine/network';
 import type { PlayModel } from '../../engine/playModel';
 import { prefersReducedMotion, readColorTokens } from '../kit/tokens';
@@ -70,6 +72,7 @@ export function BuildMap({
   const colorsRef = useRef<DrawColors | null>(null);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  const backdrop = useBackdrop(TERRAIN.origin.build);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -91,6 +94,8 @@ export function BuildMap({
     colorsRef.current ??= readDrawColors(readColorTokens());
     scratchRef.current ??= document.createElement('canvas');
     const dpr = window.devicePixelRatio || 1;
+    // The desert under the section (D101), on its own canvas: drawn once per size, the view is fixed.
+    backdrop.draw(viewport, dpr);
     const w = Math.round(size.w * dpr);
     const h = Math.round(size.h * dpr);
     if (canvas.width !== w || canvas.height !== h) {
@@ -222,6 +227,7 @@ export function BuildMap({
 
   return (
     <div className="map" ref={containerRef}>
+      <canvas ref={backdrop.canvasRef} className="map-backdrop" aria-hidden="true" />
       <canvas
         ref={canvasRef}
         className={clickable ? 'map-canvas static clickable' : 'map-canvas static'}

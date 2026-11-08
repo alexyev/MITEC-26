@@ -148,7 +148,7 @@ export function SurveyCostChip({ cost, kit, why, pricingErrors, focus }: SurveyC
                     {r.label}
                     <span className="build-breakdown-detail">{r.detail}</span>
                   </span>
-                  <InlineBar pct={(r.usd / cost.pricedUsd) * PERCENT.scale} token="unit" />
+                  <InlineBar pct={(r.usd / cost.pricedUsd) * PERCENT.scale} token="neutral" />
                   <span className="build-breakdown-value num">{formatUsd(r.usd)}</span>
                 </div>
               ))}

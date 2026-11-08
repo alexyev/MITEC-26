@@ -21,9 +21,11 @@ import {
   buildClockAt,
   buildStateAt,
   RadioBuild,
+  unitStateAt,
   type BuildClock,
   type PlayModel,
 } from '../../engine/playModel';
+import { PLAY_VIEW } from '../../config/play';
 import { buildTimeAt, dataShownAt, timeOfBuild, type BuildTimeline } from './walkthrough';
 
 export interface FailureView {
@@ -59,7 +61,8 @@ export interface Scene {
   robot: RobotView | null;
   /** World position of every machine source of the simulation, by its index. */
   sources: { x: number; y: number }[];
-  unitPlaced: Uint8Array;
+  /** UnitState per unit (D102): planned, placed, commissioned or live. */
+  unitState: Uint8Array;
   /** RadioBuild per radio. */
   radioBuild: Uint8Array;
   /** Time each radio switched on (Infinity when off), for the fade-in. */
@@ -85,7 +88,21 @@ export interface Scene {
    *  null while it has no route. */
   watchedExtraHops: number | null;
   ticket: { radio: number; unitNumber: number; col: number; row: number } | null;
+  /**
+   * From this time on nothing on the map moves or changes (D103): no packet is in flight, no queue or route
+   * changes, the failure marks have played and the ticket is out. Infinity while traffic or events wait.
+   */
+  settleS: number;
 }
+
+/** The longest mark that keeps playing after its event: the route update ring, the fail flash, a radio's
+ *  fade-in and the missed-hello label. */
+const MARKS_TAIL_S = Math.max(
+  PLAY_VIEW.updateRingS,
+  PLAY_VIEW.failFlashS,
+  PLAY_VIEW.radioFadeInS,
+  PLAY_VIEW.helloLabelHoldS,
+);
 
 const networkCache = new Map<string, NetworkState>();
 
@@ -109,7 +126,9 @@ export function sceneAt(
 ): Scene {
   const buildS = buildTimeAt(timeline, t);
   const clock = buildClockAt(model, buildS);
-  const { unitPlaced, radioState } = buildStateAt(model, buildS);
+  const { radioState } = buildStateAt(model, buildS);
+  const unitState = new Uint8Array(model.units.length);
+  for (const u of model.units) unitState[u.id] = unitStateAt(model, u.id, buildS);
   const radioOnS = new Float64Array(model.radios.length).fill(Infinity);
   for (const r of model.radios) {
     if (radioState[r.id] === RadioBuild.On) radioOnS[r.id] = timeOfBuild(timeline, r.onS);
@@ -226,10 +245,14 @@ export function sceneAt(
       : healthyHops;
 
   let ticket: Scene['ticket'] = null;
+  // The ticket goes out when the walkthrough's "Recovered" step starts: the reroute step after detection.
+  const ticketAt = (f: FailureView) =>
+    (f.record.detectS ?? Infinity) + (timeline.ticketS - timeline.detectS);
+  let settleS = sim.quietFromS + MARKS_TAIL_S;
+  for (const f of failures) settleS = Math.max(settleS, ticketAt(f));
   for (let i = failures.length - 1; i >= 0 && !ticket; i--) {
     const f = failures[i];
-    // The ticket goes out when the walkthrough's "Recovered" step starts: the reroute step after detection.
-    const shownS = (f.record.detectS ?? Infinity) + (timeline.ticketS - timeline.detectS);
+    const shownS = ticketAt(f);
     if (t < shownS) continue;
     const radio = model.radios[f.record.radio];
     ticket = {
@@ -247,7 +270,7 @@ export function sceneAt(
     machines,
     robot,
     sources: (sim.input.sources ?? []).map((s) => ({ x: s.x, y: s.y })),
-    unitPlaced,
+    unitState,
     radioBuild: radioState,
     radioOnS,
     failed,
@@ -264,6 +287,7 @@ export function sceneAt(
     watchedRadio: timeline.watchedRadio,
     watchedExtraHops: watchedHops >= 0 ? watchedHops - healthyHops : null,
     ticket,
+    settleS,
   };
 }
 

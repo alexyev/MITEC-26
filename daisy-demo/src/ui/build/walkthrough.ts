@@ -24,9 +24,13 @@ import type { WalkStep } from '../player/types';
 
 const count = new Intl.NumberFormat('en-US');
 
-/** The walkthrough's packet simulation, without the user's changes: it starts when the build holds. */
+/**
+ * The walkthrough's packet simulation, without the user's changes: its traffic runs from the hold to the
+ * resume, while the robot's data plays out, and stops there (D103).
+ */
 export interface WalkSim {
   startS: number;
+  trafficUntilS: number;
   /** Radios on at the start: the partly built network of the hold. */
   online: Uint8Array;
   /** The robot, sending while the build holds. */
@@ -133,7 +137,13 @@ export function buildTimeline(
     if (!scenario.online[r.id])
       changes.push({ tS: resumeS + r.onS - holdBuildS, radio: r.id, kind: 'on' });
   }
-  const walkSim: WalkSim = { startS: holdS, online: scenario.online, sources, changes };
+  const walkSim: WalkSim = {
+    startS: holdS,
+    trafficUntilS: resumeS,
+    online: scenario.online,
+    sources,
+    changes,
+  };
 
   // Captions state what the simulation shows, up to the end of the hold.
   const sim = simulate({ graph, endS: resumeS, ...walkSim });

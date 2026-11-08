@@ -140,7 +140,7 @@ export const SURVEY_VIEW = {
   /** Strip boundaries in the neutral border color, and the strip labels above the site. */
   stripLineWidthPx: 1,
   stripLabelGapPx: 8,
-  /** A UTV: an amber dot on a dark halo, with a blue online dot on its upper right. */
+  /** A UTV: a violet dot on a dark halo, with a blue online dot on its upper right. */
   vehicleRadiusPx: 4.5,
   vehicleHaloPx: 2,
   onlineDotRadiusPx: 2.25,

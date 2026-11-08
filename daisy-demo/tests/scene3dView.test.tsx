@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SCENE3D } from '../src/config/scene3d';
+import { cellRadioId } from '../src/engine/playModel';
 import { PLAY_MODEL, PLAY_TIMELINE, useBuildStore } from '../src/state/build';
 import { useGuideStore } from '../src/state/guide';
 import { useShellStore } from '../src/state/store';
@@ -164,6 +165,11 @@ describe('Take me there (D120, D121)', () => {
 
   it('pauses the walkthrough while the 3D view is up and restores it after: playing plays on', async () => {
     const button = await openAtYourTurn();
+    // In "Your turn" traffic plays only after a click (D103): fail a radio away from the pin's, as a click on
+    // the map does, so the walkthrough has a burst of packets to play.
+    act(() =>
+      useBuildStore.getState().toggleRadio(cellRadioId(PLAY_MODEL, 8, 1), PLAY_TIMELINE.yourTurnS),
+    );
     fireEvent.click(playButton());
     expect(playButton().getAttribute('aria-label')).toBe('Pause');
     await flyDown(button);

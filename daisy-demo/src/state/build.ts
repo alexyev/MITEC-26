@@ -2,6 +2,7 @@
 // the live packet simulation that plays them back. The view is a pure function of these inputs and `t`.
 import { create } from 'zustand';
 import { BUILD } from '../config/defaults';
+import { PLAY } from '../config/play';
 import { networkCost, PRICING, siteLayoutSummary, type NetworkCost } from '../engine/pricing';
 import { getSiteModel } from './model';
 import { buildGraph, type Graph } from '../engine/network';
@@ -60,6 +61,7 @@ class SimRunner {
       graph: PLAY_GRAPH,
       startS: walk.startS,
       endS: Infinity,
+      trafficUntilS: walk.trafficUntilS,
       online: walk.online,
       sources: walk.sources,
       changes: [...walk.changes, ...user],
@@ -81,7 +83,12 @@ class SimRunner {
 }
 
 function keyOf(changes: SimChange[]): string {
-  return changes.map((c) => `${c.kind}:${c.radio}@${c.tS}`).join('|');
+  return changes.map((c) => `${c.kind}:${c.radio}@${c.tS}+${c.trafficS ?? 0}`).join('|');
+}
+
+/** A click of the user's: it wakes the radios' traffic for a bounded burst (D103). */
+function userChange(tS: number, radio: number, kind: SimChange['kind']): SimChange {
+  return { tS, radio, kind, trafficS: PLAY.clickTrafficS };
 }
 
 const runner = new SimRunner(PLAY_TIMELINE);
@@ -129,7 +136,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     const kept = upTo(get().userChanges, t);
     const sim = simAt(kept, t);
     const kind = intendsFailed(kept, sim, radio, t) ? 'repair' : 'fail';
-    const next = [...kept, sim.addChange({ tS: t, radio, kind })];
+    const next = [...kept, sim.addChange(userChange(t, radio, kind))];
     runner.adopt(next);
     set({ userChanges: next });
   },
@@ -138,8 +145,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     const sim = simAt(kept, t);
     const next = [...kept];
     for (let r = 0; r < PLAY_MODEL.radios.length; r++) {
-      if (intendsFailed(next, sim, r, t))
-        next.push(sim.addChange({ tS: t, radio: r, kind: 'repair' }));
+      if (intendsFailed(next, sim, r, t)) next.push(sim.addChange(userChange(t, r, 'repair')));
     }
     runner.adopt(next);
     set({ userChanges: next });

@@ -1,4 +1,4 @@
-# Exowatt: Scaling Deployment
+# Exowatt: Daisy Does It
 
 How to keep every machine online while a 2,000-acre, 23,000-unit Exowatt P3 site is surveyed and built.
 

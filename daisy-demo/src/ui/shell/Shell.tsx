@@ -12,6 +12,7 @@ import { DockContext } from '../kit/dock';
 import type { DockSlot, DockSlots } from '../kit/dock';
 import { Segmented } from '../kit/Segmented';
 import { useGuideStore } from '../../state/guide';
+import { Daisy } from '../guide/Daisy';
 import { Home } from '../guide/Home';
 import { Tour, getTourSteps } from '../guide/Tour';
 
@@ -71,6 +72,7 @@ export function Shell({ children }: { children: ReactNode }) {
               aria-label={`${UI.brand}: home`}
               title="Home"
             >
+              <Daisy className="daisy-logo" />
               {UI.brand}
             </button>
             <button

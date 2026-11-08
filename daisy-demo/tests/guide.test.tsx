@@ -261,7 +261,7 @@ describe('keys, Skip and the memory per viewer (D91, D92)', () => {
     expect(useGuideStore.getState().seen).toBe(true);
     act(() => useGuideStore.getState().openHome());
     act(() => useGuideStore.getState().homeShown());
-    const home = screen.getByRole('dialog', { name: 'Exowatt: Scaling Deployment' });
+    const home = screen.getByRole('dialog', { name: 'Exowatt: Daisy Does It' });
     expect(home.querySelector('.home-btn:not(.primary)')?.textContent).toBe('Take the tour');
   });
 });
@@ -271,7 +271,7 @@ describe('home screen (D90)', () => {
 
   it('opens over the map with the title, and Open the demo leads into the tour the first time', () => {
     render(<App />);
-    const home = screen.getByRole('dialog', { name: 'Exowatt: Scaling Deployment' });
+    const home = screen.getByRole('dialog', { name: 'Exowatt: Daisy Does It' });
     expect(home).toBeTruthy();
     expect(document.querySelector<HTMLElement>('.overlay')!.inert).toBe(true);
     expect(screen.getByRole('button', { name: 'Skip the tour' })).toBeTruthy();
@@ -284,17 +284,16 @@ describe('home screen (D90)', () => {
     expect(screen.getByRole('dialog', { name: STEPS[0].title })).toBeTruthy();
   });
 
-  it('reads title, "Daisy Does It!", the lede and the actions, with the daisy beside them (D130)', () => {
+  it('reads the title, the lede and the actions, with the daisy beside them (D130, D131)', () => {
     render(<App />);
-    const home = screen.getByRole('dialog', { name: 'Exowatt: Scaling Deployment' });
+    const home = screen.getByRole('dialog', { name: 'Exowatt: Daisy Does It' });
     const column = home.querySelector('.home-column')!;
     expect([...column.children].map((el) => el.className)).toEqual([
       'home-title',
-      'home-sub',
       'home-lede',
       'home-actions',
     ]);
-    expect(home.querySelector('.home-sub')!.textContent).toBe('Daisy Does It!');
+    expect(home.querySelector('.home-sub')).toBeNull();
     // The copy the captain asked to drop stays gone.
     for (const gone of [
       'Interactive demo',
@@ -364,7 +363,7 @@ describe('home screen (D90)', () => {
   it('the brand chip reopens it, and Escape leaves it', () => {
     useGuideStore.setState({ home: 'closed' });
     render(<App />);
-    fireEvent.click(screen.getByRole('button', { name: /Exowatt: Scaling Deployment: home/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Exowatt: Daisy Does It: home/ }));
     expect(useGuideStore.getState().home).toBe('opening');
     act(() => useGuideStore.getState().homeShown());
     fireEvent.keyDown(window, { key: 'Escape' });

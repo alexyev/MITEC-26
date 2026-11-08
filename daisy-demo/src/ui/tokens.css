@@ -84,7 +84,7 @@
   --home-glow: rgba(255, 255, 255, 0.045); /* A soft light behind the home screen's column */
   --daisy-petal: #cbd6c6; /* The home screen's daisy (D130): sage petals, from the captain's reference */
   --daisy-petal-fill: #ffffff; /* The petals' fill, so they read as white over the page */
-  --daisy-center: #f2b33d; /* Its center, and the "Daisy Does It!" subheader */
+  --daisy-center: #f2b33d; /* Its center, and the brand chip's logo */
   --daisy-glow: rgba(242, 179, 61, 0.07); /* A warm light behind the daisy */
   --tour-dim: rgba(5, 6, 9, 0.66); /* Everything but the tour's targets */
   --tour-ring: rgba(255, 255, 255, 0.92); /* The ring around a tour target */

@@ -60,7 +60,10 @@ This replaces the single west-to-east fronts of spec section 9.
 The edge zone of spec section 7.1 now exists on both faces, and each face holds about half of `placeToCommissionDays x unitsPerDay` units.
 `faceZonesAt` refuses the single-front build orders; `Fronts` still carries a `kind` for them.
 
-## D9 - Single-failure scenario with a center base (spec 8.2)
+## D9 - Single-failure scenario with a center base (spec 8.2) - superseded
+
+**Superseded in v3 (T4.4)**: the failure scenario no longer runs on the full site.
+It runs on the play model of the Build & failure tab (spec 9.5), with the base in its own yard at the center and the failed radio two cells east of it (D40, D41, D44, D46).
 
 The scenario uses the default base preset (one base at the site center) instead of `west1`.
 Spec 8.2 puts the watched source about 2 km east of the base, but with the base at the center the east face is only about 1.9 km long.
@@ -240,15 +243,14 @@ The map now fills the site rectangle with `--highlight` (white at 4%) inside its
 
 ## D40 - Play-model radio position and build symmetry (T4.1)
 
-Each radio sits on the NE corner of the unit whose NE corner is nearest its cell center: the second unit of the cell's middle lane, about 1.6 m from the center.
-The units build symmetrically, one column pair per step from the center out.
-The NE corner is not mirror-symmetric, so a radio on the east face switches on one build step before its west mirror.
-The west-most radios stand on the second unit column, so the last radio switches on at step 19 (13.3 s at 0.7 s per step), one step before all units are placed plus `commissionLagSteps`.
+Each radio sits on the NE corner of the unit whose NE corner is nearest its cell center: the second unit from the south in the cell's middle lane, about 1.6 m from the center.
+The build places one lane per step on each side of the center (the middle lane alone on step 1), so it advances east and west at the same pace, and mirrored radios switch on together.
+With 27 lanes the units are placed in 14 steps and the last radios switch on at step 15, so the build plays in 10.5 s at 0.7 s per step instead of about 14 s.
 
 ## D41 - Base links (T4.2)
 
-The base is a radio with the same link range (spec 4), but it stands on its own mast at the center of cell (4, 2), not on the radio grid.
-It links to every radio within `linkRangeM`: the radio of its own cell and the four lane and column neighbors of that cell.
+The base is a radio with the same link range (spec 4), on its own mast at the center of its yard, cell (4, 2) (D46).
+It links to every radio within `linkRangeM`: the radios of the four cells around its yard.
 So the watched route from (8, 2) is 4 hops before the failure and 6 hops after it.
 
 ## D42 - Backup next hop (T4.2)
@@ -285,3 +287,37 @@ The three missed hellos then fall exactly one interval apart, 0.95 s, 1.95 s and
 `simulate` replays the whole history, which takes about 25 ms after ten minutes of play: more than one frame.
 `createSim` keeps the simulation state, is advanced to the player time every frame, and applies a click at its frontier (the current player time).
 The applied changes are kept in `result.changes`, and replaying them with `simulate` gives exactly the same events, so the view stays a pure function of its inputs and `t` (spec rule 6).
+
+## D46 - Vertical units and the base yard (T4.1 revised, captain feedback)
+
+The captain asked for the P3 units to stand vertically on the play model and for the base to have its own area.
+
+- Lanes run north-south, and each unit's long side (12.2 m) runs north-south.
+  A cell is 3 lanes wide (63 m) and 4 units tall (56.8 m); the section is 27 lanes of 20 units, 567 m by 284 m.
+  Lane neighbors (along the lane, now north-south) are 56.8 m apart and column neighbors 63 m, so the link range of 75 m and the coverage radius of 46 m work as before.
+- The base has its own yard: the whole center cell (4, 2), with no units and no radio, drawn as an outlined pad with a larger base marker.
+  So the section has 528 units (540 less the 12 slots of the yard) and 44 radios, and the base takes the 45th position of the 9 x 5 grid.
+  The honesty label reads its unit count from the model.
+- The reroute around (6, 2) now goes through row 3, north of the failure, because (7, 3) is nearer the base than (7, 1) on this grid; it is still 2 hops longer.
+
+## D47 - Build & failure view (T4.4)
+
+- Coverage is the union of the connected circles with one fill, plus a 1 px edge around the union only, drawn on an offscreen canvas that cuts away every edge inside another circle.
+  It is not clipped to the section, so the scalloped edge shows each radio's circle and a failed radio leaves a visible hole with its own edge.
+  The map fits the section plus that edge between the panels.
+- From the data step on, the watched route is drawn in blue.
+  After a failure, the routes that went through the failed radio are drawn in blue on their current path, and after the reroute their old path is dashed grey.
+- The upstream radio shows a "n queued" badge in the data color, and the failed radio shows "Missed hellos k/3", then "Down" for a second after detection.
+  Cut-off radios get no queue badge: their queues only grow, and the hollow red ring already says they are cut off.
+- The maintenance ticket appears below the failed radio when the walkthrough's "Recovered" step starts (detection plus the reroute step), so it never covers the new route, which goes north.
+  In "Your turn" it shows for the latest detected failure that is still down.
+- The readout card keeps "STRESS-TEST" for the latest failure even after a repair.
+  Sent and delivered packets are a note under "Packets lost", and failed and cut-off radios are a note under "Radios online", so the card fits at 1280 x 720 next to the legend.
+- The legend has one row for data and its route (both blue), so it shows 7 items.
+
+## D48 - "Your turn" clicks (T4.4)
+
+A click on a radio or Reset during the walkthrough jumps to "Your turn" and plays, because the packets and the reroute need the clock to run (D21).
+A click fails an alive radio or repairs a failed one at the current time; the change goes into the live simulation at once (D45), and the failure, the coverage hole and any cut-off radios show in the same frame.
+The reroute then follows the same detection as in the walkthrough, about 3 s later.
+A click after seeking back drops the user's later changes, so the timeline forks there; Restart clears every user change.

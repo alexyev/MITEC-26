@@ -1,119 +1,189 @@
-// Build & failure tab, stub of T2.2: the 540-unit play-model section as planned units, with the base and its
-// coverage circle. Worker C replaces this file with the build and failure walkthrough (T4.4, spec 9).
-import { useEffect, useRef } from 'react';
-import { MAP, SITE, UI } from '../../config/defaults';
+// Build & failure tab (spec 9): the play model built from the center out, its coverage and traffic, one radio
+// failure with detection and reroute, then "Your turn", where any radio can be failed and repaired.
+import { useCallback, useMemo, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { UI } from '../../config/defaults';
+import { forwardedAt, hopsAt, queueAt, type SimChange } from '../../engine/packetSim';
+import {
+  PLAY_GRAPH,
+  PLAY_MODEL,
+  PLAY_TIMELINE,
+  failedIntent,
+  simAt,
+  useBuildStore,
+} from '../../state/build';
+import { HoverCard } from '../kit/HoverCard';
 import { Legend } from '../kit/Legend';
 import { Panel } from '../kit/Panel';
-import { readColorTokens } from '../kit/tokens';
-import type { LegendItem } from '../kit/types';
-import { fitViewport, worldToScreen } from '../map/viewport';
+import { Section } from '../kit/Section';
+import type { HoverCardProps, LegendItem } from '../kit/types';
 import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
-import type { WalkStep } from '../player/types';
 import { usePlayer } from '../player/usePlayer';
-
-const STEPS: WalkStep[] = [
-  {
-    id: 'section',
-    label: 'Section',
-    caption: 'A small section of the site. The base at the center links to Starlink.',
-    durationS: UI.buildStub.introS,
-  },
-  {
-    id: 'your-turn',
-    label: 'Your turn',
-    caption: 'The build from the center out and the radio failure join this view next.',
-    durationS: Infinity,
-  },
-];
+import { BuildMap } from './BuildMap';
+import { BuildReadout } from './BuildReadout';
+import { sceneAt, type Scene } from './scene';
+import { SLOWED_STEPS } from './walkthrough';
+import './build.css';
 
 const LEGEND: LegendItem[] = [
-  { token: 'unit', label: 'Planned unit', shape: 'square' },
-  { token: 'base', label: 'Base', shape: 'square' },
   { token: 'signal', label: 'Radio signal', shape: 'circle' },
+  { token: 'data', label: 'Data and its route', shape: 'line' },
+  { token: 'fail', label: 'Failed radio', shape: 'cross' },
+  { token: 'fail', label: 'Cut off', shape: 'ring' },
+  { token: 'work', label: 'Radio not on yet', shape: 'dot' },
+  { token: 'unit', label: 'P3 unit', shape: 'square' },
+  { token: 'base', label: 'Base', shape: 'square' },
 ];
 
-/** The section in meters: unit columns along the lane (x) and lane rows (y), the base at the center. */
-function sectionGeometry() {
-  const { unitCols, laneRows, rowPitchM } = UI.buildStub;
-  const pitchX = SITE.unitWidthM + SITE.unitGapM;
-  const widthM = unitCols * pitchX - SITE.unitGapM;
-  const heightM = (laneRows - 1) * rowPitchM + SITE.unitDepthM;
-  return { unitCols, laneRows, rowPitchM, pitchX, widthM, heightM };
+const steps = PLAY_TIMELINE.steps;
+
+interface Pointer {
+  x: number;
+  y: number;
 }
 
-function SectionMap() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!container || !canvas || !ctx) return;
-    const colors = readColorTokens(container);
-    const g = sectionGeometry();
-
-    const draw = () => {
-      const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      const v = fitViewport(g.widthM, g.heightM, rect.width, rect.height, UI.mapFitPaddingPx);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
-
-      // Coverage of the base: one translucent circle (spec 5.1).
-      const c = worldToScreen(v, g.widthM / 2, g.heightM / 2);
-      ctx.fillStyle = colors.signalFill;
-      ctx.beginPath();
-      ctx.arc(c.sx, c.sy, UI.buildStub.coverageRadiusM * v.scale, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Planned units at low alpha; at this scale a unit is a few pixels deep, so it is filled, not outlined.
-      ctx.fillStyle = colors.unitPlanned;
-      ctx.beginPath();
-      for (let row = 0; row < g.laneRows; row++) {
-        for (let col = 0; col < g.unitCols; col++) {
-          const p = worldToScreen(v, col * g.pitchX, row * g.rowPitchM + SITE.unitDepthM);
-          ctx.rect(p.sx, p.sy, SITE.unitWidthM * v.scale, SITE.unitDepthM * v.scale);
-        }
-      }
-      ctx.fill();
-
-      // The base: a white square on a dark halo.
-      const r = MAP.baseMarkerPx;
-      ctx.fillStyle = colors.base;
-      ctx.strokeStyle = colors.halo;
-      ctx.lineWidth = MAP.baseHaloPx;
-      ctx.beginPath();
-      ctx.roundRect(c.sx - r, c.sy - r, 2 * r, 2 * r, MAP.baseCornerPx);
-      ctx.stroke();
-      ctx.fill();
+/** The hover card of a radio or the base (spec 6.6). */
+function hoverCardFor(
+  id: number,
+  scene: Scene,
+  user: SimChange[],
+  t: number,
+  pointer: Pointer,
+): HoverCardProps {
+  const live = simAt(user, t);
+  const sim = live.result;
+  const net = scene.network;
+  const maxHops = Math.max(1, ...Array.from(net.routing.hops));
+  if (id === PLAY_GRAPH.baseId) {
+    return {
+      ...pointer,
+      title: 'Base',
+      subtitle: 'Online · Starlink backhaul',
+      rows: [
+        {
+          label: 'Radios connected',
+          value: `${net.connectedRadios}/${PLAY_MODEL.radios.length}`,
+          pct: (net.connectedRadios / PLAY_MODEL.radios.length) * 100,
+          token: 'signal',
+        },
+        {
+          label: 'Packets delivered',
+          value: (scene.stats?.delivered ?? 0).toLocaleString('en-US'),
+        },
+      ],
     };
-
-    const observer = new ResizeObserver(draw);
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div className="map" ref={containerRef}>
-      <canvas ref={canvasRef} className="map-canvas static" aria-label="Play-model section" />
-    </div>
-  );
+  }
+  const radio = PLAY_MODEL.radios[id];
+  const failed = scene.failed[id] === 1;
+  const hops = scene.traffic ? hopsAt(sim, id, t) : net.routing.hops[id];
+  const queue = scene.traffic ? queueAt(sim, id, t) : 0;
+  let subtitle: string;
+  if (failed) subtitle = 'Failed · no signal';
+  else if (scene.radioBuild[id] !== 2) subtitle = 'Waiting for power';
+  else if (net.cutOff[id]) subtitle = 'Cut off · no route to the base';
+  else
+    subtitle = `Online · ${net.routing.hops[id]} ${net.routing.hops[id] === 1 ? 'hop' : 'hops'} to base`;
+  const rows: HoverCardProps['rows'] = failed
+    ? []
+    : [
+        {
+          label: 'Hops',
+          value: hops >= 0 ? String(hops) : '-',
+          pct: hops >= 0 ? (hops / maxHops) * 100 : 0,
+          token: 'data',
+        },
+        {
+          label: 'Queue',
+          value: String(queue),
+          pct: (queue / Math.max(1, scene.stats?.largestQueue ?? 0)) * 100,
+          token: 'data',
+        },
+        {
+          label: 'Packets forwarded',
+          value: (scene.traffic ? forwardedAt(sim, id, t) : 0).toLocaleString('en-US'),
+        },
+      ];
+  const isDown = failedIntent(user, live, t)[id] === 1;
+  return {
+    ...pointer,
+    title: `Radio ${radio.label}`,
+    subtitle,
+    rows,
+    hint: isDown ? 'Click to repair' : 'Click to fail',
+  };
 }
 
 export function BuildTab() {
-  const player = usePlayer(STEPS);
+  const resetInputs = useBuildStore((s) => s.resetInputs);
+  const player = usePlayer(steps, { onRestart: resetInputs });
+  const userChanges = useBuildStore((s) => s.userChanges);
+  const hover = useBuildStore((s) => s.hover);
+  const setHover = useBuildStore((s) => s.setHover);
+  const toggleRadio = useBuildStore((s) => s.toggleRadio);
+  const repairAll = useBuildStore((s) => s.repairAll);
+  const [pointer, setPointer] = useState<Pointer>({ x: 0, y: 0 });
+  const t = player.t;
+
+  const scene = useMemo(() => {
+    const sim = simAt(userChanges, t);
+    return sceneAt(PLAY_MODEL, PLAY_GRAPH, PLAY_TIMELINE, sim.result, t);
+  }, [userChanges, t]);
+
+  /** User input pauses the walkthrough and jumps to "Your turn", which then keeps running (D21). */
+  const interactAt = useCallback((): number => {
+    const at = Math.max(player.t, PLAY_TIMELINE.yourTurnS);
+    player.toYourTurn();
+    player.play();
+    return at;
+  }, [player]);
+
+  const onClickRadio = useCallback(
+    (radio: number) => toggleRadio(radio, interactAt()),
+    [toggleRadio, interactAt],
+  );
+  const onReset = useCallback(() => repairAll(interactAt()), [repairAll, interactAt]);
+  const onHover = useCallback(
+    (id: number | null, x: number, y: number) => {
+      setHover(id);
+      setPointer({ x, y });
+    },
+    [setHover],
+  );
+
+  const anyFailed = scene.failed.some((f, i) => f === 1 && i < PLAY_MODEL.radios.length);
+  const stepId = steps[player.stepIndex]?.id ?? '';
+
   return (
     <>
-      <SectionMap />
+      <BuildMap
+        model={PLAY_MODEL}
+        graph={PLAY_GRAPH}
+        scene={scene}
+        hover={hover}
+        onHover={onHover}
+        onClickRadio={onClickRadio}
+      />
       <Panel corner="tl" title="Build & failure">
-        <StepList player={player} steps={STEPS} />
+        <Section label="Try it">
+          <p className="build-hint">Click a radio to fail it. Click it again to repair it.</p>
+          <button type="button" className="build-btn" onClick={onReset} disabled={!anyFailed}>
+            <RotateCcw size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
+            Reset
+          </button>
+        </Section>
+        <StepList player={player} steps={steps} />
       </Panel>
+      <BuildReadout model={PLAY_MODEL} scene={scene} />
       <Legend items={LEGEND} />
-      <PlayerBar player={player} steps={STEPS} />
+      <PlayerBar
+        player={player}
+        steps={steps}
+        note={SLOWED_STEPS.has(stepId) ? 'Packets slowed for visibility' : undefined}
+      />
+      {hover !== null ? (
+        <HoverCard {...hoverCardFor(hover, scene, userChanges, t, pointer)} />
+      ) : null}
     </>
   );
 }

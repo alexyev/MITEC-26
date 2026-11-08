@@ -66,11 +66,18 @@ export function buildGraph(model: PlayModel): Graph {
     neighbors[b].push(a);
   };
   // Radios link to their lane and column neighbors on the radio grid (spec 4); diagonals never link.
+  const at = (col: number, row: number) =>
+    col < config.cellCols && row < config.cellRows
+      ? model.cellRadio[row * config.cellCols + col]
+      : -1;
   for (const r of radios) {
-    if (r.cellCol + 1 < config.cellCols) link(r.id, r.id + 1);
-    if (r.cellRow + 1 < config.cellRows) link(r.id, r.id + config.cellCols);
+    const east = at(r.cellCol + 1, r.cellRow);
+    const north = at(r.cellCol, r.cellRow + 1);
+    if (east >= 0) link(r.id, east);
+    if (north >= 0) link(r.id, north);
   }
-  // The base is a radio with the same link range: it links to every radio within range (decision D41).
+  // The base is a radio with the same link range: it links to every radio within range (decision D41),
+  // which are the four lane and column neighbors of its yard.
   for (const r of radios) link(baseId, r.id);
   for (const list of neighbors) list.sort((a, b) => a - b);
 

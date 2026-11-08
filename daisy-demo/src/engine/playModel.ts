@@ -1,15 +1,18 @@
-// Play model of the Build & failure tab (spec 9.1, 9.2): units, radios and the base on a 9 x 5 radio grid,
-// and the center-out build steps on which each unit is placed and each radio switches on.
+// Play model of the Build & failure tab (spec 9.1, 9.2): north-south lanes of P3 units on a 9 x 5 radio grid,
+// the base in its own yard at the center, and the center-out build step of every unit and radio (D46).
 import { SITE } from '../config/defaults';
 import { PLAY, type PlayConfig } from '../config/play';
-import type { SiteConfig } from './types';
+import type { Rect, SiteConfig } from './types';
 
 /** A P3 unit. World frame: x grows east, y grows north; the play-model rectangle starts at (0, 0). */
 export interface PlayUnit {
-  /** Row-major: `id = lane * unitCols + col`. */
+  /** Index into `units`. */
   id: number;
-  col: number;
+  /** Lane index from west to east; lanes run north-south. */
   lane: number;
+  /** Position along the lane from south to north. */
+  pos: number;
+  /** Center of the unit. */
   x: number;
   y: number;
   /** Build step (1-based) on which the unit is placed. */
@@ -40,24 +43,31 @@ export interface PlayBase {
   cellRow: number;
   x: number;
   y: number;
+  /** The base yard: its whole cell, where no unit stands. */
+  yard: Rect;
 }
 
 export interface PlayModel {
   config: PlayConfig;
   widthM: number;
   heightM: number;
+  /** A cell is `lanesPerCell` lanes wide (x) and `unitsPerCell` units tall (y). */
   cellWidthM: number;
   cellHeightM: number;
+  /** Center distance of units along a lane (north-south), and of lanes (east-west). */
   unitPitchM: number;
-  rowPitchM: number;
-  unitWidthM: number;
-  unitDepthM: number;
-  unitCols: number;
-  laneRows: number;
+  lanePitchM: number;
+  /** Unit footprint on the map: the long side runs north-south. */
+  unitSizeXM: number;
+  unitSizeYM: number;
+  lanes: number;
+  unitsPerLane: number;
   units: PlayUnit[];
   radios: PlayRadio[];
+  /** Radio id of every cell (row-major), -1 for the base cell. */
+  cellRadio: Int32Array;
   base: PlayBase;
-  /** Number of steps that place units (one column pair each). */
+  /** Number of steps that place units (one lane pair each). */
   placeSteps: number;
   /** The step on which the last radio switches on; the build is complete from here. */
   lastStep: number;
@@ -77,52 +87,65 @@ export interface BuildState {
 export const RadioBuild = { None: 0, Placed: 1, On: 2 } as const;
 
 /**
- * Center-out pairing of unit columns (decision D5): the two middle columns form step 1, the next two
- * step 2, and so on, so the build advances east and west at the same pace.
+ * Center-out pairing of lanes (decision D5): the middle lane (or the two middle lanes) is step 1, the next
+ * pair step 2, and so on, so the build advances east and west at the same pace.
  */
-function columnStep(col: number, unitCols: number): number {
-  return Math.floor(Math.abs(col - (unitCols - 1) / 2)) + 1;
+function laneStep(lane: number, lanes: number): number {
+  return Math.ceil(Math.abs(lane - (lanes - 1) / 2) - 1 / 2) + 1;
 }
 
 export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SITE): PlayModel {
   const unitPitchM = site.unitWidthM + site.unitGapM;
-  const rowPitchM = config.rowPitchM;
-  const unitCols = config.cellCols * config.unitsPerCell;
-  const laneRows = config.cellRows * config.lanesPerCell;
-  const cellWidthM = config.unitsPerCell * unitPitchM;
-  const cellHeightM = config.lanesPerCell * rowPitchM;
+  const lanePitchM = config.rowPitchM;
+  const lanes = config.cellCols * config.lanesPerCell;
+  const unitsPerLane = config.cellRows * config.unitsPerCell;
+  const cellWidthM = config.lanesPerCell * lanePitchM;
+  const cellHeightM = config.unitsPerCell * unitPitchM;
+  const unitSizeXM = site.unitDepthM;
+  const unitSizeYM = site.unitWidthM;
+  const baseCol = config.baseCell.col;
+  const baseRow = config.baseCell.row;
+  const cellOf = (lane: number, pos: number) => ({
+    col: Math.floor(lane / config.lanesPerCell),
+    row: Math.floor(pos / config.unitsPerCell),
+  });
 
+  // Every unit slot except the base yard, lane by lane.
   const units: PlayUnit[] = [];
-  for (let lane = 0; lane < laneRows; lane++) {
-    for (let col = 0; col < unitCols; col++) {
+  const slot = new Int32Array(lanes * unitsPerLane).fill(-1);
+  for (let lane = 0; lane < lanes; lane++) {
+    for (let pos = 0; pos < unitsPerLane; pos++) {
+      const cell = cellOf(lane, pos);
+      if (cell.col === baseCol && cell.row === baseRow) continue;
+      slot[lane * unitsPerLane + pos] = units.length;
       units.push({
-        id: lane * unitCols + col,
-        col,
+        id: units.length,
         lane,
-        x: (col + 1 / 2) * unitPitchM,
-        y: (lane + 1 / 2) * rowPitchM,
-        placedStep: columnStep(col, unitCols),
+        pos,
+        x: (lane + 1 / 2) * lanePitchM,
+        y: (pos + 1 / 2) * unitPitchM,
+        placedStep: laneStep(lane, lanes),
       });
     }
   }
 
   // Each radio sits on the NE corner of the unit (of its cell) whose NE corner is nearest the cell
-  // center; ties go to the lower unit id.
+  // center; ties go to the lower unit id. The base cell has no units and no radio.
   const radios: PlayRadio[] = [];
+  const cellRadio = new Int32Array(config.cellCols * config.cellRows).fill(-1);
   for (let row = 0; row < config.cellRows; row++) {
     for (let col = 0; col < config.cellCols; col++) {
+      if (col === baseCol && row === baseRow) continue;
       const cx = (col + 1 / 2) * cellWidthM;
       const cy = (row + 1 / 2) * cellHeightM;
       let best: PlayUnit | null = null;
       let bestD = Infinity;
       for (let l = 0; l < config.lanesPerCell; l++) {
         for (let u = 0; u < config.unitsPerCell; u++) {
-          const unit =
-            units[(row * config.lanesPerCell + l) * unitCols + col * config.unitsPerCell + u];
-          const d = Math.hypot(
-            unit.x + site.unitWidthM / 2 - cx,
-            unit.y + site.unitDepthM / 2 - cy,
-          );
+          const id =
+            slot[(col * config.lanesPerCell + l) * unitsPerLane + row * config.unitsPerCell + u];
+          const unit = units[id];
+          const d = Math.hypot(unit.x + unitSizeXM / 2 - cx, unit.y + unitSizeYM / 2 - cy);
           if (d < bestD) {
             best = unit;
             bestD = d;
@@ -130,14 +153,15 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
         }
       }
       const unit = best as PlayUnit;
+      cellRadio[row * config.cellCols + col] = radios.length;
       radios.push({
         id: radios.length,
         cellCol: col,
         cellRow: row,
         label: `C${col}-${row}`,
         unitId: unit.id,
-        x: unit.x + site.unitWidthM / 2,
-        y: unit.y + site.unitDepthM / 2,
+        x: unit.x + unitSizeXM / 2,
+        y: unit.y + unitSizeYM / 2,
         placedStep: unit.placedStep,
         onStep: unit.placedStep + config.commissionLagSteps,
       });
@@ -146,36 +170,46 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
 
   const base: PlayBase = {
     id: radios.length,
-    cellCol: config.baseCell.col,
-    cellRow: config.baseCell.row,
-    x: (config.baseCell.col + 1 / 2) * cellWidthM,
-    y: (config.baseCell.row + 1 / 2) * cellHeightM,
+    cellCol: baseCol,
+    cellRow: baseRow,
+    x: (baseCol + 1 / 2) * cellWidthM,
+    y: (baseRow + 1 / 2) * cellHeightM,
+    yard: { x: baseCol * cellWidthM, y: baseRow * cellHeightM, w: cellWidthM, h: cellHeightM },
   };
 
-  const placeSteps = columnStep(0, unitCols);
+  const placeSteps = laneStep(0, lanes);
   return {
     config,
-    widthM: unitCols * unitPitchM,
-    heightM: laneRows * rowPitchM,
+    widthM: lanes * lanePitchM,
+    heightM: unitsPerLane * unitPitchM,
     cellWidthM,
     cellHeightM,
     unitPitchM,
-    rowPitchM,
-    unitWidthM: site.unitWidthM,
-    unitDepthM: site.unitDepthM,
-    unitCols,
-    laneRows,
+    lanePitchM,
+    unitSizeXM,
+    unitSizeYM,
+    lanes,
+    unitsPerLane,
     units,
     radios,
+    cellRadio,
     base,
     placeSteps,
-    lastStep: Math.max(...radios.map((r) => r.onStep), placeSteps),
+    lastStep: Math.max(placeSteps, ...radios.map((r) => r.onStep)),
   };
 }
 
-/** The radio of a cell. */
-export function radioAt(model: PlayModel, col: number, row: number): PlayRadio {
-  return model.radios[row * model.config.cellCols + col];
+/** The radio of a cell, or undefined for the base cell. */
+export function radioAt(model: PlayModel, col: number, row: number): PlayRadio | undefined {
+  const id = model.cellRadio[row * model.config.cellCols + col];
+  return id >= 0 ? model.radios[id] : undefined;
+}
+
+/** The radio id of a cell; the base cell has none. */
+export function cellRadioId(model: PlayModel, col: number, row: number): number {
+  const radio = radioAt(model, col, row);
+  if (!radio) throw new Error(`Cell (${col}, ${row}) holds the base, not a radio.`);
+  return radio.id;
 }
 
 /** Build state at a step; step 0 has only the base. Steps past `lastStep` show the finished build. */

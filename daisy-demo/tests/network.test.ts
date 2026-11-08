@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PLAY } from '../src/config/play';
 import { buildGraph, computeNetwork, computeRouting, routePath } from '../src/engine/network';
-import { buildPlayModel, buildStateAt, radioAt } from '../src/engine/playModel';
+import { buildPlayModel, buildStateAt, cellRadioId } from '../src/engine/playModel';
 
 const model = buildPlayModel();
 const graph = buildGraph(model);
@@ -23,13 +23,13 @@ describe('buildGraph (T4.2)', () => {
       }
     }
     // Inner radios have 4 grid neighbors, corners 2.
-    expect(graph.neighbors[radioAt(model, 1, 1).id]).toHaveLength(4);
-    expect(graph.neighbors[radioAt(model, 0, 0).id]).toHaveLength(2);
+    expect(graph.neighbors[cellRadioId(model, 1, 1)]).toHaveLength(4);
+    expect(graph.neighbors[cellRadioId(model, 0, 0)]).toHaveLength(2);
   });
 
-  it('links the base to the radios within link range around it', () => {
+  it('links the base to the four radios around its yard', () => {
     const linked = graph.neighbors[graph.baseId].map((id) => model.radios[id].label).sort();
-    expect(linked).toEqual(['C3-2', 'C4-1', 'C4-2', 'C4-3', 'C5-2']);
+    expect(linked).toEqual(['C3-2', 'C4-1', 'C4-3', 'C5-2']);
     for (const id of graph.neighbors[graph.baseId]) {
       expect(graph.distToBase[id]).toBeLessThanOrEqual(PLAY.linkRangeM);
     }
@@ -39,7 +39,7 @@ describe('buildGraph (T4.2)', () => {
 describe('computeNetwork (T4.2)', () => {
   it('connects every radio of the finished grid with 100% coverage', () => {
     const net = computeNetwork(graph, aliveExcept());
-    expect(net.connectedRadios).toBe(45);
+    expect(net.connectedRadios).toBe(44);
     expect(net.cutOffRadios).toBe(0);
     expect(net.coverage).toBe(1);
     expect(Math.max(...net.routing.hops)).toBeGreaterThan(0);
@@ -47,7 +47,7 @@ describe('computeNetwork (T4.2)', () => {
 
   it('routes the watched source west along the middle row', () => {
     const net = computeNetwork(graph, aliveExcept());
-    const watched = radioAt(model, 8, 2).id;
+    const watched = cellRadioId(model, 8, 2);
     const labels = routePath(net.routing, watched).map((id) =>
       id === graph.baseId ? 'base' : model.radios[id].label,
     );
@@ -55,21 +55,21 @@ describe('computeNetwork (T4.2)', () => {
   });
 
   it('keeps every radio connected when (6, 2) fails; coverage drops below 100% but stays above 95%', () => {
-    const failed = radioAt(model, 6, 2).id;
+    const failed = cellRadioId(model, 6, 2);
     const net = computeNetwork(graph, aliveExcept(failed));
-    expect(net.onlineRadios).toBe(44);
-    expect(net.connectedRadios).toBe(44);
+    expect(net.onlineRadios).toBe(43);
+    expect(net.connectedRadios).toBe(43);
     expect(net.cutOffRadios).toBe(0);
     expect(net.coverage).toBeLessThan(1);
     expect(net.coverage * 100).toBeGreaterThan(PLAY.coverageTargetPct);
     expect(net.links.some(([a, b]) => a === failed || b === failed)).toBe(false);
     // The watched route is 2 hops longer.
-    const watched = radioAt(model, 8, 2).id;
+    const watched = cellRadioId(model, 8, 2);
     expect(net.routing.hops[watched]).toBe(6);
   });
 
   it('cuts off the radios beyond a failed column', () => {
-    const column = Array.from({ length: PLAY.cellRows }, (_, row) => radioAt(model, 6, row).id);
+    const column = Array.from({ length: PLAY.cellRows }, (_, row) => cellRadioId(model, 6, row));
     const net = computeNetwork(graph, aliveExcept(...column));
     for (const r of model.radios) {
       if (r.cellCol === 6) {
@@ -85,13 +85,13 @@ describe('computeNetwork (T4.2)', () => {
 
   it('gives a backup next hop that avoids the radio and its next hop', () => {
     const routing = computeRouting(graph, new Uint8Array(graph.nodeCount).fill(1));
-    const upstream = radioAt(model, 7, 2).id;
-    expect(routing.nextHop[upstream]).toBe(radioAt(model, 6, 2).id);
+    const upstream = cellRadioId(model, 7, 2);
+    expect(routing.nextHop[upstream]).toBe(cellRadioId(model, 6, 2));
     const backup = routing.backupHop[upstream];
-    expect(model.radios[backup].label).toBe('C7-1');
+    expect(model.radios[backup].label).toBe('C7-3');
     const path = routePath(routing, backup);
     expect(path).not.toContain(upstream);
-    expect(path).not.toContain(radioAt(model, 6, 2).id);
+    expect(path).not.toContain(cellRadioId(model, 6, 2));
     expect(path[path.length - 1]).toBe(graph.baseId);
   });
 

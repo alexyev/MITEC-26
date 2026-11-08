@@ -15,13 +15,13 @@ import {
   statsAt,
   type SimChange,
 } from '../src/engine/packetSim';
-import { buildPlayModel, radioAt } from '../src/engine/playModel';
+import { buildPlayModel, cellRadioId } from '../src/engine/playModel';
 
 const model = buildPlayModel();
 const graph = buildGraph(model);
-const failed = radioAt(model, PLAY.preset.failedCell.col, PLAY.preset.failedCell.row).id;
-const watched = radioAt(model, PLAY.preset.watchedCell.col, PLAY.preset.watchedCell.row).id;
-const upstream = radioAt(model, 7, 2).id;
+const failed = cellRadioId(model, PLAY.preset.failedCell.col, PLAY.preset.failedCell.row);
+const watched = cellRadioId(model, PLAY.preset.watchedCell.col, PLAY.preset.watchedCell.row);
+const upstream = cellRadioId(model, 7, 2);
 const failS = presetFailS(graph, failed, 5);
 const endS = failS + 30;
 const preset: SimChange[] = [{ tS: failS, radio: failed, kind: 'fail' }];
@@ -54,7 +54,7 @@ describe('simulate: preset failure (T4.3)', () => {
 
   it('repairs locally at once, then floods the route update', () => {
     const repairs = sim.events.filter((e) => e.kind === 'localRepair');
-    expect(repairs.map((e) => [label(e.node), label(e.other)])).toEqual([['C7-2', 'C7-1']]);
+    expect(repairs.map((e) => [label(e.node), label(e.other)])).toEqual([['C7-2', 'C7-3']]);
     expect(repairs[0].tS).toBe(record.detectS);
     expect(record.reroutedS as number).toBeGreaterThan(record.detectS as number);
     expect((record.reroutedS as number) - (record.detectS as number)).toBeLessThan(0.5);
@@ -83,7 +83,7 @@ describe('simulate: preset failure (T4.3)', () => {
     const before = pathAt(sim, watched, failS - 0.01).map(label);
     const after = pathAt(sim, watched, (record.reroutedS as number) + 1).map(label);
     expect(before).toEqual(['C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
-    expect(after).toEqual(['C8-2', 'C7-2', 'C7-1', 'C6-1', 'C5-1', 'C5-2', 'base']);
+    expect(after).toEqual(['C8-2', 'C7-2', 'C7-3', 'C6-3', 'C5-3', 'C4-3', 'base']);
     expect(hopsAt(sim, watched, endS) - hopsAt(sim, watched, 0)).toBe(2);
   });
 
@@ -127,14 +127,14 @@ describe('simulate: user failures and repairs (T4.3)', () => {
   });
 
   it('queues the traffic of cut-off radios and loses only what they held when they failed', () => {
-    const column = Array.from({ length: PLAY.cellRows }, (_, row) => radioAt(model, 6, row).id);
+    const column = Array.from({ length: PLAY.cellRows }, (_, row) => cellRadioId(model, 6, row));
     const changes = column.map((radio) => ({ tS: 2, radio, kind: 'fail' as const }));
     const s = simulate({ graph, startS: 0, endS: 20, changes });
-    const east = radioAt(model, 8, 0).id;
+    const east = cellRadioId(model, 8, 0);
     expect(queueAt(s, east, 19)).toBeGreaterThan(10);
     expect(hopsAt(s, east, 19)).toBe(-1);
     // A radio whose route stays west of the cut keeps delivering.
-    const west = radioAt(model, 0, 0).id;
+    const west = cellRadioId(model, 0, 0);
     expect(queueAt(s, west, 19)).toBe(0);
   });
 
@@ -144,7 +144,7 @@ describe('simulate: user failures and repairs (T4.3)', () => {
     const clickS = failS + 12;
     const applied = live.addChange({
       tS: clickS - 5,
-      radio: radioAt(model, 2, 1).id,
+      radio: cellRadioId(model, 2, 1),
       kind: 'fail',
     });
     expect(applied.tS).toBeCloseTo(live.frontierS(), 9);
@@ -158,8 +158,8 @@ describe('simulate: user failures and repairs (T4.3)', () => {
   it('stays fast enough to recompute on a click after ten minutes of play', () => {
     const changes: SimChange[] = [
       ...preset,
-      { tS: 100, radio: radioAt(model, 2, 1).id, kind: 'fail' },
-      { tS: 200, radio: radioAt(model, 2, 1).id, kind: 'repair' },
+      { tS: 100, radio: cellRadioId(model, 2, 1), kind: 'fail' },
+      { tS: 200, radio: cellRadioId(model, 2, 1), kind: 'repair' },
     ];
     const t0 = performance.now();
     const s = simulate({ graph, startS: 0, endS: 600, changes });

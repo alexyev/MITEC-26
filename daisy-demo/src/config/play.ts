@@ -1,4 +1,4 @@
-// Play model of the Build & failure tab (spec 9.1, 9.4, 9.5): the 9 x 5 radio grid on a 540-unit section.
+// Play model of the Build & failure tab (spec 9.1, 9.4, 9.5): the 9 x 5 radio grid on north-south lanes.
 // All values are placeholders until the team confirms them (spec section 14). Routing timing is ROUTING in defaults.ts.
 
 /** A radio cell on the play-model grid: column 0 is the west edge, row 0 the south edge. */
@@ -11,7 +11,7 @@ export interface PlayConfig {
   /** Radio cells across (east-west) and down (north-south); one radio per cell. */
   cellCols: number;
   cellRows: number;
-  /** Units along the lane per cell, and lanes per cell. */
+  /** Units along the lane (north-south) per cell, and lanes (east-west) per cell. */
   unitsPerCell: number;
   lanesPerCell: number;
   /** Lane pitch as on the full site; unit size and gap come from SITE. */
@@ -35,7 +35,7 @@ export interface PlayConfig {
   queueFlushIntervalS: number;
   /** A packet that has made this many hops is dropped, so a transient routing loop cannot run forever. */
   maxPacketHops: number;
-  /** Cell whose center holds the base (Starlink backhaul). */
+  /** Cell that is the base yard (Starlink backhaul): no units and no radio, the base at its center (D46). */
   baseCell: CellRef;
   /** The walkthrough's failure (spec 9.5). */
   preset: {
@@ -76,4 +76,53 @@ export const PLAY: PlayConfig = {
     failAfterHelloS: 0.05,
   },
   ticket: { swapTimeMin: 15 },
+};
+
+/** Walkthrough of the Build & failure tab (spec 9.8): step durations in playback seconds. */
+export const PLAY_WALK = {
+  sectionS: 4,
+  /** The build plays one step per `buildStepS`, then holds the finished build for this long. */
+  buildHoldS: 0.7,
+  coverageS: 4,
+  /** Planned length of the data step; it stretches to the failed radio's next hello (D44). */
+  dataS: 5,
+  rerouteS: 3,
+  recoveredS: 5,
+  costS: 5,
+};
+
+/** Drawing of the play-model map in CSS pixels and seconds (colors come from tokens.css). */
+export const PLAY_VIEW = {
+  radioPx: 3.5,
+  radioHaloPx: 1.5,
+  hitRadiusPx: 12,
+  hoverRingPx: 7,
+  failCrossPx: 5,
+  cutOffRingPx: 4.5,
+  packetPx: 2.5,
+  linkWidthPx: 1,
+  routeWidthPx: 2.5,
+  oldRouteWidthPx: 1.5,
+  oldRouteDashPx: [4, 4],
+  coverageEdgePx: 1,
+  /** A radio's coverage circle scales in over this time when it comes online (spec 6.7). */
+  radioFadeInS: 0.3,
+  /** A failed radio flashes red once: a ring that grows to this radius and fades. */
+  failFlashS: 0.6,
+  failFlashPx: 18,
+  /** The route update spreads as a ring from the failed radio (slowed for visibility). */
+  updateRingS: 0.8,
+  /** Missed-hello label stays this long after detection. */
+  helloLabelHoldS: 1,
+  labelGapPx: 8,
+  badgePadPx: 6,
+  badgeHeightPx: 18,
+  /** Gap between a failed radio and its maintenance ticket below it. */
+  ticketGapPx: 16,
+  /** The base yard outline: inset from its cell, corner radius and alpha of the base color. */
+  yardInsetM: 4,
+  yardCornerPx: 4,
+  yardAlpha: 0.35,
+  /** Half size of the base marker; larger than on the full-site map, since the base has its own yard. */
+  baseMarkerPx: 7,
 };

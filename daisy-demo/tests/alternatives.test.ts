@@ -9,26 +9,19 @@ import { getSiteModel } from '../src/state/model';
 const { pricing } = PRICING;
 
 describe('alternative costs (D54)', () => {
-  it('reproduces the workbook totals on its own site: 2,000 acres, 23,000 units, 200 a day', () => {
-    const c = alternativeCosts(pricing, {
-      areaM2: SITE.areaAcres * 4046.86,
-      units: 23000,
-      unitsPerDay: 200,
-    });
+  it('reproduces the workbook totals on its own site of 2,000 acres', () => {
+    const c = alternativeCosts(pricing, { areaM2: SITE.areaAcres * 4046.86 });
     expect(c.masts).toBe(58);
     expect(c.rajantMastsUsd).toBeCloseTo(723311.6132, 2);
     expect(c.halowMastsUsd).toBeCloseTo(597349.3592, 2);
     expect(c.privateLteUsd).toBeCloseTo(469123.6, 2);
-    expect(c.starlinkPerMachineUsd).toBeCloseTo(33641.3, 2);
+    // Starlink on every machine (workbook D) is not an alternative: it does not survive a link going down (D64).
+    expect(c).not.toHaveProperty('starlinkPerMachineUsd');
   });
 
-  it('costs the same on the generated site, which has the same area, units and build rate', () => {
+  it('costs the same on the generated site, which has the same area', () => {
     const site = getSiteModel().site;
-    const c = alternativeCosts(pricing, {
-      areaM2: site.widthM * site.heightM,
-      units: site.count,
-      unitsPerDay: BUILD.unitsPerDay,
-    });
+    const c = alternativeCosts(pricing, { areaM2: site.widthM * site.heightM });
     expect(c.masts).toBe(58);
     expect(c.halowMastsUsd).toBeGreaterThan(
       networkCost(pricing, siteLayoutSummary(site, BUILD)).totalUsd * 5,

@@ -1,13 +1,13 @@
-// Survey tab (spec 8, T3.4): 4x4s survey the full site on their own strips, all online over Starlink.
+// Survey tab (spec 8, T3.4, D60, D61): 4x4s survey the full site on their own strips around the base pad, each
+// online over its own Starlink, and each with a drone that follows it and links through it.
 // The view is a pure function of the fleet size and the player time (spec rule 6); Send runs on the player clock.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SITE } from '../../config/defaults';
 import { SURVEY } from '../../config/survey';
-import { PRICING, surveyCostUsd } from '../../engine/pricing';
-import { surveyedFraction } from '../../engine/survey';
+import { PRICING, surveyCost } from '../../engine/pricing';
+import { droneFlying, surveyedFraction } from '../../engine/survey';
 import { getSiteModel } from '../../state/model';
 import { getSurveyPlan, useSurveyStore } from '../../state/survey';
-import { Chip } from '../kit/Chip';
 import { HoverCard } from '../kit/HoverCard';
 import { Kpi } from '../kit/Kpi';
 import { Legend } from '../kit/Legend';
@@ -22,8 +22,11 @@ import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
 import { stepStarts } from '../player/clock';
 import { usePlayer } from '../player/usePlayer';
-import { formatHours, formatInt, formatKm, formatSharePct, formatUsd } from './format';
+import { formatHours, formatInt, formatKm, formatSharePct } from './format';
 import {
+  droneMarkers,
+  drawDroneLinks,
+  drawDrones,
   drawPaths,
   drawStrips,
   drawSurveyed,
@@ -32,21 +35,23 @@ import {
   vehicleMarkers,
 } from './surveyLayers';
 import type { SurveyHit } from './surveyLayers';
+import { SurveyCostChip } from './SurveyCostChip';
 import { surveySteps, walkthroughFrame, yourTurnFrame } from './walkthrough';
 import './survey.css';
 
 /** The colors this tab shows, and nothing else (spec 5.1). */
 const LEGEND: LegendItem[] = [
   { token: 'work', label: '4x4', shape: 'dot' },
+  { token: 'work', label: 'Drone', shape: 'drone' },
   { token: 'work', label: 'Planned path', shape: 'dash' },
   { token: 'data', label: 'Online (Starlink)', shape: 'dot' },
+  { token: 'data', label: 'Drone link', shape: 'line' },
   { token: 'done', label: 'Surveyed ground', shape: 'fill' },
   { token: 'unit', label: 'Planned unit', shape: 'square' },
   { token: 'base', label: 'Base', shape: 'square' },
 ];
 
 const PCT = 100;
-const ESTIMATE = 'Team estimate · not quotes';
 
 export function SurveyTab() {
   const vehicles = useSurveyStore((s) => s.vehicles);
@@ -96,9 +101,11 @@ export function SurveyTab() {
   const viewRef = useRef<Viewport | null>(null);
   const view = viewRef.current;
   const markers = view ? vehicleMarkers(plan, frame.hours, view) : [];
+  const drones = view ? droneMarkers(plan, markers, frame.hours, view) : [];
   const hit: SurveyHit =
-    pointer && view ? hitTest(plan, markers, view, pointer.sx, pointer.sy) : null;
+    pointer && view ? hitTest(plan, markers, view, pointer.sx, pointer.sy, drones) : null;
   const hoveredId = hit?.kind === 'vehicle' ? hit.id : null;
+  const hoveredDrone = hit?.kind === 'drone' ? hit.id : null;
 
   const underlay: MapLayer = (ctx, v, colors) => drawSurveyed(ctx, v, plan, frame.hours, colors);
   const overlay: MapLayer = (ctx, v, colors) => {
@@ -106,18 +113,22 @@ export function SurveyTab() {
       drawStrips(ctx, v, plan);
       drawPaths(ctx, v, plan, frame.hours, colors);
     }
-    drawVehicles(ctx, vehicleMarkers(plan, frame.hours, v), colors, hoveredId);
+    const vm = vehicleMarkers(plan, frame.hours, v);
+    const dm = droneMarkers(plan, vm, frame.hours, v);
+    drawDroneLinks(ctx, vm, dm, colors);
+    drawVehicles(ctx, vm, colors, hoveredId);
+    drawDrones(ctx, dm, colors, hoveredDrone);
   };
 
   const count = plan.vehicles.length;
   const surveyed = surveyedFraction(plan, frame.hours);
   const { pricing, errors } = PRICING;
+  const cost = surveyCost(pricing, count, plan.vehicleHours, plan.finishH);
   const model = getSiteModel();
 
   let card: HoverCardProps | null = null;
   if (pointer && hit?.kind === 'vehicle') {
-    const m = markers.find((k) => k.id === hit.id)!;
-    const s = m.state;
+    const s = markers.find((k) => k.id === hit.id)!.state;
     card = {
       x: pointer.sx,
       y: pointer.sy,
@@ -132,6 +143,25 @@ export function SurveyTab() {
         },
         { label: 'Driven', value: `${formatKm(s.km)} km` },
         { label: 'Time left', value: `${formatHours(s.timeLeftH)} h` },
+        { label: 'Drone', value: droneFlying(s) ? 'Flying · linked' : 'Docked · linked' },
+      ],
+    };
+  } else if (pointer && hit?.kind === 'drone') {
+    const s = markers.find((k) => k.id === hit.id)!.state;
+    card = {
+      x: pointer.sx,
+      y: pointer.sy,
+      title: `Drone #${hit.id + 1}`,
+      subtitle: `Online · via 4x4 #${hit.id + 1} Starlink · Following`,
+      rows: [
+        {
+          label: 'Strip progress',
+          value: `${formatSharePct(s.stripProgress)}%`,
+          pct: s.stripProgress * PCT,
+          token: 'work',
+        },
+        { label: 'Link', value: `4x4 #${hit.id + 1}` },
+        { label: 'Time left', value: `${formatHours(s.timeLeftH)} h` },
       ],
     };
   } else if (pointer && hit?.kind === 'base') {
@@ -139,8 +169,11 @@ export function SurveyTab() {
       x: pointer.sx,
       y: pointer.sy,
       title: 'Base',
-      subtitle: 'Online · Starlink backhaul',
-      rows: [{ label: '4x4s online', value: `${count}/${count}` }],
+      subtitle: 'Online · Starlink backhaul · Not surveyed',
+      rows: [
+        { label: '4x4s online', value: `${count}/${count}` },
+        { label: 'Drones online', value: `${count}/${count}` },
+      ],
     };
   }
 
@@ -186,33 +219,17 @@ export function SurveyTab() {
           />
         </Section>
         <Section label="Connect">
-          <Kpi label="4x4s online" value={`${count}/${count}`} />
+          <Kpi label="4x4s online · Starlink" value={`${count}/${count}`} />
+          <Kpi label="Drones online · via 4x4" value={`${count}/${count}`} />
           <Kpi
             label="Elapsed"
             value={`${formatHours(frame.hours)} of ${formatHours(plan.finishH)}`}
             unit="h"
           />
         </Section>
-        <Section label="Cost" aside={pricing.verified ? undefined : <Chip text={ESTIMATE} />}>
-          {errors.length > 0 ? (
-            <p className="survey-warning" role="alert">
-              The pricing file has {errors.length} error{errors.length === 1 ? '' : 's'}; see the
-              console.
-            </p>
-          ) : null}
-          <Kpi
-            label="4x4-hours"
-            value={formatHours(plan.vehicleHours)}
-            unit={`h × ${formatUsd(pricing.survey.vehicleHourUsd)}`}
-          />
-          <Kpi
-            label="Survey cost"
-            value={formatUsd(surveyCostUsd(pricing, plan.vehicleHours))}
-            headline
-          />
-        </Section>
       </Panel>
 
+      <SurveyCostChip cost={cost} pricingErrors={errors.length} focus={frame.step === 'done'} />
       <Legend items={LEGEND} />
       <PlayerBar
         player={player}

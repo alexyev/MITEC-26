@@ -2,20 +2,56 @@ import { describe, expect, it } from 'vitest';
 import { SURVEY } from '../src/config/survey';
 import { generateSite, unitGridRect } from '../src/engine/site';
 import {
+  crossesRect,
+  droneFlying,
   planSurvey,
+  routeAround,
   surveyedFraction,
   surveyedRects,
   surveyStrips,
+  trailPoint,
   vehicleAt,
 } from '../src/engine/survey';
+import type { Point, SurveyLeg, SurveyPlan } from '../src/engine/survey';
+import type { Rect } from '../src/engine/types';
 
 const site = generateSite();
 const area = unitGridRect(site);
 const base = site.base;
+const pad = site.basePad!;
 const plans = new Map(
-  Array.from({ length: SURVEY.maxVehicles }, (_, i) => [i + 1, planSurvey(area, base, i + 1)]),
+  Array.from({ length: SURVEY.maxVehicles }, (_, i) => [
+    i + 1,
+    planSurvey(area, base, i + 1, SURVEY, pad),
+  ]),
 );
 const plan = (n: number) => plans.get(n)!;
+const EPS = 1e-6;
+const groundM2 = area.w * area.h - pad.w * pad.h;
+
+const strictlyInside = (p: Point, r: Rect, eps = EPS) =>
+  p.x > r.x + eps && p.x < r.x + r.w - eps && p.y > r.y + eps && p.y < r.y + r.h - eps;
+const onEdge = (p: Point, r: Rect) =>
+  !strictlyInside(p, r) &&
+  p.x >= r.x - EPS &&
+  p.x <= r.x + r.w + EPS &&
+  p.y >= r.y - EPS &&
+  p.y <= r.y + r.h + EPS;
+const start = (l: SurveyLeg): Point => ({ x: l.x0, y: l.y0 });
+const end = (l: SurveyLeg): Point => ({ x: l.x1, y: l.y1 });
+const cellCenterInPad = (p: SurveyPlan, id: number) => {
+  const c = id % p.cellCols;
+  const r = Math.floor(id / p.cellCols);
+  const x = Math.min(
+    area.x + (c + 0.5) * SURVEY.cellM,
+    (area.x + c * SURVEY.cellM + area.x + area.w) / 2,
+  );
+  const y = Math.min(
+    area.y + (r + 0.5) * SURVEY.cellM,
+    (area.y + r * SURVEY.cellM + area.y + area.h) / 2,
+  );
+  return strictlyInside({ x, y }, pad, 0);
+};
 
 describe('survey area', () => {
   it('is the unit grid of the full site, about 3,983 m x 1,813 m (north-south lanes, D33)', () => {
@@ -23,6 +59,14 @@ describe('survey area', () => {
     expect(area.h).toBeCloseTo(1813, 0);
     expect(area.x).toBeGreaterThan(0);
     expect(area.y).toBeGreaterThan(0);
+  });
+
+  it('holds the base pad at its center, about 215 m x 365 m (D34)', () => {
+    expect(pad.w).toBeCloseTo(215, -1);
+    expect(pad.h).toBeCloseTo(365, -1);
+    expect(strictlyInside(base, pad)).toBe(true);
+    expect(pad.x).toBeGreaterThan(area.x);
+    expect(pad.x + pad.w).toBeLessThan(area.x + area.w);
   });
 });
 
@@ -43,18 +87,112 @@ describe('surveyStrips', () => {
   }
 });
 
+describe('crossesRect and routeAround', () => {
+  const r: Rect = { x: 0, y: 0, w: 10, h: 20 };
+
+  it('tells a segment through a rectangle from one along its edge, at a corner or outside', () => {
+    expect(crossesRect({ x: -5, y: 10 }, { x: 15, y: 10 }, r)).toBe(true);
+    expect(crossesRect({ x: 5, y: 10 }, { x: 5, y: 40 }, r)).toBe(true);
+    expect(crossesRect({ x: -5, y: 0 }, { x: 15, y: 0 }, r)).toBe(false);
+    expect(crossesRect({ x: 0, y: -5 }, { x: 0, y: 25 }, r)).toBe(false);
+    expect(crossesRect({ x: -5, y: -5 }, { x: 0, y: 0 }, r)).toBe(false);
+    expect(crossesRect({ x: -5, y: 5 }, { x: 5, y: -5 }, r)).toBe(false);
+    expect(crossesRect({ x: 20, y: 0 }, { x: 30, y: 30 }, r)).toBe(false);
+  });
+
+  it('goes straight when the way is clear and around the corners when it is not', () => {
+    expect(routeAround({ x: -5, y: -5 }, { x: 15, y: -5 }, r)).toEqual([{ x: 15, y: -5 }]);
+    expect(routeAround({ x: -5, y: 10 }, { x: 15, y: 10 }, null)).toEqual([{ x: 15, y: 10 }]);
+    // Straight across the middle: around one long side, by its two corners (both sides are as short).
+    const across = routeAround({ x: 5, y: -5 }, { x: 5, y: 25 }, r);
+    expect(across).toHaveLength(3);
+    expect(across[0].y).toBe(0);
+    expect(across[1]).toEqual({ x: across[0].x, y: 20 });
+    expect([0, 10]).toContain(across[0].x);
+    let from = { x: 5, y: -5 };
+    for (const p of across) {
+      expect(crossesRect(from, p, r)).toBe(false);
+      from = p;
+    }
+    const way = routeAround({ x: -5, y: 2 }, { x: 15, y: 2 }, r);
+    expect(way).toEqual([
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 15, y: 2 },
+    ]);
+  });
+});
+
 describe('planSurvey', () => {
-  it('surveys every ground cell by the end, and none before Send', () => {
+  it('never drives a 4x4 over the base pad, for every fleet size (D60)', () => {
+    for (const p of plans.values()) {
+      expect(p.pad).toBe(pad);
+      for (const v of p.vehicles) {
+        for (const leg of v.legs) {
+          expect(crossesRect(start(leg), end(leg), pad)).toBe(false);
+          // An independent check: sample the leg every metre.
+          const steps = Math.ceil(leg.lengthKm * 1000);
+          for (let k = 0; k <= steps; k++) {
+            const f = steps > 0 ? k / steps : 0;
+            const q = { x: leg.x0 + (leg.x1 - leg.x0) * f, y: leg.y0 + (leg.y1 - leg.y0) * f };
+            expect(strictlyInside(q, pad)).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  it('stops the passes beside the pad at its edge, so no surveyed ground lies on the pad', () => {
+    for (const p of plans.values()) {
+      for (const v of p.vehicles) {
+        for (const r of surveyedRects(v, v.driveH)) {
+          const overlapW = Math.min(r.x + r.w, pad.x + pad.w) - Math.max(r.x, pad.x);
+          const overlapH = Math.min(r.y + r.h, pad.y + pad.h) - Math.max(r.y, pad.y);
+          expect(overlapW <= EPS || overlapH <= EPS).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('surveys every ground cell off the pad by the end, none before Send, and none on the pad', () => {
     for (const p of plans.values()) {
       expect(p.cellSurveyedH.length).toBe(p.cellCols * p.cellRows);
       expect(p.cellCols).toBe(Math.ceil(area.w / SURVEY.cellM));
-      for (const h of p.cellSurveyedH) {
+      let padCells = 0;
+      p.cellSurveyedH.forEach((h, id) => {
+        if (cellCenterInPad(p, id)) {
+          padCells++;
+          expect(Number.isNaN(h)).toBe(true);
+          return;
+        }
         expect(Number.isFinite(h)).toBe(true);
         expect(h).toBeGreaterThan(0);
         expect(h).toBeLessThanOrEqual(p.finishH);
-      }
+      });
+      expect(p.sortedCellH.length).toBe(p.cellSurveyedH.length - padCells);
+      expect(Math.abs(padCells * SURVEY.cellM ** 2 - pad.w * pad.h) / (pad.w * pad.h)).toBeLessThan(
+        0.05,
+      );
       expect(surveyedFraction(p, 0)).toBe(0);
       expect(surveyedFraction(p, p.finishH)).toBe(1);
+    }
+  });
+
+  it('leaves no gap around the pad: the surveyed ground is the whole area but the pad', () => {
+    for (const p of plans.values()) {
+      const rects = p.vehicles.flatMap((v) => surveyedRects(v, p.finishH));
+      const total = rects.reduce((s, r) => s + r.w * r.h, 0);
+      expect(total / groundM2).toBeCloseTo(1, 6);
+      // No two rectangles overlap, so the total is the area they cover.
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i];
+          const b = rects[j];
+          const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+          const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+          expect(w <= EPS || h <= EPS).toBe(true);
+        }
+      }
     }
   });
 
@@ -74,7 +212,7 @@ describe('planSurvey', () => {
     }
   });
 
-  it('keeps the 4x4-hours, and so the cost, within about 5% across fleet sizes', () => {
+  it('keeps the 4x4-hours, and so the hourly cost, within about 5% across fleet sizes', () => {
     const hours = [1, 3, 6].map((n) => plan(n).vehicleHours);
     expect(Math.max(...hours) / Math.min(...hours)).toBeLessThan(1.05);
     const p = plan(3);
@@ -84,24 +222,55 @@ describe('planSurvey', () => {
     );
   });
 
-  it('drives each strip in passes at most one swath apart, inside the strip', () => {
+  it('drives each strip in north-south passes at most one swath wide that tile the strip', () => {
     for (const p of plans.values()) {
       for (const v of p.vehicles) {
         expect(v.passSpacingM).toBeLessThanOrEqual(SURVEY.swathM);
         const passes = v.legs.filter((l) => l.kind === 'pass');
         expect(passes.length).toBe(v.passes);
+        const columns = new Map<number, { x0: number; x1: number; m: number }>();
         for (const leg of passes) {
           expect(leg.x0).toBe(leg.x1);
-          expect(leg.x0 - v.passSpacingM / 2).toBeGreaterThanOrEqual(v.strip.x - 1e-6);
-          expect(leg.x0 + v.passSpacingM / 2).toBeLessThanOrEqual(v.strip.x + v.strip.w + 1e-6);
-          expect(Math.abs(leg.y1 - leg.y0)).toBeCloseTo(area.h, 6);
+          expect(leg.widthM!).toBeLessThanOrEqual(SURVEY.swathM + EPS);
+          const c = columns.get(leg.column!) ?? {
+            x0: leg.x0 - leg.widthM! / 2,
+            x1: leg.x0 + leg.widthM! / 2,
+            m: 0,
+          };
+          c.m += Math.abs(leg.y1 - leg.y0);
+          columns.set(leg.column!, c);
+          // A pass runs the full height, or from an edge of the area to the pad.
+          const ys = [leg.y0, leg.y1].sort((a, b) => a - b);
+          const full = Math.abs(ys[0] - area.y) < EPS && Math.abs(ys[1] - area.y - area.h) < EPS;
+          const south = Math.abs(ys[0] - area.y) < EPS && Math.abs(ys[1] - pad.y) < EPS;
+          const north =
+            Math.abs(ys[0] - pad.y - pad.h) < EPS && Math.abs(ys[1] - area.y - area.h) < EPS;
+          expect(full || south || north).toBe(true);
+          if (!full) expect(leg.x0 > pad.x && leg.x0 < pad.x + pad.w).toBe(true);
         }
-        // Passes go back and forth and step one spacing at a time.
-        for (let k = 1; k < passes.length; k++) {
-          expect(Math.sign(passes[k].y1 - passes[k].y0)).toBe(
-            -Math.sign(passes[k - 1].y1 - passes[k - 1].y0),
-          );
-          expect(Math.abs(passes[k].x0 - passes[k - 1].x0)).toBeCloseTo(v.passSpacingM, 6);
+        // The columns tile the strip west to east, and each is surveyed over its whole height but the pad.
+        const sorted = [...columns.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c);
+        expect(sorted[0].x0).toBeCloseTo(v.strip.x, 6);
+        expect(sorted[sorted.length - 1].x1).toBeCloseTo(v.strip.x + v.strip.w, 6);
+        for (let k = 1; k < sorted.length; k++)
+          expect(sorted[k].x0).toBeCloseTo(sorted[k - 1].x1, 6);
+        for (const c of sorted) {
+          const besidePad = (c.x0 + c.x1) / 2 > pad.x && (c.x0 + c.x1) / 2 < pad.x + pad.w;
+          expect(c.m).toBeCloseTo(besidePad ? area.h - pad.h : area.h, 6);
+        }
+      }
+    }
+  });
+
+  it('shifts between neighbouring passes along an edge of the area or of the pad', () => {
+    for (const p of plans.values()) {
+      for (const v of p.vehicles) {
+        for (const leg of v.legs.filter((l) => l.kind === 'shift')) {
+          expect(leg.y0).toBeCloseTo(leg.y1, 9);
+          expect(Math.abs(leg.x1 - leg.x0)).toBeLessThanOrEqual(SURVEY.swathM + EPS);
+          const y = leg.y0;
+          const edges = [area.y, area.y + area.h, pad.y, pad.y + pad.h];
+          expect(edges.some((e) => Math.abs(e - y) < EPS)).toBe(true);
         }
       }
     }
@@ -111,24 +280,37 @@ describe('planSurvey', () => {
     for (const p of plans.values()) {
       for (const v of p.vehicles) {
         const firstPass = v.legs.find((l) => l.kind === 'pass')!;
-        const containsBase = base.x >= v.strip.x && base.x <= v.strip.x + v.strip.w;
+        const end = v.strip.x + v.strip.w;
+        const baseInside = base.x > v.strip.x + EPS && base.x < end - EPS;
         const west = firstPass.x0 < v.strip.x + v.passSpacingM;
-        const east = firstPass.x0 > v.strip.x + v.strip.w - v.passSpacingM;
-        if (containsBase || base.x < v.strip.x) expect(west).toBe(true);
-        else expect(east).toBe(true);
+        const eastEdge = firstPass.x0 > end - v.passSpacingM;
+        if (baseInside || base.x <= v.strip.x + SURVEY.minSectionM) expect(west).toBe(true);
+        else expect(eastEdge).toBe(true);
+        expect(v.eastward).toBe(west);
       }
     }
   });
 
-  it('starts and ends every 4x4 at the base, with continuous legs at the stated speeds', () => {
+  it('leaves and enters the pad at its edge, on the line to the base, with continuous legs', () => {
     for (const p of plans.values()) {
       for (const v of p.vehicles) {
-        expect(v.legs[0]).toMatchObject({ kind: 'transit', x0: base.x, y0: base.y });
-        expect(v.legs[v.legs.length - 1]).toMatchObject({
-          kind: 'transit',
-          x1: base.x,
-          y1: base.y,
-        });
+        const first = v.legs[0];
+        const last = v.legs[v.legs.length - 1];
+        expect(first.kind).toBe('transit');
+        expect(last.kind).toBe('transit');
+        expect(v.home).toBe(base);
+        for (const [gate, toward] of [
+          [start(first), end(first)],
+          [end(last), start(last)],
+        ]) {
+          expect(onEdge(gate, pad)).toBe(true);
+          // The gate is on the straight line from the base toward the leg's far end.
+          const cross =
+            (gate.x - base.x) * (toward.y - base.y) - (gate.y - base.y) * (toward.x - base.x);
+          expect(Math.abs(cross) / Math.hypot(toward.x - base.x, toward.y - base.y)).toBeLessThan(
+            1e-6,
+          );
+        }
         for (let k = 0; k < v.legs.length; k++) {
           const leg = v.legs[k];
           const kmh = leg.kind === 'transit' ? SURVEY.transitSpeedKmh : SURVEY.surveySpeedKmh;
@@ -139,7 +321,7 @@ describe('planSurvey', () => {
             expect(leg.km0).toBeCloseTo(prev.km0 + prev.lengthKm, 9);
           }
         }
-        expect(v.driveH).toBe(v.legs[v.legs.length - 1].t1H);
+        expect(v.driveH).toBe(last.t1H);
       }
       expect(p.finishH).toBe(Math.max(...p.vehicles.map((v) => v.driveH)));
     }
@@ -150,13 +332,25 @@ describe('planSurvey', () => {
     const passes = p.vehicles.flatMap((v) => v.legs.filter((l) => l.kind === 'pass'));
     for (let id = 0; id < p.cellSurveyedH.length; id += 997) {
       const h = p.cellSurveyedH[id];
+      if (Number.isNaN(h)) continue;
       const inPass = passes.some((l) => h >= l.t0H - 1e-6 && h <= l.t1H + 1e-6);
       expect(inPass).toBe(true);
     }
   });
 
+  it('plans the full area when the site has no pad', () => {
+    const p = planSurvey(area, base, 3);
+    expect(p.pad).toBeNull();
+    expect(p.sortedCellH.length).toBe(p.cellSurveyedH.length);
+    expect(p.vehicles[1].legs[0]).toMatchObject({ x0: base.x, y0: base.y });
+    const total = p.vehicles
+      .flatMap((v) => surveyedRects(v, p.finishH))
+      .reduce((s, r) => s + r.w * r.h, 0);
+    expect(total / (area.w * area.h)).toBeCloseTo(1, 6);
+  });
+
   it('refuses an empty fleet', () => {
-    expect(() => planSurvey(area, base, 0)).toThrow();
+    expect(() => planSurvey(area, base, 0, SURVEY, pad)).toThrow();
   });
 });
 
@@ -179,7 +373,7 @@ describe('vehicleAt', () => {
   });
 
   it('moves along the legs with growing distance and progress', () => {
-    let prev = vehicleAt(v, 0);
+    let prev = vehicleAt(v, Number.EPSILON);
     for (let t = 0.05; t < v.driveH; t += 0.05) {
       const s = vehicleAt(v, t);
       expect(s.km).toBeGreaterThanOrEqual(prev.km - 1e-9);
@@ -188,8 +382,41 @@ describe('vehicleAt', () => {
       // Speed between samples never exceeds the transit speed.
       const stepKm = Math.hypot(s.x - prev.x, s.y - prev.y) / 1000;
       expect(stepKm).toBeLessThanOrEqual(SURVEY.transitSpeedKmh * 0.05 + 1e-6);
+      expect(strictlyInside(s, pad)).toBe(false);
       prev = s;
     }
+  });
+});
+
+describe('drones (D61)', () => {
+  const v = plan(3).vehicles[1];
+
+  it('fly while their 4x4 is out and ride docked on it at the base', () => {
+    expect(droneFlying(vehicleAt(v, 0))).toBe(false);
+    expect(droneFlying(vehicleAt(v, v.driveH / 2))).toBe(true);
+    expect(droneFlying(vehicleAt(v, v.driveH + 1))).toBe(false);
+  });
+
+  it('follow their 4x4 the given distance back along the path it drove', () => {
+    const passes = v.legs.filter((l) => l.kind === 'pass');
+    const pass = passes[Math.floor(passes.length / 2)];
+    const t = (pass.t0H + pass.t1H) / 2;
+    const now = vehicleAt(v, t);
+    const behind = trailPoint(v, t, 100);
+    expect(behind.x).toBeCloseTo(now.x, 9);
+    expect(Math.hypot(behind.x - now.x, behind.y - now.y)).toBeCloseTo(100, 6);
+    // Behind, not ahead: toward the start of the pass.
+    expect(Math.abs(behind.y - pass.y0)).toBeLessThan(Math.abs(now.y - pass.y0));
+    // Around a turn: the trail continues onto the previous pass, still on the driven path.
+    const turn = trailPoint(v, pass.t0H + 1e-9, 50);
+    const prevPass = passes[passes.indexOf(pass) - 1];
+    expect(turn.x).toBeCloseTo(prevPass.x0, 6);
+  });
+
+  it('never trail back past where the 4x4 left the pad, and stay with it at the base', () => {
+    const first = v.legs[0];
+    expect(trailPoint(v, first.t1H / 10, 1e6)).toEqual({ x: first.x0, y: first.y0 });
+    expect(trailPoint(v, 0, 50)).toEqual({ x: base.x, y: base.y });
   });
 });
 
@@ -205,18 +432,7 @@ describe('surveyedFraction and surveyedRects', () => {
       const rectArea = p.vehicles
         .flatMap((v) => surveyedRects(v, t))
         .reduce((s, r) => s + r.w * r.h, 0);
-      expect(Math.abs(rectArea / (area.w * area.h) - share)).toBeLessThan(0.01);
-    }
-  });
-
-  it('covers the whole area with non-overlapping rectangles at the end', () => {
-    const p = plan(4);
-    const rects = p.vehicles.flatMap((v) => surveyedRects(v, p.finishH));
-    const total = rects.reduce((s, r) => s + r.w * r.h, 0);
-    expect(total / (area.w * area.h)).toBeCloseTo(1, 6);
-    const sorted = [...rects].sort((a, b) => a.x - b.x);
-    for (let k = 1; k < sorted.length; k++) {
-      expect(sorted[k].x).toBeGreaterThanOrEqual(sorted[k - 1].x + sorted[k - 1].w - 1e-6);
+      expect(Math.abs(rectArea / groundM2 - share)).toBeLessThan(0.01);
     }
   });
 });

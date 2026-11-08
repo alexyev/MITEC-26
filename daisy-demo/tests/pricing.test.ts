@@ -7,7 +7,8 @@ import {
   networkCost,
   PRICING,
   siteLayoutSummary,
-  surveyCostUsd,
+  surveyCost,
+  surveyPrice,
   validatePricing,
 } from '../src/engine/pricing';
 import type { Pricing, SiteLayoutSummary } from '../src/engine/pricing';
@@ -113,9 +114,55 @@ describe('networkCost on the v3 site', () => {
   });
 });
 
-describe('surveyCostUsd', () => {
-  it('is the 4x4-hours times the hourly cost', () => {
-    expect(surveyCostUsd(pricing, 46)).toBeCloseTo(46 * pricing.survey.vehicleHourUsd, 9);
+describe('surveyCost (D62)', () => {
+  const withSurvey = (edit: Partial<Pricing['survey']>): Pricing => {
+    const p = clone();
+    Object.assign(p.survey, edit);
+    return p;
+  };
+
+  it('takes the Starlink prices from the workbook (Alternatives B59, B60, B62)', () => {
+    expect(pricing.survey.starlinkKitUsd).toBe(649);
+    expect(pricing.survey.starlinkMountUsd).toBe(150);
+    expect(pricing.survey.starlinkPlanUsdPerMonth).toBe(250);
+    expect(pricing.survey.starlinkBillingDays).toBe(30);
+  });
+
+  it('prices a Starlink kit, its mounting and one month of service for each 4x4', () => {
+    const c = surveyCost(pricing, 3, 46.4, 15.5);
+    expect(c.starlinkMonths).toBe(1);
+    expect(c.starlinkHardwareUsd).toBe(3 * (649 + 150));
+    expect(c.starlinkServiceUsd).toBe(3 * 250);
+    expect(surveyCost(pricing, 6, 47, 8).starlinkHardwareUsd).toBe(6 * 799);
+  });
+
+  it('bills Starlink service in whole months of the billing days, at least one', () => {
+    expect(surveyCost(pricing, 1, 46, 46).starlinkMonths).toBe(1);
+    expect(surveyCost(pricing, 1, 800, 30 * 24).starlinkMonths).toBe(1);
+    expect(surveyCost(pricing, 1, 800, 30 * 24 + 1).starlinkMonths).toBe(2);
+    expect(surveyCost(pricing, 2, 1600, 30 * 24 + 1).starlinkServiceUsd).toBe(2 * 2 * 250);
+  });
+
+  it('never prices a placeholder: the unverified hourly rate and the missing drone price stay null', () => {
+    expect(pricing.survey.vehicleHourUsd).toBe(150);
+    expect(pricing.survey.unverified).toContain('vehicleHourUsd');
+    expect(pricing.survey.droneUsd).toBeNull();
+    expect(surveyPrice(pricing, 'vehicleHourUsd')).toBeNull();
+    expect(surveyPrice(pricing, 'droneUsd')).toBeNull();
+    const c = surveyCost(pricing, 3, 46.4, 15.5);
+    expect(c.vehicleHoursUsd).toBeNull();
+    expect(c.dronesUsd).toBeNull();
+    expect(c.complete).toBe(false);
+    expect(c.pricedUsd).toBe(3 * 799 + 3 * 250);
+  });
+
+  it('adds the 4x4-hours and the drones once their prices are sourced', () => {
+    const p = withSurvey({ unverified: [], droneUsd: 2000 });
+    const c = surveyCost(p, 3, 46, 15.5);
+    expect(c.vehicleHoursUsd).toBe(46 * 150);
+    expect(c.dronesUsd).toBe(3 * 2000);
+    expect(c.complete).toBe(true);
+    expect(c.pricedUsd).toBe(46 * 150 + 3 * 2000 + 3 * 799 + 3 * 250);
   });
 });
 
@@ -159,6 +206,17 @@ describe('validatePricing', () => {
     expect(errorsAfter((p) => (p.setups = []))).toHaveLength(1);
     expect(errorsAfter((p) => (p.setups[2].radiosPerModule = 1.5))).toHaveLength(1);
     expect(validatePricing(null)).toHaveLength(1);
+  });
+
+  it('accepts a survey price of null and checks the unverified list', () => {
+    expect(errorsAfter((p) => (p.survey.vehicleHourUsd = null))).toEqual([]);
+    expect(errorsAfter((p) => (p.survey.starlinkKitUsd = -1))).toHaveLength(1);
+    expect(errorsAfter((p) => (p.survey.starlinkBillingDays = 0))).toHaveLength(1);
+    expect(
+      errorsAfter(
+        (p) => ((p.survey as unknown as Record<string, unknown>).unverified = ['droneCost']),
+      ),
+    ).toEqual(['survey.unverified must be a list of survey price keys.']);
   });
 
   it('reports the errors of an invalid file on the console when it loads', () => {

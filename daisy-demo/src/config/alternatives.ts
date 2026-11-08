@@ -47,15 +47,6 @@ export const PRIVATE_LTE = {
   towers: 6,
 };
 
-/** Starlink on every machine, no site network (workbook D, cells B58 to B62). */
-export const STARLINK_PER_MACHINE = {
-  machines: 17,
-  kitUsd: 649,
-  planUsdPerMonth: 250,
-  mountUsd: 150,
-  daysPerMonth: 30,
-};
-
 /** The challenge brief's own illustrative design: relay nodes on masts along the roads (STRESS-TEST frame). */
 export const EXOWATT_EXAMPLE = {
   hardwareUsd: 41000,

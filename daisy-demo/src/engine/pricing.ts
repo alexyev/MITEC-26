@@ -51,8 +51,30 @@ export interface Pricing {
   contingency: number;
   defaultSetup: string;
   setups: RadioSetup[];
-  survey: { vehicleHourUsd: number };
+  survey: SurveyPricing;
 }
+
+/**
+ * Survey prices (spec 10.4, D62). A price is shown only when it is sourced: a number that is not listed in
+ * `unverified`. `null` means there is no sourced price yet.
+ */
+export interface SurveyPricing {
+  /** One 4x4-hour of survey; the spec's placeholder, listed as unverified. */
+  vehicleHourUsd: number | null;
+  /** Starlink Mini kit with shipping, and its mounting and power on a 4x4 (workbook Alternatives B59, B62). */
+  starlinkKitUsd: number | null;
+  starlinkMountUsd: number | null;
+  /** Starlink service plan per terminal and month, and the days billed as one month (Alternatives B60, B61). */
+  starlinkPlanUsdPerMonth: number | null;
+  starlinkBillingDays: number;
+  /** One drone that follows a 4x4 (D61). */
+  droneUsd: number | null;
+  /** Keys whose value is a placeholder, kept in the file but never shown as a cost. */
+  unverified: SurveyPriceKey[];
+}
+
+export type SurveyPriceKey =
+  'vehicleHourUsd' | 'starlinkKitUsd' | 'starlinkMountUsd' | 'starlinkPlanUsdPerMonth' | 'droneUsd';
 
 /** The layout numbers the cost formulas need; they come from the site model and BUILD, not the file. */
 export interface SiteLayoutSummary {
@@ -197,9 +219,64 @@ export function allNetworkCosts(pricing: Pricing, layout: SiteLayoutSummary): Ne
   return pricing.setups.map((s) => networkCost(pricing, layout, s.id));
 }
 
-/** Survey cost (spec 10.4): the 4x4-hours of a run times the hourly 4x4 cost. */
-export function surveyCostUsd(pricing: Pricing, vehicleHours: number): number {
-  return vehicleHours * pricing.survey.vehicleHourUsd;
+/** A sourced survey price, or null when the file has none or lists it as unverified. */
+export function surveyPrice(pricing: Pricing, key: SurveyPriceKey): number | null {
+  const value = pricing.survey[key];
+  return value === null || pricing.survey.unverified.includes(key) ? null : value;
+}
+
+/** The cost of one survey run (spec 10.4, D62); a part without a sourced price is null. */
+export interface SurveyCost {
+  vehicles: number;
+  vehicleHours: number;
+  /** Months of Starlink service billed per terminal: the survey time in billing months, at least 1. */
+  starlinkMonths: number;
+  /** One Starlink kit and its mounting per 4x4. */
+  starlinkHardwareUsd: number | null;
+  starlinkServiceUsd: number | null;
+  vehicleHoursUsd: number | null;
+  dronesUsd: number | null;
+  /** Sum of the parts with a sourced price. */
+  pricedUsd: number;
+  /** True when every part has a sourced price, so `pricedUsd` is the whole survey cost. */
+  complete: boolean;
+}
+
+/**
+ * Survey cost of `vehicles` 4x4s that drive `vehicleHours` in all and finish after `finishH`: the 4x4-hours
+ * times the hourly cost, and for each 4x4 a Starlink kit with its mounting, Starlink service for the survey,
+ * and a drone.
+ */
+export function surveyCost(
+  pricing: Pricing,
+  vehicles: number,
+  vehicleHours: number,
+  finishH: number,
+): SurveyCost {
+  const price = (key: SurveyPriceKey) => surveyPrice(pricing, key);
+  const months = Math.max(
+    1,
+    Math.ceil(finishH / (pricing.survey.starlinkBillingDays * UNITS.hoursPerDay)),
+  );
+  const times = (unit: number | null, n: number): number | null =>
+    unit === null ? null : unit * n;
+  const kit = price('starlinkKitUsd');
+  const mount = price('starlinkMountUsd');
+  const parts = {
+    starlinkHardwareUsd: kit === null || mount === null ? null : (kit + mount) * vehicles,
+    starlinkServiceUsd: times(price('starlinkPlanUsdPerMonth'), vehicles * months),
+    vehicleHoursUsd: times(price('vehicleHourUsd'), vehicleHours),
+    dronesUsd: times(price('droneUsd'), vehicles),
+  };
+  const values = Object.values(parts);
+  return {
+    vehicles,
+    vehicleHours,
+    starlinkMonths: months,
+    ...parts,
+    pricedUsd: values.reduce<number>((sum, v) => sum + (v ?? 0), 0),
+    complete: values.every((v) => v !== null),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -208,9 +285,28 @@ export function surveyCostUsd(pricing: Pricing, vehicleHours: number): number {
 
 /**
  * Value rules: 'usd' and 'amount' are at least 0, 'positive' is above 0, 'fraction' is from 0 to 1,
- * 'share' is above 0 and at most 1, 'count' is a whole number from 0 up.
+ * 'share' is above 0 and at most 1, 'count' is a whole number from 0 up; 'usdOrNull' is a price or null (no
+ * sourced price yet), and 'surveyKeys' is a list of survey price keys.
  */
-type Rule = 'usd' | 'amount' | 'positive' | 'fraction' | 'share' | 'count' | 'bool' | 'text';
+type Rule =
+  | 'usd'
+  | 'usdOrNull'
+  | 'amount'
+  | 'positive'
+  | 'fraction'
+  | 'share'
+  | 'count'
+  | 'bool'
+  | 'text'
+  | 'surveyKeys';
+
+const SURVEY_PRICE_KEYS: SurveyPriceKey[] = [
+  'vehicleHourUsd',
+  'starlinkKitUsd',
+  'starlinkMountUsd',
+  'starlinkPlanUsdPerMonth',
+  'droneUsd',
+];
 type Schema = { [key: string]: Rule | Schema };
 
 const SETUP_SCHEMA: Schema = {
@@ -257,7 +353,15 @@ const PRICING_SCHEMA: Schema = {
   spares: 'fraction',
   contingency: 'fraction',
   defaultSetup: 'text',
-  survey: { vehicleHourUsd: 'usd' },
+  survey: {
+    vehicleHourUsd: 'usdOrNull',
+    starlinkKitUsd: 'usdOrNull',
+    starlinkMountUsd: 'usdOrNull',
+    starlinkPlanUsdPerMonth: 'usdOrNull',
+    starlinkBillingDays: 'positive',
+    droneUsd: 'usdOrNull',
+    unverified: 'surveyKeys',
+  },
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -273,6 +377,13 @@ function checkRule(path: string, rule: Rule, value: unknown, errors: string[]): 
     if (typeof value !== 'string' || value.trim() === '') errors.push(`${path} must be a text.`);
     return;
   }
+  if (rule === 'surveyKeys') {
+    const known = (k: unknown) => SURVEY_PRICE_KEYS.includes(k as SurveyPriceKey);
+    if (!Array.isArray(value) || !value.every(known))
+      errors.push(`${path} must be a list of survey price keys.`);
+    return;
+  }
+  if (rule === 'usdOrNull' && value === null) return;
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     errors.push(`${path} must be a number.`);
     return;

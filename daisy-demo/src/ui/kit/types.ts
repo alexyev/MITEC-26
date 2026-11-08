@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 
 export type ColorToken = 'signal' | 'data' | 'fail' | 'work' | 'unit' | 'done' | 'base';
-export interface LegendItem { token: ColorToken; label: string; shape: 'dot' | 'circle' | 'line' | 'dash' | 'cross' | 'ring' | 'square' | 'fill' }
+export interface LegendItem { token: ColorToken; label: string; shape: 'dot' | 'circle' | 'line' | 'dash' | 'cross' | 'ring' | 'square' | 'fill' | 'drone' }
 
 /** Corner of the screen a floating panel docks to (spec 6.2). */
 export type Corner = 'tl' | 'tr' | 'br';

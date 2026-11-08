@@ -1,4 +1,4 @@
-/* Survey tab (spec 6.5): the primary Send button and the pricing warning. Values come from tokens.css. */
+/* Survey tab (spec 6.5): the primary Send button. Values come from tokens.css. */
 
 .survey-send {
   display: block;
@@ -27,8 +27,14 @@
   cursor: default;
 }
 
-.survey-warning {
-  margin-bottom: var(--sp-2);
-  font-size: var(--fs-12);
-  color: var(--c-fail);
+/* Survey cost card (D63): what the figure leaves out, under the breakdown, in the quiet note style. */
+.survey-cost-note {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-11);
+  color: var(--text-3);
+}
+
+/* Survey alternatives: no bar column, since only one approach has a sourced cost to scale against. */
+.alts-row.survey-alts-row {
+  grid-template-columns: minmax(0, 1fr) 92px;
 }

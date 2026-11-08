@@ -128,3 +128,16 @@ This replaces "Pricing (spec section 5)" above.
 - Routing uses hellos every 1 s; a neighbor is declared down after 3 missed hellos; traffic goes to a backup next hop at once, and the route update spreads at 0.02 s per hop (as in the failure scenario above).
 - Each radio sends one packet per second, and a hop takes 0.15 s of playback; both are slowed for visibility.
 - The radio swap time on the maintenance ticket, 15 minutes, is a placeholder.
+
+## 4x4 survey, round 2 (D60 to D63)
+
+- The 4x4s never drive over the base pad: passes beside it stop at its edge, and a 4x4 leaves and enters the pad where the line to the base meets it.
+  The pad itself, about 215 m by 365 m, is not surveyed.
+- Each 4x4 carries a drone that flies with it on its strip while the 4x4 is out, and rides docked on it at the base.
+  The drone's only link is its 4x4, whose Starlink carries its data.
+  The 4x4 carries the drone's charger and spare batteries; battery swaps and flight time are not modeled.
+- The drone captures the same strip from the air at the 4x4's pace, so it does not change the survey time; no research file gives a drone survey rate or swath.
+- Each 4x4 has its own Starlink Mini kit ($649 with shipping) with mounting and power ($150), and service at $250 a month per terminal, billed in whole 30-day months (cost workbook, Alternatives sheet).
+  The kits are counted in full for the survey; their reuse later is not credited.
+- The hourly 4x4 cost ($150, the spec's placeholder) and the drone price have no source, so the demo shows no figure for them.
+- The survey alternatives (a GPS rover crew, drones only, an aerial contractor, the GO2 quadruped) have no sourced cost; they show a one-line trade-off only.

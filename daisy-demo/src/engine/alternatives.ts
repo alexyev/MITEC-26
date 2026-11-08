@@ -1,13 +1,11 @@
 // Costs of the alternatives to our design (D54): the cost workbook's Alternatives sheet, computed on the
 // generated site with the pricing file's base, labor, radio and contingency inputs.
-import { MASTS, PRIVATE_LTE, STARLINK_PER_MACHINE } from '../config/alternatives';
+import { MASTS, PRIVATE_LTE } from '../config/alternatives';
 import { findSetup, type Pricing } from './pricing';
 
 /** What the alternatives need to know about the site. */
 export interface AlternativeSite {
   areaM2: number;
-  units: number;
-  unitsPerDay: number;
 }
 
 export interface AlternativeCosts {
@@ -18,8 +16,6 @@ export interface AlternativeCosts {
   halowMastsUsd: number;
   /** C: private LTE (CBRS) with towers. */
   privateLteUsd: number;
-  /** D: a Starlink terminal on every machine. */
-  starlinkPerMachineUsd: number;
 }
 
 export function alternativeCosts(
@@ -43,8 +39,6 @@ export function alternativeCosts(
   const rajant = findSetup(pricing, 'mesh5Rajant');
   const halow = findSetup(pricing);
   const lte = PRIVATE_LTE;
-  const sky = STARLINK_PER_MACHINE;
-  const months = Math.ceil(site.units / site.unitsPerDay / sky.daysPerMonth);
   return {
     masts: count,
     rajantMastsUsd: withContingency(count * (perMast + rajant.radioUsd) + masts.surveyUsd + bases),
@@ -56,9 +50,6 @@ export function alternativeCosts(
         lte.devicesUsd +
         lte.firstYearUsd +
         lte.towers * (masts.poleUsd + masts.solarKitUsd),
-    ),
-    starlinkPerMachineUsd: withContingency(
-      sky.machines * (sky.kitUsd + sky.planUsdPerMonth * months + sky.mountUsd),
     ),
   };
 }

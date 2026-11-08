@@ -53,8 +53,6 @@ export function buildAlternatives(pricing: Pricing, site: Site): Alternatives {
 
   const alt = alternativeCosts(pricing, {
     areaM2: site.widthM * site.heightM,
-    units: site.count,
-    unitsPerDay: BUILD.unitsPerDay,
   });
   const { early, later } = EXOWATT_TODAY;
   const solutions: SolutionRow[] = [
@@ -95,12 +93,6 @@ export function buildAlternatives(pricing: Pricing, site: Site): Alternatives {
       label: 'Private LTE (CBRS) towers',
       totalUsd: alt.privateLteUsd,
       verdict: `A managed network at ${times(alt.privateLteUsd)}: yearly fees, and LTE devices on everything.`,
-    },
-    {
-      id: 'starlinkMachines',
-      label: 'Starlink on every machine',
-      totalUsd: alt.starlinkPerMachineUsd,
-      verdict: 'Cheaper, but only machines: no crews, no P3 units, no local safety link.',
     },
     {
       id: 'starlinkWifi',

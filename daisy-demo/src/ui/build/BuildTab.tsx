@@ -1,5 +1,5 @@
-// Build & failure tab (spec 9): the play model built from the center out, its coverage and traffic, one radio
-// failure with detection and reroute, then "Your turn", where any radio can be failed and repaired.
+// Build & failure tab (spec 9, D70): the play model built from the center out, a radio failure mid-build traced
+// through a frontier robot's data, the rest of the build, then "Your turn", where any radio can fail.
 import { useCallback, useMemo, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { UI } from '../../config/defaults';
@@ -29,17 +29,17 @@ import { BuildMap } from './BuildMap';
 import { BuildReadout } from './BuildReadout';
 import { CostChip } from './CostChip';
 import type { BuildHit } from './draw';
-import { sceneAt, type Scene } from './scene';
+import { sceneAt, type RobotView, type Scene } from './scene';
 import { SLOWED_STEPS } from './walkthrough';
 import './build.css';
 
 const LEGEND: LegendItem[] = [
   { token: 'signal', label: 'Radio signal', shape: 'circle' },
   { token: 'data', label: 'Data and its route', shape: 'line' },
+  { token: 'data', label: 'Route before reroute', shape: 'dash', colorVar: '--c-old-route' },
   { token: 'fail', label: 'Failed radio', shape: 'cross' },
   { token: 'fail', label: 'Cut off or no link', shape: 'ring' },
   { token: 'work', label: 'Work in progress', shape: 'dot' },
-  { token: 'unit', label: 'P3 unit', shape: 'square' },
   { token: 'base', label: 'Base', shape: 'square' },
 ];
 
@@ -61,7 +61,7 @@ function hoverCardFor(
   if (hit.kind === 'unit') return unitCard(hit.id, scene, pointer);
   if (hit.kind === 'machine') {
     const m = scene.machines[hit.id];
-    return m ? machineCard(m, pointer) : null;
+    return m ? machineCard(m, scene.robot?.index === hit.id ? scene.robot : null, pointer) : null;
   }
   const id = hit.id;
   const live = simAt(user, t);
@@ -127,28 +127,41 @@ function hoverCardFor(
   };
 }
 
-/** The hover card of a frontier machine: what it is, its phase and task, and whether it has a link (D51). */
-function machineCard(m: Machine, pointer: Pointer): HoverCardProps {
+const nodeName = (id: number) =>
+  id === PLAY_GRAPH.baseId ? 'the base' : `radio ${PLAY_MODEL.radios[id]?.label}`;
+
+/**
+ * The hover card of a frontier machine: what it is, its phase and task, and whether it has a link (D51). The
+ * robot that sends its data (D70) also shows the radio its packets go through, its hops and its packets.
+ */
+function machineCard(m: Machine, robot: RobotView | null, pointer: Pointer): HoverCardProps {
   const phases = PLAY_MODEL.config.frontierPhases;
   const kind = PLAY_MODEL.config.equipment.kinds[m.glyph];
-  const via =
-    m.coveredBy === PLAY_GRAPH.baseId
-      ? 'the base'
-      : `radio ${PLAY_MODEL.radios[m.coveredBy]?.label}`;
-  return {
-    ...pointer,
-    title: kind.name,
-    subtitle: m.online ? `Online · via ${via}` : 'Offline · no coverage, stopped',
-    rows: [
-      {
-        label: 'Phase',
-        value: `${phases[m.phase].label} · ${m.phase + 1}/${phases.length}`,
-        pct: ((m.phase + 1) / phases.length) * 100,
-        token: 'work',
-      },
-      { label: 'Task', value: m.online ? kind.task : 'Waiting for a link' },
-    ],
-  };
+  let subtitle = m.online
+    ? `Online · via ${nodeName(m.coveredBy)}`
+    : 'Offline · no coverage, stopped';
+  if (robot && m.online) {
+    subtitle =
+      robot.uplink >= 0
+        ? `Online · sending via ${nodeName(robot.uplink)}`
+        : 'Online · finding a radio';
+  }
+  const rows: HoverCardProps['rows'] = [
+    {
+      label: 'Phase',
+      value: `${phases[m.phase].label} · ${m.phase + 1}/${phases.length}`,
+      pct: ((m.phase + 1) / phases.length) * 100,
+      token: 'work',
+    },
+    { label: 'Task', value: m.online ? kind.task : 'Waiting for a link' },
+  ];
+  if (robot) {
+    rows.push(
+      { label: 'Hops to base', value: robot.hops >= 0 ? String(robot.hops) : '-' },
+      { label: 'Packets sent', value: robot.sent.toLocaleString('en-US') },
+    );
+  }
+  return { ...pointer, title: kind.name, subtitle, rows };
 }
 
 /** The hover card of a unit: planned for a later stage, the phase its stage is in, or live (D51). */

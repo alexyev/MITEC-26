@@ -42,8 +42,8 @@ export const ALTERNATIVES: Alternatives | null = (() => {
 export const PLAY_TIMELINE: BuildTimeline = buildTimeline(PLAY_MODEL, PLAY_GRAPH, FULL_SITE_COST);
 
 /**
- * The live simulation for one list of changes. It advances with the player; seeking back, or a click
- * before a later change, replays from the start (D45).
+ * The live simulation for one list of changes, on top of the walkthrough's (D70): it starts when the build
+ * holds. It advances with the player; seeking back, or a click before a later change, replays (D45).
  */
 class SimRunner {
   private sim: LiveSim;
@@ -53,17 +53,16 @@ class SimRunner {
     this.sim = this.fresh([]);
   }
 
-  private presetChanges(): SimChange[] {
-    return [{ tS: this.timeline.failS, radio: this.timeline.failedRadio, kind: 'fail' }];
-  }
-
   private fresh(user: SimChange[]): LiveSim {
     this.key = keyOf(user);
+    const walk = this.timeline.sim;
     return createSim({
       graph: PLAY_GRAPH,
-      startS: this.timeline.dataStartS,
+      startS: walk.startS,
       endS: Infinity,
-      changes: [...this.presetChanges(), ...user],
+      online: walk.online,
+      sources: walk.sources,
+      changes: [...walk.changes, ...user],
     });
   }
 

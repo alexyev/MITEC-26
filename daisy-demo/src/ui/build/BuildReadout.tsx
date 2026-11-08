@@ -17,6 +17,14 @@ function coverageText(share: number): string {
   return tenths.toFixed(1);
 }
 
+/** The route the extra hops are about: the robot's while it sends (D70), else its radio's. */
+function watchedLabel(model: PlayModel, scene: Scene): string {
+  const robot = scene.robot ? scene.machines[scene.robot.index] : null;
+  if (robot)
+    return `Extra hops, ${model.config.equipment.kinds[robot.glyph].name.toLowerCase()} route`;
+  return `Extra hops, ${model.radios[scene.watchedRadio].label} route`;
+}
+
 export interface BuildReadoutProps {
   model: PlayModel;
   scene: Scene;
@@ -76,7 +84,7 @@ export function BuildReadout({ model, scene }: BuildReadoutProps) {
           />
           <Kpi label="Largest queue" value={formatCount(stats.largestQueue)} />
           <Kpi
-            label="Extra hops, watched route"
+            label={watchedLabel(model, scene)}
             value={
               scene.watchedExtraHops === null
                 ? 'No route'

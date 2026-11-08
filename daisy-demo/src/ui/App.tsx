@@ -1,25 +1,11 @@
-import { UI } from '../config/defaults';
-import { BuildDay } from './BuildDay';
-import { MapView } from './map/MapView';
+// The app: the shell around the active tab. Switching tabs unmounts the other tab, so returning to a tab
+// starts its walkthrough from the beginning (spec 7).
+import { useShellStore } from '../state/store';
+import { BuildTab } from './build/BuildTab';
+import { Shell } from './shell/Shell';
+import { SurveyTab } from './survey/SurveyTab';
 
-// Less is more (decision D10): only what works is on screen. The controls, metrics and chart panels of
-// spec 10.2 return, collapsed by default, once they have content.
 export function App() {
-  return (
-    <div className="app">
-      <header className="header">
-        <img className="mark" src="/favicon.svg" alt="" width={22} height={22} />
-        <h1>Lane-radio network demo</h1>
-        <span className="badge">Simulated · Illustrative values</span>
-        <span className="spacer" />
-        <a className="apex" href={UI.apexUrl}>
-          {UI.apexLabel}
-        </a>
-      </header>
-      <main className="stage" aria-label="Map">
-        <MapView />
-        <BuildDay />
-      </main>
-    </div>
-  );
+  const tab = useShellStore((s) => s.tab);
+  return <Shell>{tab === 'survey' ? <SurveyTab key="survey" /> : <BuildTab key="build" />}</Shell>;
 }

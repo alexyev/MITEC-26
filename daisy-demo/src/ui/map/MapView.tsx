@@ -1,11 +1,14 @@
 // Site map (spec 10.3, T1.3): unit layer, zones of both build faces, the center base, pan, zoom, fit and scale bar.
 // The view lives in refs and redraws on animation frames, so panning never re-renders React.
 import { useCallback, useEffect, useRef } from 'react';
-import { BASE, MAP } from '../../config/defaults';
+import { Maximize2, Minus, Plus } from 'lucide-react';
+import { BASE, MAP, UI } from '../../config/defaults';
 import { faceZonesAt, frontsAt } from '../../engine/schedule';
 import type { FaceZones } from '../../engine/types';
 import { getSiteModel, unitStates } from '../../state/model';
-import { useUiStore } from '../../state/store';
+import { DockPortal } from '../kit/dock';
+import { IconButton } from '../kit/IconButton';
+import { readColorTokens } from '../kit/tokens';
 import { createUnitRaster, drawUnits, pickLevel, renderUnitRaster } from './units';
 import type { UnitColors, UnitRaster } from './units';
 import { fitViewport, panBy, scaleBar, screenToWorld, worldToScreen, zoomAt } from './viewport';
@@ -17,24 +20,24 @@ interface Palette extends UnitColors {
   buildFront: string;
   commissionFront: string;
   base: string;
-  baseText: string;
+  halo: string;
   siteOutline: string;
 }
 
+/** Map colors from the story tokens (spec 5.2): planned units are thin grey outlines, placed units grey. */
 function readPalette(el: HTMLElement): Palette {
-  const css = getComputedStyle(el);
-  const v = (name: string) => css.getPropertyValue(name).trim();
+  const c = readColorTokens(el);
   return {
-    planned: v('--map-unit-planned'),
-    placed: v('--map-unit-placed'),
-    commissioned: v('--map-unit-commissioned'),
-    edge: v('--map-edge-zone'),
-    work: v('--map-work-zone'),
-    buildFront: v('--map-build-front'),
-    commissionFront: v('--map-commission-front'),
-    base: v('--base'),
-    baseText: v('--map-base-text'),
-    siteOutline: v('--map-site-outline'),
+    planned: c.unitPlanned,
+    placed: c.unit,
+    commissioned: c.unit,
+    edge: c.work,
+    work: c.unitPlanned,
+    buildFront: c.work,
+    commissionFront: c.signal,
+    base: c.base,
+    halo: c.halo,
+    siteOutline: c.outline,
   };
 }
 
@@ -61,7 +64,12 @@ function hatchPattern(
   return ctx.createPattern(tile, 'repeat');
 }
 
-export function MapView() {
+export interface MapViewProps {
+  /** Build day to show; 0 shows every unit as planned (the full-site build-day view is hidden in v3). */
+  day?: number;
+}
+
+export function MapView({ day: buildDay = 0 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scaleBarRef = useRef<HTMLDivElement>(null);
@@ -69,7 +77,6 @@ export function MapView() {
   const viewRef = useRef<Viewport | null>(null);
   const dirtyRef = useRef(true);
   const frameRef = useRef(0);
-  const buildDay = useUiStore((s) => s.buildDay);
   const dayRef = useRef(buildDay);
   const rasterDayRef = useRef(-1);
   const rasterRef = useRef<UnitRaster | null>(null);
@@ -93,7 +100,7 @@ export function MapView() {
       model.site.heightM,
       v.width,
       v.height,
-      MAP.fitPaddingPx,
+      UI.mapFitPaddingPx,
     );
     return { min: fit.scale * MAP.minZoomOfFit, max: MAP.maxPxPerM };
   }, [model]);
@@ -106,7 +113,7 @@ export function MapView() {
       model.site.heightM,
       v.width,
       v.height,
-      MAP.fitPaddingPx,
+      UI.mapFitPaddingPx,
     );
     requestDraw();
   }, [model, requestDraw]);
@@ -146,7 +153,7 @@ export function MapView() {
             model.site.heightM,
             rect.width,
             rect.height,
-            MAP.fitPaddingPx,
+            UI.mapFitPaddingPx,
           );
       patternsRef.current = null;
       requestDraw();
@@ -279,22 +286,17 @@ export function MapView() {
         face(zones.east, 1);
       }
 
-      // The base at the site center (BASE.defaultPreset).
+      // The base at the site center (BASE.defaultPreset): a white square on a dark halo.
       const s = BASE.presets[BASE.defaultPreset][0];
       const bp = worldToScreen(v, s.fx * model.site.widthM, s.fy * model.site.heightM);
       const r = MAP.baseMarkerPx;
       ctx.fillStyle = palette.base;
-      ctx.strokeStyle = palette.baseText;
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = palette.halo;
+      ctx.lineWidth = MAP.baseHaloPx;
       ctx.beginPath();
-      ctx.roundRect(bp.sx - r, bp.sy - r, 2 * r, 2 * r, 3);
-      ctx.fill();
+      ctx.roundRect(bp.sx - r, bp.sy - r, 2 * r, 2 * r, MAP.baseCornerPx);
       ctx.stroke();
-      ctx.fillStyle = palette.baseText;
-      ctx.font = '600 10px "Helvetica Neue", Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('B1', bp.sx, bp.sy + 0.5);
+      ctx.fill();
 
       // Scale bar (DOM, updated in place).
       const bar = scaleBar(v.scale, MAP.scaleBarTargetPx);
@@ -363,29 +365,21 @@ export function MapView() {
   return (
     <div className="map" ref={containerRef}>
       <canvas ref={canvasRef} className="map-canvas" aria-label="Site map" />
-      <div className="map-tools" role="toolbar" aria-label="Map view">
-        <button type="button" onClick={() => zoomButton(MAP.buttonZoom)} aria-label="Zoom in">
-          +
-        </button>
-        <button type="button" onClick={() => zoomButton(1 / MAP.buttonZoom)} aria-label="Zoom out">
-          −
-        </button>
-        <button type="button" onClick={fit} className="fit">
-          Fit
-        </button>
-      </div>
-      <div className="map-legend" aria-label="Legend">
-        <span className="key key-planned">Not placed</span>
-        <span className="key key-placed">Placed</span>
-        <span className="key key-commissioned">Commissioned</span>
-        <span className="key key-edge">Edge zone</span>
-        <span className="key key-work">Work zone</span>
-        <span className="key key-base">Base</span>
-        <span className="scale">
-          <span className="scale-bar" ref={scaleBarRef} />
-          <span ref={scaleLabelRef} />
-        </span>
-      </div>
+      <DockPortal slot="tools">
+        <div className="map-tools" role="toolbar" aria-label="Map view">
+          <span className="scale" aria-label="Scale">
+            <span className="scale-bar" ref={scaleBarRef} />
+            <span className="num" ref={scaleLabelRef} />
+          </span>
+          <IconButton
+            icon={Minus}
+            label="Zoom out"
+            onClick={() => zoomButton(1 / MAP.buttonZoom)}
+          />
+          <IconButton icon={Plus} label="Zoom in" onClick={() => zoomButton(MAP.buttonZoom)} />
+          <IconButton icon={Maximize2} label="Fit the site" onClick={fit} />
+        </div>
+      </DockPortal>
     </div>
   );
 }

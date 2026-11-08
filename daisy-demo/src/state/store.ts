@@ -1,13 +1,20 @@
-// Zustand store for UI state. T1.3 holds the selected build day; engine state arrives with the worker (T2.5).
+// Shell state (spec 13.1): only the active tab. Each tab keeps its own state in its own store file.
 import { create } from 'zustand';
-import { UI } from '../config/defaults';
 
-interface UiState {
-  buildDay: number;
-  setBuildDay: (day: number) => void;
+export type TabId = 'survey' | 'build';
+
+export const TABS: { value: TabId; label: string }[] = [
+  { value: 'survey', label: 'Survey' },
+  { value: 'build', label: 'Build & failure' },
+];
+
+interface ShellState {
+  tab: TabId;
+  setTab: (tab: TabId) => void;
 }
 
-export const useUiStore = create<UiState>((set) => ({
-  buildDay: UI.initialBuildDay,
-  setBuildDay: (buildDay) => set({ buildDay }),
+/** Survey opens first (spec 0.3). */
+export const useShellStore = create<ShellState>((set) => ({
+  tab: 'survey',
+  setTab: (tab) => set({ tab }),
 }));

@@ -136,6 +136,11 @@
   animation: home-in 640ms var(--ease) 640ms both;
 }
 
+.home-lede strong {
+  font-weight: 600;
+  color: var(--daisy-center);
+}
+
 .home-actions {
   display: flex;
   flex-wrap: wrap;

@@ -88,8 +88,8 @@ function HomeScreen() {
         <p className="home-lede" id="home-lede">
           A {f.acres}-acre site holds {f.units} P3 units, and every machine that surveys and builds
           it needs a link. {f.vehicle}s with lidar and drones survey the ground over Starlink. Then
-          the name: the radios on the units are daisy-chained, each passing data to the next, unit
-          to unit, back to the base, so the network grows with the build.
+          the name: the radios on the units are <strong>daisy-chained</strong>, each passing data to
+          the next, unit to unit, back to the base, so the network grows with the build.
         </p>
         <div className="home-actions">
           <button

@@ -1,0 +1,69 @@
+/*
+ * The Build map's "Take me there" pin (D121): a small pill above the featured radio, on a short stem. In the
+ * main bundle; the 3D view's own styles load with its chunk. Colors, sizes and durations from tokens.css.
+ */
+
+.scene-pin {
+  position: absolute;
+  width: 0;
+  height: 0;
+  animation: fade-in var(--dur-control) var(--ease);
+}
+
+.scene-pin-stem {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  background: var(--text-2);
+  opacity: 0.7;
+}
+
+.scene-pin-btn {
+  position: absolute;
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  transform: translateX(-50%);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--text-1);
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(var(--blur-panel));
+  -webkit-backdrop-filter: blur(var(--blur-panel));
+  cursor: pointer;
+  transition:
+    background var(--dur-control) var(--ease),
+    border-color var(--dur-control) var(--ease);
+}
+
+.scene-pin-btn:hover {
+  background: var(--surface-raised);
+  border-color: var(--text-3);
+}
+
+.scene-pin-btn[aria-busy='true'] {
+  cursor: progress;
+}
+
+.scene-pin-btn[aria-busy='true'] svg {
+  animation: scene-pin-spin 900ms linear infinite;
+}
+
+@keyframes scene-pin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-pin-btn[aria-busy='true'] svg {
+    animation: none;
+  }
+}

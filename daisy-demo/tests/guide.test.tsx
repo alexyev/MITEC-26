@@ -100,6 +100,7 @@ describe('tour steps (D91)', () => {
       f.robot,
       f.uplink,
       f.failed,
+      `radio ${f.cornerRadio}'s corner module in 3D`,
       `${f.buildStages} stages`,
       `${f.radios} radios`,
       `${f.uplinkHops} hops`,

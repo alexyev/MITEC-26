@@ -8,6 +8,7 @@ import type { Graph } from '../../engine/network';
 import type { PlayModel } from '../../engine/playModel';
 import { prefersReducedMotion, readColorTokens } from '../kit/tokens';
 import { fitViewport, screenToWorld, worldToScreen, type Viewport } from '../map/viewport';
+import { TakeMeTherePin } from '../scene3d/TakeMeTherePin';
 import {
   coverageSpill,
   drawScene,
@@ -18,6 +19,14 @@ import {
 } from './draw';
 import type { Scene } from './scene';
 
+/** The "Take me there" pin on a radio (D121): it opens the 3D view from the map's view of the moment. */
+export interface BuildMapPin {
+  radio: number;
+  loading: boolean;
+  onOpen: (from: Viewport) => void;
+  onIntent: () => void;
+}
+
 export interface BuildMapProps {
   model: PlayModel;
   graph: Graph;
@@ -26,10 +35,11 @@ export interface BuildMapProps {
   /** What is under the pointer, and the pointer in map pixels. */
   onHover: (hit: BuildHit | null, x: number, y: number) => void;
   onClickRadio: (radio: number) => void;
+  pin?: BuildMapPin | null;
 }
 
 /** Fit the section and its coverage edge, centered on the section, between the panels. */
-function fitWithCoverage(model: PlayModel, w: number, h: number): Viewport {
+export function fitWithCoverage(model: PlayModel, w: number, h: number): Viewport {
   const spill = coverageSpill(model);
   const v = fitViewport(
     model.widthM + spill.x * 2,
@@ -41,7 +51,15 @@ function fitWithCoverage(model: PlayModel, w: number, h: number): Viewport {
   return { ...v, cx: v.cx - spill.x, cy: v.cy - spill.y };
 }
 
-export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: BuildMapProps) {
+export function BuildMap({
+  model,
+  graph,
+  scene,
+  hover,
+  onHover,
+  onClickRadio,
+  pin,
+}: BuildMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scratchRef = useRef<HTMLCanvasElement | null>(null);
@@ -173,6 +191,21 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
     );
   }
 
+  let pinned = null;
+  if (pin && viewport) {
+    const p = worldToScreen(viewport, graph.x[pin.radio], graph.y[pin.radio]);
+    pinned = (
+      <TakeMeTherePin
+        x={p.sx}
+        y={p.sy}
+        label={model.radios[pin.radio].label}
+        loading={pin.loading}
+        onClick={() => pin.onOpen(viewport)}
+        onIntent={pin.onIntent}
+      />
+    );
+  }
+
   return (
     <div className="map" ref={containerRef}>
       <canvas
@@ -184,6 +217,7 @@ export function BuildMap({ model, graph, scene, hover, onHover, onClickRadio }: 
         onPointerDown={onDown}
       />
       {ticket}
+      {pinned}
     </div>
   );
 }

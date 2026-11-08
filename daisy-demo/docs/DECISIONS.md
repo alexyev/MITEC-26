@@ -701,6 +701,79 @@ The survey UTV sheet says, under the lidar grades, why the kit is priced with ro
 - Exowatt's own GO2 surveys with a navigation-class lidar (the Unitree L1).
 - Survey-grade rigs are built for design-grade highway mapping (TxDOT's mobile lidar specification).
 
+## D120 - A 3D view of a radio's corner, loaded only when asked for (3D round, captain's request)
+
+The captain asked for a "take me there" button that moves the camera from the top-down map down to the side of the units, to a 3D scene of P3 units side by side with the four-beam corner module sticking out of one of them.
+
+- **One scene, the map's own.** The 3D view draws the play-model section the Build map shows, from the same model: every unit placed by the time the viewer flew down, every built radio's corner module, the base on its pad.
+  So the view that starts the flight is the map's own view of the same spot, in 3D, and the radio the camera lands on is the one the pin stood on.
+- **three.js 0.186.1, pinned exactly** (`@types/three` 0.186.0), used directly rather than through react-three-fiber: the scene is built once and then only the camera moves, so a declarative scene graph would add weight and nothing else.
+  Orbit controls, rounded boxes and geometry merging come from three's own `examples/jsm` add-ons.
+- **Procedural.** Every shape (the units, the lens arrays, the modules, the base, the scrub, the hills) and every texture (corrugation, Fresnel grooves, sand grain) is made in code; there are no model or image files.
+- **Lazy.** The pin, its loader and the pin's two settings (`src/config/cornerPin.ts`) are in the main bundle; three.js, the scene and its settings (`src/config/scene3d.ts`) are one chunk fetched the first time the viewer hovers, focuses or clicks the pin, so the first page load does not fetch or parse any of it.
+  A failed fetch logs an error, leaves the map as it was and can be tried again.
+- **Bundle** (minified, and gzip -9), against main at 873c9dd: the main JS grows from 325.1 kB to 330.0 kB (108.6 kB to 110.7 kB gzipped) and the main CSS by 1.4 kB, for the pin, the loader and Vite's preload helper; the 3D chunk is 594.8 kB of JS (150.0 kB gzipped) and 4.0 kB of CSS.
+  `build.chunkSizeWarningLimit` is 650 kB so the expected size of the lazy chunk does not warn; `tests/scene3dBundle.test.ts` builds the app in memory and fails if three.js or the scene reaches the entry or anything it imports statically.
+- **While the 3D view is up** the Build tab's panels, cost chip, player and hover cards step aside; the brand, the ? button and the tab switch stay.
+  The walkthrough pauses where it was and Space and the arrows stop driving it; on Back to map it plays on if it was playing (`tests/scene3dView.test.tsx`).
+  Starting the tour or opening the home screen goes back to the map at once, and switching tabs closes the view.
+
+## D121 - "Take me there": a pin above radio C4-3 (3D round)
+
+- **On the map, not in the hover card.** The hover card follows the pointer and has no controls (spec 6.6), so the button is a small pin above one radio with a short stem down to it, like the maintenance ticket below a failed radio.
+- **Radio C4-3** (`CORNER_PIN.featuredCell`): north of the base pad on an ordinary lane, with a neighbor radio both ways down the lane and the column; it is built in the first stage, so the pin shows early in the build, and it is not the radio that fails in the walkthrough.
+- **When it shows.** From the moment its radio is built; it steps aside while that radio is failed, because the view is there to show the four beams and a failed radio's labels need the space above it.
+  While the chunk loads, the pin's icon turns into a spinner.
+- **The tour.** Its last step adds "On the Build & failure map, Take me there flies down to radio C4-3's corner module in 3D." (the radio from `tourFacts().cornerRadio`); clicking the pin during the tour ends it, as the brand chip does.
+
+## D122 - The P3 unit in 3D (3D round)
+
+Exowatt has not published drawings of the P3, so the unit is a 40 ft container at real proportions with a stylized lens array.
+
+- **The box:** 12.2 m by 2.44 m (`SITE.unitWidthM`, `SITE.unitDepthM`) and 2.9 m tall (`UNIT_HEIGHT_M`), on pile caps 0.12 m high (the foundations phase), with corner posts, top and bottom rails, corner castings, corrugated walls and roof (a normal map in ridge pitches of 0.28 m) and doors with locking bars at the south end.
+  The paint is `--c-scene-unit`, Exowatt orange; dust and shade darken the foot of the walls.
+- **The lens array:** two rows of nine Fresnel lenses along the roof, each row on its own north-south tracker tube on posts, every lens tilted toward the sun's east-west angle as a single-axis tracker would.
+  The lenses are pale acrylic with concentric grooves (a normal map and a faint ring pattern), so they read as lenses and not as solar panels.
+- **Spacing as on the map:** units 14.2 m apart along a lane (the 2 m column gap) and lanes 21 m apart (an 18.56 m lane corridor).
+- All units are instances of a few merged meshes, one per material, so the whole section is a handful of draw calls.
+
+## D123 - The corner module in 3D (3D round)
+
+- **Mount:** a square bracket arm bolted over the unit's north-east top corner casting, running 0.5 m out along the diagonal (`MODULE.offsetM`), with a short riser to the head.
+- **Head:** a square enclosure with a flat-panel radome on each face, facing north and south down the lane and east and west down the column (spec 4), under a rounded cap, its antennas 3.2 m above the ground (`MODULE.heightM`).
+  The status light on the cap is the map's story color for the radio: green online, amber waiting for power, red failed or cut off.
+- **Battery:** the 30-day battery that bridges the time before the unit powers the module, on the corner post below the arm, its cable up the post and out under the arm.
+- Every built radio carries one; the featured one gets a callout, "4-beam corner module" with its radio, status and hops to the base as the hover card words them.
+  A soft glow behind it was tried and dropped: on the orange paint it read as a smudge.
+
+## D124 - The four beams (3D round)
+
+- Each beam is a faint wedge at the antenna height, 30 degrees each side of its axis (`MODULE.beamHalfWidthDeg`), most of it near the axis, with a crisp line a few centimeters wide on the axis; all in the radio signal's green (`--c-signal`), fading out toward the neighbor 57 m (lane) or 63 m (column) away.
+- Each beam's label names its way and the neighbor at its end: "Down the lane · North to C4-4, 57 m", or "edge of the section", and "no link" when the map has that link down.
+- A label sits at the farthest of a few distances along its beam where it fits on screen clear of the edges, the card and the module's callout, so all four show from the landing view and while looking around.
+- The beams show while the radio is on; a failed or not-yet-powered module has none.
+
+## D125 - The camera: from the map, down and around to the side (3D round)
+
+- **Start = the map.** The flight starts looking straight down over the map's center, north up, at the height where a meter on the ground is as many pixels as on the 2D map, so the first 3D frame lands every point of the ground on the pixel the map drew it at (`tests/scene3dPose.test.ts`, also against a three.js camera).
+  The 3D canvas crossfades in over the map in 420 ms (`--dur-scene-fade`) while the panels step aside.
+- **The flight (3.6 s, eased):** the distance falls geometrically, so the descent feels even; the target moves so that the module slides on a straight screen line from where the map showed it to the middle, never leaving the screen; the tilt and the turn start late (38% and 30% of the way), so the camera first comes down over the site and then swings round to the side.
+- **The landing:** 12.5 m from the module, standing in the lane corridor north-east of it, 8 degrees above the antennas (an eye about 4.9 m up, just over the roofs, so the lens arrays show), looking at the corner so the lane and column beams run away in a V.
+  The line of sight to the module is clear of every unit (tested).
+- **Looking around:** drag to orbit the module and scroll to come closer (2.6 m) or step back (48 m); the camera stays above a 1.4 m eye height and below 62 degrees.
+- **Back to map** flies the same path in reverse (2.6 s) from wherever the viewer is, to the map's view at the window's current size, then crossfades back; Escape does the same.
+- **Reduced motion:** both ways are cuts, with no flight and no crossfade.
+
+## D126 - The look, the palette and the frame rate (3D round)
+
+- **Daylight:** a late-morning sun (azimuth 150 degrees, 40 degrees up) that rakes the east walls so the corrugation shows and casts the units' shadows north-north-west; a sky that goes from a thin band of haze at the horizon to blue, a low range of hazy hills, desert sand with grain and a large-scale tone, the graded site, the gravel base pad and scrub outside the site; the metal and the lenses reflect the same sky.
+  The shadow box follows the camera, from the whole section seen from above down to about 190 m around the module.
+- **Colors come from tokens** (`--c-scene-*` in `tokens.css`, read at runtime); the beams and status lights use the story colors.
+  When the desert backdrop and orange units land in the 2D map's tokens, the scene tokens can point at them so both views share one palette.
+- **Frame rate**, measured in Chrome on an Apple M4 Pro: 60 fps through the whole flight at 1280 x 720 and 1440 x 900, at device pixel ratio 1 and 2, with no frame over 16.8 ms; 60 fps through a full orbit of the module at 1440 x 900 and pixel ratio 2.
+  Building the scene and compiling its shaders takes about 80 ms on the click, before anything moves.
+  The pixel ratio is capped at 2, and the scene renders only while the camera moves.
+
 ## D130 - The home screen's daisy, "Daisy Does It!" and the bare-domain credit (home polish, captain's request)
 
 The captain asked for a shorter home screen with more character, and for the credit to read as the site's address.

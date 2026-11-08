@@ -10,6 +10,7 @@ export function Segmented<V extends string>({
   onChange,
   ariaLabel,
   size = 'default',
+  'data-tour': tour,
 }: SegmentedProps<V>) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = Math.max(
@@ -38,6 +39,7 @@ export function Segmented<V extends string>({
       className={size === 'compact' ? 'segmented compact' : 'segmented'}
       role="radiogroup"
       aria-label={ariaLabel}
+      data-tour={tour}
       onKeyDown={onKeyDown}
     >
       {options.map((o, i) => {

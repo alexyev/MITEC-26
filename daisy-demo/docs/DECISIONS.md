@@ -626,3 +626,45 @@ The captain asked to say UTV instead of 4x4, to show what a survey UTV would loo
 - **The lidar grades** the sheet compares, front and back: robotics grade, $9k for two (priced); a survey-grade SLAM scanner (Stonex X120GO with its vehicle mount, $37.75k each, $75.5k for two); a mobile mapping system of the Trimble MX9 or Leica Pegasus TRK class, $400k to $1.2M a rig.
 - **The captain's $50k** covers the UTV and its robotics-grade ground kit ($36.7k) with about $13k for integration, but not the M350 and L2 drone too ($25.0k, so $61.7k); with survey-grade lidar it is well over (the two SLAM scanners alone are $75.5k).
 - The fleet's survey cost in the card is unchanged (Starlink only, D62); its note now says the hourly UTV rate has no source and points to the UTV's kit, which prices the drones.
+
+## D90 - A home screen over the loaded map (home and tour round, captain's request)
+
+The app opens on a short home screen, modeled on the Schoolscape landing in craft but not in color.
+
+- It is not a separate page: the map loads underneath and shows through, blurred and dimmed (`--home-scrim`), and the home screen is a dialog over the shell; the shell behind it is `inert`.
+- It holds the "Exowatt: Scaling Deployment" title, two sentences on what the demo shows (the site's acres and units, the survey, the radio mesh and the reroute, all read from the code), one line on the two tabs, the primary "Open the demo" and a quiet second action, and a footer with how to reopen it and the credit.
+- The title is set at 40 px (`--fs-40`), the one display size outside the spec's 11 to 20 px scale (6.4); nothing else on the home screen goes above 16 px.
+- Leaving it is a same-page transition of 720 ms (`--dur-home`, `HOME.transitionMs`): the column lifts and fades, the backdrop fades, the map comes into focus from a slight zoom, and the top row and docks slide in from their edges, moving only transform, filter and opacity. Under reduced motion it is a 200 ms crossfade with nothing moving.
+- The brand chip at the top left is now a button that reopens it (the map blurs again and the panels step away); Escape leaves it for the map.
+- The page itself takes focus when it opens, not its first button, so no focus ring greets a mouse user; Tab reaches the actions, then the credit link.
+- First visit: "Open the demo" goes into the guided tour (D91) once the map is in focus, and "Skip the tour" goes straight to the map. Once the viewer finished or skipped the tour, "Open the demo" goes straight in and the second action reads "Take the tour".
+
+## D91 - The guided tour: eleven coach marks over both tabs (home and tour round)
+
+A HubSpot-style product tour on the live app, not on screenshots: each step spotlights real UI, says what it is and what it means, and the viewer can use it there and then.
+
+- **Steps** (`tourSteps` in `src/config/tour.ts`, data with copy, targets, the tab each step shows and an optional action): Two tabs; The map and its colors (the map and the legend, with four story-color swatches drawn by the legend's own `LegendSwatch`); Play the walkthrough; Steps and speed; Plan the survey (UTV count and Send); What it costs (the chip, its card, the survey UTV's kit and Compare alternatives); Now, Build & failure; The story (stages, the robot's data, the failure and the reroute); Hover for details; Your turn (fail and repair radios); That is the tour (the ? button and the brand).
+- **Facts, not typed numbers.** The copy is a function of `TourFacts` (`src/ui/guide/facts.ts`): the acres and units of the generated site, the default and largest fleet, the survey time on site, the survey UTV's all-in price, the slowest, normal and fastest speeds, the tab names, the play model's stages and radios, the failure scenario's robot, uplink, hops and failed radio, and the missed hellos. No color is named in the copy, so a palette change cannot make it wrong.
+- **Interactive steps** move on when the viewer does the thing, after a short tick (`TOUR.advanceDelayMs`): Press Play (a click on Play), Switch to Build & failure (the tab changes), Hover the map (the Build tab's hover is set) and Click a radio (a radio is failed or repaired). Next always works too.
+- Entering a step switches to its tab; Hover and Your turn also move the Build walkthrough to "Your turn" (D94), so every radio is built and clickable.
+- **Keys:** Enter or Right goes on, Left goes back, Escape exits. They are taken on the window in the capture phase, so the player does not also step; buttons keep Enter, and the tabs and the speed control keep their arrows.
+- **Memory per viewer:** finishing or skipping (Skip tour, Escape, or reopening the home screen mid-tour) writes `exowatt-demo.tour.v1` to localStorage, in try/catch: when storage is blocked the session still remembers it and the app works the same. The ? button beside the brand replays the tour any time.
+
+## D92 - Spotlight, callout and focus (home and tour round)
+
+- **The dim** is one SVG path over the shell with a rounded hole per target, filled even-odd (`dimPath`): the dim catches clicks, the holes let them through to the real controls. A ring marks each hole, pulsing on the step's interactive target (steady under reduced motion).
+- **Layers:** the dim sits above the panels and the cost card (z-index 3) and under the hover cards (the float layer is now z-index 4), so a hovered radio's card reads during the tour; the callout is above everything but the home screen. While a modal sheet (the Alternatives or the survey UTV) is open, the tour steps aside and comes back when it closes.
+- **Holes** are measured every frame from `data-tour` targets (D93), so they follow panels that fold, cards that open and window resizes; the map's hole is its stage cut to the gap between the top row, the docks and the player, where the site is drawn (`TOUR_INSETS`). Neighbors whose rings would touch (the brand and the ? button) share one hole.
+- **The callout** (320 px, a panel's width) goes beside its anchor: below a target in the top row, above one in the player's row, else right or left, whichever faces the middle; it may move in from the window's edge by at most its gap, and it is placed clear of every hole (a target with an open card counts as one), else where it covers the least (`placeCallout`). It glides between steps (`TOUR.glideMs`), and snaps under reduced motion.
+- **Focus** moves into the callout on every step; Tab cycles through the callout's buttons and the spotlit controls only; ending the tour gives focus back to where it was before (the ? button, for example) and releases Tab.
+
+## D93 - `data-tour` targets (home and tour round)
+
+The tour finds its targets by stable `data-tour` attributes, never by class names or text: `brand`, `tour`, `tabs` and `map` in the shell; `steps` (the step list), `player`, `play` and `speed` in the player; `legend` in the legend; `fleet`, `cost` and `cost-card` on the Survey tab; `try-it`, `cost` and `cost-card` on the Build tab.
+`Panel`, `Section`, `Segmented` and `IconButton` forward a `data-tour` prop; the tab files only gained these attributes.
+`TOUR_OPTIONAL_TARGETS` lists targets that exist only on demand (the cost card), and `tests/guide.test.tsx` checks every other target of every step is in the rendered app on its tab.
+
+## D94 - Player commands from outside a tab (home and tour round)
+
+The players live inside the tabs, so the tour asks rather than reaches in: `usePlayerCommands.requestYourTurn()` (`src/ui/player/commands.ts`) is a counter, and the mounted tab's `usePlayer` jumps to "Your turn" on each increase.
+A player ignores requests made before it mounted, so switching tabs never replays an old request.

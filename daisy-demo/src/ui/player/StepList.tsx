@@ -13,7 +13,7 @@ export interface StepListProps {
 export function StepList({ player, steps, label = 'Steps, in order' }: StepListProps) {
   const starts = stepStarts(steps);
   return (
-    <Section label={label}>
+    <Section label={label} data-tour="steps">
       <ol className="steps">
         {steps.map((s, i) => {
           const state =

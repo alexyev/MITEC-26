@@ -214,7 +214,7 @@ export function SurveyTab() {
       />
 
       <Panel corner="tl" title="Survey">
-        <Section label="Fleet">
+        <Section label="Fleet" data-tour="fleet">
           <Stepper
             label="UTVs"
             min={1}

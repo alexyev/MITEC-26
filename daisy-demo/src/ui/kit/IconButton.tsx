@@ -11,6 +11,8 @@ export interface IconButtonProps {
   small?: boolean;
   disabled?: boolean;
   pressed?: boolean;
+  /** Stable target of the guided tour (`data-tour`, D93). */
+  'data-tour'?: string;
 }
 
 export function IconButton({
@@ -21,6 +23,7 @@ export function IconButton({
   small,
   disabled,
   pressed,
+  'data-tour': tour,
 }: IconButtonProps) {
   const cls = ['icon-btn', primary ? 'primary' : 'quiet', small ? 'small' : ''].filter(Boolean);
   return (
@@ -32,6 +35,7 @@ export function IconButton({
       title={label}
       disabled={disabled}
       aria-pressed={pressed}
+      data-tour={tour}
     >
       <Icon size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
     </button>

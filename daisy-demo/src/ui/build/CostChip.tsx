@@ -66,7 +66,7 @@ export function CostChip({ cost, pricingErrors, alternatives, focus }: CostChipP
 
   return (
     <DockPortal slot="top">
-      <div className="cost" ref={rootRef}>
+      <div className="cost" ref={rootRef} data-tour="cost">
         <button
           type="button"
           className={open ? 'cost-chip open' : 'cost-chip'}
@@ -84,7 +84,12 @@ export function CostChip({ cost, pricingErrors, alternatives, focus }: CostChipP
           />
         </button>
         {open ? (
-          <section id="cost-card" className="panel cost-card" aria-label="Network cost, full site">
+          <section
+            id="cost-card"
+            className="panel cost-card"
+            aria-label="Network cost, full site"
+            data-tour="cost-card"
+          >
             <div className="label">Full site · {cost ? cost.label : 'not available'}</div>
             {pricingErrors > 0 ? (
               <p className="build-warning" role="alert">

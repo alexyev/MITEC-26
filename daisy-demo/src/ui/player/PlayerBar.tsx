@@ -63,7 +63,7 @@ export function PlayerBar({ player, steps, note }: PlayerBarProps) {
 
   return (
     <DockPortal slot="player">
-      <section className="panel player" aria-label="Walkthrough">
+      <section className="panel player" aria-label="Walkthrough" data-tour="player">
         <div className="player-head">
           <span className="label">{eyebrow}</span>
           {note ? <span className="player-note">{note}</span> : null}
@@ -77,6 +77,7 @@ export function PlayerBar({ player, steps, note }: PlayerBarProps) {
             label={player.playing ? 'Pause' : 'Play'}
             onClick={player.playing ? player.pause : player.play}
             primary
+            data-tour="play"
           />
           <div
             className="player-track"
@@ -125,6 +126,7 @@ export function PlayerBar({ player, steps, note }: PlayerBarProps) {
             onChange={(v) => player.setSpeed(Number(v))}
             ariaLabel="Playback speed"
             size="compact"
+            data-tour="speed"
           />
         </div>
       </section>

@@ -78,11 +78,21 @@
   --player-max-w: 560px;
   --hover-card-w: 260px;
 
+  /* Home screen and guided tour (D90, D92). */
+  --fs-40: 40px; /* The home screen's title: the one display size (D90) */
+  --home-scrim: rgba(11, 13, 17, 0.74); /* Over the blurred map behind the home screen */
+  --home-glow: rgba(255, 255, 255, 0.045); /* A soft light behind the home screen's column */
+  --tour-dim: rgba(5, 6, 9, 0.66); /* Everything but the tour's targets */
+  --tour-ring: rgba(255, 255, 255, 0.92); /* The ring around a tour target */
+  --callout-w: 320px; /* The tour callout: a panel's width, so it fits beside the map's fit area */
+
   /* Motion (spec 6.7). */
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-hover: 120ms;
   --dur-control: 200ms;
   --dur-panel: 280ms;
+  --dur-home: 720ms; /* Into and out of the home screen; HOME.transitionMs mirrors it */
+  --dur-home-fade: 720ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -90,5 +100,7 @@
     --dur-hover: 0ms;
     --dur-control: 0ms;
     --dur-panel: 0ms;
+    --dur-home: 0ms;
+    --dur-home-fade: 200ms; /* HOME.reducedTransitionMs: a plain crossfade */
   }
 }

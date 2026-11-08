@@ -179,6 +179,8 @@ export const UI = {
   layout: { marginPx: 16, gapPx: 12, topRowPx: 48, panelWidthPx: 320, playerMaxWidthPx: 560 },
   /** Map fit padding in CSS px: clears the top row, both 320 px docks and the player bar with its credit. */
   mapFitPaddingPx: { top: 92, right: 360, bottom: 184, left: 360 },
+  /** Chip of each tab's folded control panel (D161): what it holds, which the tab's own title does not say. */
+  controlsChip: 'Controls & steps',
   /** Lucide icons in buttons: size in CSS px and stroke width. */
   icon: { sizePx: 16, strokeWidth: 1.75 },
   /** Hover card (spec 6.6): offset from the pointer and the minimum distance to the map edge. */

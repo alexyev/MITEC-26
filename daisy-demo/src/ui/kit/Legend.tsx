@@ -1,5 +1,6 @@
 // Legend card (spec 5.1, 6.2): bottom right; each story color the tab shows, with its shape and a one- or
 // two-word meaning. Failure is a cross, so the story does not depend on telling red from green.
+import { Palette } from 'lucide-react';
 import { Panel } from './Panel';
 import { tokenVar } from './tokens';
 import type { LegendItem, LegendProps } from './types';
@@ -118,9 +119,17 @@ export function LegendSwatch({
   );
 }
 
-export function Legend({ items, title = 'Legend' }: LegendProps) {
+export function Legend({ items, title = 'Legend', minimized, onMinimize }: LegendProps) {
   return (
-    <Panel corner="br" title={title} className="legend" data-tour="legend">
+    <Panel
+      corner="br"
+      title={title}
+      className="legend"
+      data-tour="legend"
+      chipIcon={Palette}
+      minimized={minimized}
+      onMinimize={onMinimize}
+    >
       <ul className="legend-list">
         {items.map((item) => (
           <li key={`${item.token}-${item.shape}-${item.label}`} className="legend-item">

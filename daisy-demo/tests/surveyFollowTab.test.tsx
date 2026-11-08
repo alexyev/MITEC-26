@@ -9,6 +9,7 @@ import { fitViewport } from '../src/ui/map/viewport';
 import { usePlaybackSpeed } from '../src/ui/player/speed';
 import { SurveyTab } from '../src/ui/survey/SurveyTab';
 import { vehicleMarkers } from '../src/ui/survey/surveyLayers';
+import { openAllPanels } from './openPanels';
 
 // D140-D142 in the running tab: follow from the panel and from the map, the camera on the UTV, Escape and a
 // pan handing the view back, and the speed control while following.
@@ -92,6 +93,7 @@ beforeEach(() => {
   HTMLCanvasElement.prototype.hasPointerCapture = () => false;
   HTMLCanvasElement.prototype.releasePointerCapture = () => {};
   useSurveyStore.getState().reset();
+  openAllPanels();
 });
 
 afterEach(() => {

@@ -1,6 +1,6 @@
 // The survey cost, small and off to the side (D63), in the Build tab's pattern (D54): a quiet chip at the
 // right of the top row that opens a card with the cost and its breakdown, and from there the Alternatives.
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Scale } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { PERCENT } from '../../config/play';
@@ -9,6 +9,7 @@ import { DockPortal } from '../kit/dock';
 import { InlineBar } from '../kit/InlineBar';
 import { Kpi } from '../kit/Kpi';
 import '../build/build.css';
+import { useCostCard } from '../build/useCostCard';
 import { formatHours, formatInt, formatTimes, formatUsd } from './format';
 import { SurveyAlternativesSheet } from './SurveyAlternativesSheet';
 import { surveyAlternatives } from './surveyAlternatives';
@@ -73,29 +74,9 @@ export function unpricedText(cost: SurveyCost): string | null {
 }
 
 export function SurveyCostChip({ cost, kit, why, pricingErrors, focus }: SurveyCostChipProps) {
-  // null follows the walkthrough; a click decides until the walkthrough's default changes again.
-  const [choice, setChoice] = useState<{ open: boolean; forFocus: boolean } | null>(null);
   const [sheet, setSheet] = useState<'alternatives' | 'utv' | 'why' | null>(null);
-  const open = choice && choice.forFocus === focus ? choice.open : focus;
   const rootRef = useRef<HTMLDivElement>(null);
-  const toggle = (next: boolean) => setChoice({ open: next, forFocus: focus });
-
-  // Escape and a click elsewhere close the card.
-  useEffect(() => {
-    if (!open || sheet) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setChoice({ open: false, forFocus: focus });
-    };
-    const onDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setChoice({ open: false, forFocus: focus });
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('pointerdown', onDown);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', onDown);
-    };
-  }, [open, sheet, focus]);
+  const [open, toggle] = useCostCard('survey', focus, rootRef, sheet !== null);
 
   const rows = surveyCostRows(cost);
   const fleet = plural(cost.vehicles, 'UTV');

@@ -1,6 +1,6 @@
 // The full-site network cost, small and off to the side (D54): a quiet chip at the right of the top row that
 // opens a card with the cost and its breakdown on demand, and from there the Alternatives comparison.
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ChevronDown, CircleHelp, ExternalLink, Scale } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { PERCENT } from '../../config/play';
@@ -12,6 +12,7 @@ import { formatUsd } from '../survey/format';
 import { AlternativesSheet } from './AlternativesSheet';
 import type { Alternatives } from './alternatives';
 import { formatCount, formatShare } from './format';
+import { useCostCard } from './useCostCard';
 
 const LINKS = UI.costCardLinks;
 
@@ -27,29 +28,9 @@ export interface CostChipProps {
 }
 
 export function CostChip({ cost, pricingErrors, alternatives, focus }: CostChipProps) {
-  // null follows the walkthrough; a click decides until the walkthrough's default changes again.
-  const [choice, setChoice] = useState<{ open: boolean; forFocus: boolean } | null>(null);
   const [sheet, setSheet] = useState(false);
-  const open = choice && choice.forFocus === focus ? choice.open : focus;
   const rootRef = useRef<HTMLDivElement>(null);
-  const toggle = (next: boolean) => setChoice({ open: next, forFocus: focus });
-
-  // Escape and a click elsewhere close the card.
-  useEffect(() => {
-    if (!open || sheet) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setChoice({ open: false, forFocus: focus });
-    };
-    const onDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setChoice({ open: false, forFocus: focus });
-    };
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('pointerdown', onDown);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', onDown);
-    };
-  }, [open, sheet, focus]);
+  const [open, toggle] = useCostCard('build', focus, rootRef, sheet);
 
   const rows = cost
     ? [

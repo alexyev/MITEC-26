@@ -7,6 +7,7 @@ import { useGuideStore } from '../src/state/guide';
 import { useShellStore } from '../src/state/store';
 import { App } from '../src/ui/App';
 import { usePlaybackSpeed } from '../src/ui/player/speed';
+import { openAllPanels } from './openPanels';
 
 // D103 in the running app: the Build & failure readout counts the packets sent, so it shows whether traffic
 // moves. Animation frames are driven by hand, so the clock is deterministic.
@@ -47,6 +48,7 @@ beforeEach(() => {
   }));
   useGuideStore.setState({ home: 'closed', tourStep: null, seen: true });
   useShellStore.setState({ tab: 'build' });
+  openAllPanels();
   useBuildStore.getState().resetInputs();
 });
 

@@ -1,6 +1,7 @@
 // The home screen and the guided tour (D90, D91, D92): timings, the per-viewer storage key, the callout's
 // geometry, and the tour's steps as data. Step copy is built from `TourFacts`, so every number and name in
 // it comes from the code (src/ui/guide/facts.ts); no magic numbers outside src/config/.
+import type { PanelId } from '../state/panels';
 import type { TabId } from '../state/store';
 import type { ColorToken, LegendItem } from '../ui/kit/types';
 
@@ -50,7 +51,28 @@ export type TourTarget =
   | 'brand'
   | 'player';
 
-/** Targets that exist only once the viewer opens them (the cost card); a step shows without them. */
+/**
+ * Targets that live in a panel, which folds into its chip (D160): a step that spotlights one of them opens that
+ * panel, and every other panel folds, so each step shows exactly what it is about.
+ */
+export const TOUR_TARGET_PANELS: Partial<Record<TourTarget, PanelId>> = {
+  legend: 'legend',
+  steps: 'controls',
+  fleet: 'controls',
+  follow: 'controls',
+  'try-it': 'controls',
+  start: 'controls',
+  'cost-card': 'cost',
+};
+
+/** The panels a tour step opens: those holding its targets and its anchor, each once. */
+export function tourStepPanels(step: Pick<TourStep, 'targets' | 'anchor'>): PanelId[] {
+  const targets = step.anchor ? [...step.targets, step.anchor] : step.targets;
+  const panels = targets.map((t) => TOUR_TARGET_PANELS[t]).filter((p) => p !== undefined);
+  return [...new Set(panels)];
+}
+
+/** Targets a step may show without: the cost card, which the viewer can close while the step is up. */
 export const TOUR_OPTIONAL_TARGETS: readonly TourTarget[] = ['cost-card'];
 
 /** Insets of a target's hole from its element's box, in CSS pixels. */
@@ -179,7 +201,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'cost',
       title: 'What it costs',
-      body: `The chip shows the cost from sourced prices only. Open it for the breakdown, one survey ${f.vehicle} kitted out (${f.utvKitUsd} all in, drawn part by part), why ${f.vehicle}s beat robot dogs (${f.dogSpeedUp} the acres an hour), and the other ways to do the job.`,
+      body: `The chip shows the cost from sourced prices only. Its card, open here, has the breakdown, one survey ${f.vehicle} kitted out (${f.utvKitUsd} all in, drawn part by part), why ${f.vehicle}s beat robot dogs (${f.dogSpeedUp} the acres an hour), and the other ways to do the job.`,
       targets: ['cost', 'cost-card'],
       tab: 'survey',
     },

@@ -2,9 +2,10 @@
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { UI } from '../src/config/defaults';
-import { HOME, TOUR, TOUR_OPTIONAL_TARGETS, tourSteps } from '../src/config/tour';
+import { HOME, TOUR, tourStepPanels, tourSteps } from '../src/config/tour';
 import { useBuildStore } from '../src/state/build';
 import { readTourSeen, useGuideStore, writeTourSeen } from '../src/state/guide';
+import { PANEL_IDS, usePanelStore, type PanelId } from '../src/state/panels';
 import { useShellStore } from '../src/state/store';
 import { App } from '../src/ui/App';
 import { tourFacts } from '../src/ui/guide/facts';
@@ -44,6 +45,7 @@ beforeEach(() => {
   useGuideStore.setState({ home: 'open', afterHome: 'map', tourStep: null, seen: false });
   useShellStore.setState({ tab: 'survey' });
   useBuildStore.getState().resetInputs();
+  usePanelStore.getState().foldAll();
 });
 
 afterEach(() => {
@@ -52,6 +54,36 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
+
+/** The panels of a tab that are open, by the store. */
+const openPanels = (tab: 'survey' | 'build') =>
+  PANEL_IDS.filter((id) => usePanelStore.getState().open[tab][id]);
+
+/** What the viewer sees: the panels on screen (the player bar is not one that folds) and the folded chips. */
+function onScreen() {
+  return {
+    panels: Array.from(document.querySelectorAll('section.panel:not(.player)'), (el) =>
+      el.getAttribute('aria-label'),
+    ),
+    chips: Array.from(document.querySelectorAll('.panel-chip'), (el) =>
+      el.getAttribute('aria-label'),
+    ),
+  };
+}
+
+/** Every panel of both tabs is folded, and the tab on screen shows only its chips. */
+function expectAllFolded() {
+  expect(openPanels('survey')).toEqual([]);
+  expect(openPanels('build')).toEqual([]);
+  const { panels, chips } = onScreen();
+  expect(panels).toEqual([]);
+  expect(chips).toEqual(
+    useShellStore.getState().tab === 'survey'
+      ? ['Show Controls & steps', 'Show Full site', 'Show Legend']
+      : ['Show Controls & steps', 'Show Readout', 'Show Legend'],
+  );
+  expect(document.querySelector('[data-tour="cost-card"]')).toBe(null);
+}
 
 /** The app with the home screen gone and the tour on `step`. */
 function renderTourAt(step: number) {
@@ -118,22 +150,45 @@ describe('tour steps (D91)', () => {
     expect(otherCopy).not.toContain(f.failed);
   });
 
-  it("every step's targets exist in the rendered app, on the step's tab", () => {
-    render(<App />);
-    for (const step of STEPS) {
-      act(() => useShellStore.getState().setTab(step.tab));
+  it("every step's targets are on screen as it shows: it opens exactly the panels holding them (D160)", () => {
+    renderTourAt(0);
+    for (let i = 0; i < STEPS.length; i++) {
+      const step = STEPS[i];
+      act(() => useGuideStore.getState().goToStep(i));
+      expect(useShellStore.getState().tab, step.id).toBe(step.tab);
       for (const target of [...step.targets, ...(step.anchor ? [step.anchor] : [])]) {
-        if (TOUR_OPTIONAL_TARGETS.includes(target)) continue;
-        expect(document.querySelector(`[data-tour="${target}"]`), `${step.id}: ${target}`).not.toBe(
-          null,
-        );
+        const el = document.querySelector(`[data-tour="${target}"]`);
+        expect(el, `${step.id}: ${target}`).not.toBe(null);
+        // The target itself, not the chip of its folded panel.
+        expect(el!.matches('.panel-chip'), `${step.id}: ${target} folded`).toBe(false);
       }
+      expect(openPanels(step.tab).sort(), step.id).toEqual(tourStepPanels(step).sort());
+      expect(openPanels(step.tab === 'survey' ? 'build' : 'survey'), step.id).toEqual([]);
     }
-    // The cost card is a target only once the viewer opens it.
-    act(() => useShellStore.getState().setTab('survey'));
-    expect(document.querySelector('[data-tour="cost-card"]')).toBe(null);
-    fireEvent.click(screen.getByRole('button', { name: /Survey connectivity|Survey cost/ }));
+  });
+
+  it('opens the panels the copy talks about, and leaves the rest folded', () => {
+    const panelsOf = (id: string) => tourStepPanels(STEPS[indexOf(id)]);
+    expect(panelsOf('tabs')).toEqual([]);
+    expect(panelsOf('map')).toEqual<PanelId[]>(['legend']);
+    expect(panelsOf('play')).toEqual([]);
+    expect(panelsOf('steps')).toEqual<PanelId[]>(['controls']);
+    expect(panelsOf('fleet')).toEqual<PanelId[]>(['controls']);
+    expect(panelsOf('cost')).toEqual<PanelId[]>(['cost']);
+    expect(panelsOf('story')).toEqual<PanelId[]>(['controls']);
+    expect(panelsOf('hover')).toEqual([]);
+    expect(panelsOf('your-turn')).toEqual<PanelId[]>(['controls']);
+    expect(panelsOf('replay')).toEqual([]);
+  });
+
+  it('a click in the callout leaves the cost card it spotlights open', () => {
+    renderTourAt(indexOf('cost'));
     expect(document.querySelector('[data-tour="cost-card"]')).not.toBe(null);
+    fireEvent.pointerDown(screen.getByRole('dialog', { name: 'What it costs' }));
+    expect(document.querySelector('[data-tour="cost-card"]')).not.toBe(null);
+    // A click on the map still closes it, as it does outside the tour.
+    fireEvent.pointerDown(document.querySelector('.stage')!);
+    expect(document.querySelector('[data-tour="cost-card"]')).toBe(null);
   });
 });
 
@@ -377,6 +432,120 @@ describe('home screen (D90)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Skip the tour' }));
     act(() => vi.advanceTimersByTime(HOME.reducedTransitionMs));
     expect(useGuideStore.getState().home).toBe('closed');
+  });
+});
+
+describe('panels start folded (D160)', () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+
+  const leaveHome = (button: RegExp | string) => {
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    act(() => vi.advanceTimersByTime(HOME.transitionMs));
+  };
+
+  it('after Open the demo, for a viewer who has seen the tour', () => {
+    window.localStorage.setItem(TOUR.storageKey, 'done');
+    useGuideStore.setState({ seen: readTourSeen() });
+    render(<App />);
+    leaveHome(/Open the demo/);
+    expect(useGuideStore.getState().tourStep).toBe(null);
+    expectAllFolded();
+    // The tab switch, the player with Play and speed, the brand and the cost chip stay on screen.
+    for (const target of ['tabs', 'play', 'speed', 'brand', 'tour', 'cost']) {
+      expect(document.querySelector(`[data-tour="${target}"]`), target).not.toBe(null);
+    }
+  });
+
+  it('after Skip the tour', () => {
+    render(<App />);
+    leaveHome('Skip the tour');
+    expectAllFolded();
+  });
+
+  it('when the tour finishes, is skipped or is exited, whatever the viewer opened during it', () => {
+    render(<App />);
+    leaveHome(/Open the demo/);
+    expect(useGuideStore.getState().tourStep).toBe(0);
+    expectAllFolded();
+
+    act(() => useGuideStore.getState().goToStep(indexOf('your-turn')));
+    expect(onScreen().panels).toEqual(['Build & failure']);
+    fireEvent.click(screen.getByRole('button', { name: 'Show Legend' }));
+    act(() => useGuideStore.getState().goToStep(STEPS.length - 1));
+    fireEvent.click(screen.getByRole('button', { name: 'Show Readout' }));
+    expect(onScreen().panels).toEqual(['Readout']);
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }));
+    expect(useGuideStore.getState().tourStep).toBe(null);
+    expectAllFolded();
+
+    // Skip tour and Escape, from a step with panels open.
+    for (const exit of ['skip', 'escape'] as const) {
+      act(() => useGuideStore.getState().startTour());
+      act(() => useGuideStore.getState().goToStep(indexOf('fleet')));
+      expect(openPanels('survey')).toEqual(['controls']);
+      if (exit === 'skip') fireEvent.click(screen.getByRole('button', { name: 'Skip tour' }));
+      else fireEvent.keyDown(window, { key: 'Escape' });
+      expect(useGuideStore.getState().tourStep, exit).toBe(null);
+      expectAllFolded();
+    }
+  });
+
+  it('a chip opens its panel, and it stays open while the viewer works, Play included', () => {
+    useGuideStore.setState({ home: 'closed', seen: true });
+    render(<App />);
+    expectAllFolded();
+    const chip = screen.getByRole('button', { name: 'Show Controls & steps' });
+    expect(chip.getAttribute('aria-expanded')).toBe('false');
+    expect(chip.textContent).toBe('Controls & steps');
+    // An icon names the panel and a chevron shows it opens; both are decoration.
+    expect(chip.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2);
+    fireEvent.click(chip);
+    expect(onScreen().panels).toEqual(['Survey']);
+    // Starting the walkthrough opens nothing else and folds nothing.
+    fireEvent.click(document.querySelector('[data-tour="play"]')!);
+    expect(onScreen().panels).toEqual(['Survey']);
+    expect(openPanels('survey')).toEqual(['controls']);
+    // The minimize button folds it back.
+    fireEvent.click(screen.getByRole('button', { name: 'Minimize Controls & steps' }));
+    expectAllFolded();
+  });
+
+  it('each tab keeps its own open and folded panels across a switch', () => {
+    useGuideStore.setState({ home: 'closed', seen: true });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show Legend' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Build & failure' }));
+    expect(onScreen().panels).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Show Controls & steps' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show Readout' }));
+    expect(onScreen().panels).toEqual(['Build & failure', 'Readout']);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Survey' }));
+    expect(onScreen().panels).toEqual(['Legend']);
+    fireEvent.click(screen.getByRole('radio', { name: 'Build & failure' }));
+    expect(onScreen().panels).toEqual(['Build & failure', 'Readout']);
+    expect(openPanels('survey')).toEqual(['legend']);
+    expect(openPanels('build')).toEqual(['controls', 'readout']);
+  });
+
+  it('replaying the tour or reopening the home screen comes back to the clean map', () => {
+    useGuideStore.setState({ home: 'closed', seen: true });
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show Legend' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show Full site' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Take the tour' }));
+    // The tour starts on the clean map, and its first step spotlights the tabs only.
+    expect(onScreen().panels).toEqual([]);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expectAllFolded();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Controls & steps' }));
+    fireEvent.click(screen.getByRole('button', { name: /Exowatt: Daisy Does It: home/ }));
+    act(() => useGuideStore.getState().homeShown());
+    fireEvent.keyDown(window, { key: 'Escape' });
+    act(() => vi.advanceTimersByTime(HOME.transitionMs));
+    expect(useGuideStore.getState().home).toBe('closed');
+    expectAllFolded();
   });
 });
 

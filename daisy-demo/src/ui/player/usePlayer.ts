@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { UI } from '../../config/defaults';
 import * as clock from './clock';
 import type { ClockState } from './clock';
+import { usePlayerCommands } from './commands';
 import { usePlaybackSpeed } from './speed';
 import type { Player, WalkStep } from './types';
 
@@ -67,6 +68,15 @@ export function usePlayer(steps: WalkStep[], options: PlayerOptions = {}): Playe
     setState(clock.restart());
   }, []);
   const toYourTurn = useCallback(() => setState((s) => clock.toYourTurn(stepsRef.current, s)), []);
+
+  // A request from outside the tab (the guided tour, D94); requests made before this player mounted do not count.
+  const yourTurnRequests = usePlayerCommands((s) => s.yourTurn);
+  const seenRequestsRef = useRef(yourTurnRequests);
+  useEffect(() => {
+    if (yourTurnRequests === seenRequestsRef.current) return;
+    seenRequestsRef.current = yourTurnRequests;
+    toYourTurn();
+  }, [yourTurnRequests, toYourTurn]);
 
   // Steps can change length (for example the survey time); keep t inside the walkthrough.
   const t = clock.clampTime(steps, state.t);

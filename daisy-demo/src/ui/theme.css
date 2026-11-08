@@ -77,6 +77,8 @@ button {
 }
 
 .float-layer {
+  /* Hover cards stay above the tour's dim (z-index 3), so a hovered radio's card reads during the tour. */
+  z-index: 4;
   pointer-events: none;
   overflow: hidden;
 }
@@ -121,6 +123,10 @@ button {
   align-items: center;
 }
 
+.top-left {
+  gap: var(--sp-2);
+}
+
 .top-right {
   position: relative;
   justify-content: flex-end;
@@ -149,6 +155,45 @@ button {
   -webkit-backdrop-filter: blur(var(--blur-panel));
   white-space: nowrap;
   pointer-events: auto;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-control) var(--ease),
+    background var(--dur-control) var(--ease);
+}
+
+.brand:hover,
+.brand-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-strong);
+}
+
+/* The ? button beside the brand replays the guided tour (D91). */
+.brand-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow:
+    var(--shadow-panel),
+    inset 0 1px 0 var(--highlight);
+  backdrop-filter: blur(var(--blur-panel));
+  -webkit-backdrop-filter: blur(var(--blur-panel));
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    border-color var(--dur-control) var(--ease),
+    background var(--dur-control) var(--ease),
+    color var(--dur-control) var(--ease);
+}
+
+.brand-btn:hover {
+  color: var(--text-1);
 }
 
 .dock {

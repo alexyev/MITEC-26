@@ -248,7 +248,7 @@ export function BuildTab() {
         onClickRadio={onClickRadio}
       />
       <Panel corner="tl" title="Build & failure">
-        <Section label="Try it">
+        <Section label="Try it" data-tour="try-it">
           <p className="build-hint">Click a radio to fail it. Click it again to repair it.</p>
           <button type="button" className="build-btn" onClick={onReset} disabled={!anyFailed}>
             <RotateCcw size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />

@@ -100,7 +100,7 @@ export function SurveyCostChip({ cost, kit, pricingErrors, focus }: SurveyCostCh
 
   return (
     <DockPortal slot="top">
-      <div className="cost" ref={rootRef}>
+      <div className="cost" ref={rootRef} data-tour="cost">
         <button
           type="button"
           className={open ? 'cost-chip open' : 'cost-chip'}
@@ -118,7 +118,12 @@ export function SurveyCostChip({ cost, kit, pricingErrors, focus }: SurveyCostCh
           />
         </button>
         {open ? (
-          <section id="survey-cost-card" className="panel cost-card" aria-label="Survey cost">
+          <section
+            id="survey-cost-card"
+            className="panel cost-card"
+            aria-label="Survey cost"
+            data-tour="cost-card"
+          >
             <div className="label">Survey · {fleet} with drones</div>
             {pricingErrors > 0 ? (
               <p className="build-warning" role="alert">

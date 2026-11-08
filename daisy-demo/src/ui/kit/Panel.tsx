@@ -14,6 +14,7 @@ export function Panel({
   ariaLabel,
   actions,
   className,
+  'data-tour': tour,
   children,
 }: PanelProps) {
   const [minimized, setMinimized] = useState(false);
@@ -32,6 +33,7 @@ export function Panel({
           onClick={() => toggle(false)}
           aria-label={`Show ${label}`}
           aria-expanded="false"
+          data-tour={tour}
         >
           {label}
         </button>
@@ -44,6 +46,7 @@ export function Panel({
       <section
         className={['panel', `corner-${corner}`, className].filter(Boolean).join(' ')}
         aria-label={title ?? ariaLabel}
+        data-tour={tour}
       >
         {title || label ? (
           <header className="panel-head">

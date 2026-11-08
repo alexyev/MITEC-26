@@ -27,6 +27,8 @@ export interface PanelProps {
   /** Right side of the title row, before the minimize button (for example a chip). */
   actions?: ReactNode;
   className?: string;
+  /** Stable target of the guided tour (`data-tour`, D93). */
+  'data-tour'?: string;
   children?: ReactNode;
 }
 
@@ -35,6 +37,8 @@ export interface SectionProps {
   label: string;
   /** Right side of the label row (for example the estimate chip). */
   aside?: ReactNode;
+  /** Stable target of the guided tour (`data-tour`, D93). */
+  'data-tour'?: string;
   children?: ReactNode;
 }
 
@@ -52,6 +56,8 @@ export interface SegmentedProps<V extends string = string> {
   ariaLabel?: string;
   /** 'compact' sits flat inside a panel, 28 px high (the player bar's speed control). */
   size?: 'default' | 'compact';
+  /** Stable target of the guided tour (`data-tour`, D93). */
+  'data-tour'?: string;
 }
 
 /** <Stepper min max value onChange label />: minus, value, plus (spec 6.5). */

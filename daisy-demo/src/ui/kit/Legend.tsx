@@ -105,7 +105,7 @@ export function LegendSwatch({
 
 export function Legend({ items, title = 'Legend' }: LegendProps) {
   return (
-    <Panel corner="br" title={title} className="legend">
+    <Panel corner="br" title={title} className="legend" data-tour="legend">
       <ul className="legend-list">
         {items.map((item) => (
           <li key={`${item.token}-${item.shape}-${item.label}`} className="legend-item">

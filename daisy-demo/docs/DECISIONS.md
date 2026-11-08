@@ -60,7 +60,10 @@ This replaces the single west-to-east fronts of spec section 9.
 The edge zone of spec section 7.1 now exists on both faces, and each face holds about half of `placeToCommissionDays x unitsPerDay` units.
 `faceZonesAt` refuses the single-front build orders; `Fronts` still carries a `kind` for them.
 
-## D9 - Single-failure scenario with a center base (spec 8.2)
+## D9 - Single-failure scenario with a center base (spec 8.2) - superseded
+
+**Superseded in v3 (T4.4)**: the failure scenario no longer runs on the full site.
+It runs on the play model of the Build & failure tab (spec 9.5), with the base on its own pad at the center and the failed radio in the middle of the watched route (D40, D41, D44, D46, D50).
 
 The scenario uses the default base preset (one base at the site center) instead of `west1`.
 Spec 8.2 puts the watched source about 2 km east of the base, but with the base at the center the east face is only about 1.9 km long.
@@ -237,3 +240,120 @@ Planned units are outlines once they are `MAP.unitOutlineFromPx` (4 px) or more 
 
 Compared with Schoolscape, whose map always has ground under the panels, the full site read as a thin outline on an empty field.
 The map now fills the site rectangle with `--highlight` (white at 4%) inside its outline, a neutral tint, so the parcel reads as land; surveyed ground (`--c-done`) stays clearly lighter.
+
+## D40 - Play-model radio position and build symmetry (T4.1)
+
+Each radio sits on the NE corner of the unit whose NE corner is nearest its cell center: the second unit from the south in the cell's middle lane, about 1.6 m from the center.
+The build places one lane per step on each side of the center, starting with the two middle lanes, so it advances east and west at the same pace, and mirrored radios switch on together.
+Three steps of frontier work come before a lane's placement (D49), so with 30 lanes the units are placed by step 18 and every lane is live at step 20: the build plays in 14 s at 0.7 s per step, as the spec's walkthrough planned.
+
+## D41 - Base links (T4.2)
+
+The base is a radio with the same link range (spec 4), on its own mast at the center of its pad (D46).
+It links to every radio within `linkRangeM`: the six radios of the cells on either side of the pad, (4, 1) to (4, 3) and (5, 1) to (5, 3).
+So the watched route from (9, 2) is 5 hops before the failure of (7, 2) and 6 hops after it (D50).
+
+## D42 - Backup next hop (T4.2)
+
+A radio's backup next hop is its best other neighbor whose route avoids both the radio and the radio's next hop, so local repair never sends traffic back toward the radio that just failed.
+The next hop is not avoided when it is the base, which never fails.
+"Best" uses the route tie-breaks of spec 9.3: fewer hops, then nearer the base, then the lower id.
+Coverage comes from `computeNetwork` as a share from 0 to 1, because the engine allows no numeric constants other than 0, 1 and 2 (D7); the UI shows it as a percentage.
+
+## D43 - Packet simulation model (T4.3)
+
+- A hop takes `hopS`.
+  When the receiver has failed, the sender gets no acknowledgement at the end of the hop, keeps the packet in its queue and holds all traffic for that neighbor until its route changes.
+  The dot of such a hop stops where the receiver failed.
+- A failed radio's queued packets are lost; packets it was already sending still arrive.
+  So the walkthrough's failure loses nothing.
+- The neighbors declare a radio down when its third expected hello is missed: its last hello before the failure plus `missedHellosToDown x helloIntervalS`.
+  A radio that rejoins first cancels the count.
+- At detection, every neighbor that routed through the failed radio switches to its backup next hop at once (local repair).
+  The new routes then spread from the detecting neighbors, and a radio `d` flood hops away switches to them `(d + 1) x updateFloodPerHopS` later.
+  "Rerouted in" is the time from the failure until the last reachable radio has switched.
+- Radios with no route queue their packets up to `bufferMaxPackets` and then drop them.
+  A packet that has made `maxPacketHops` hops is dropped, so a short routing loop during a route update cannot run forever.
+- A queue empties one packet every `queueFlushIntervalS`, so the flushed packets show as a short train of dots instead of one dot.
+- A repaired radio rejoins at its next hello and the new routes spread from it and its neighbors.
+
+## D44 - Timing of the walkthrough failure (T4.3)
+
+The preset failure happens `failAfterHelloS` (0.05 s) after one of the failed radio's hellos, at or after the planned failure time.
+The three missed hellos then fall exactly one interval apart, 0.95 s, 1.95 s and 2.95 s after the failure, so the walkthrough can put its step boundaries on them.
+
+## D45 - Live simulation for clicks (T4.3)
+
+`simulate` replays the whole history, which takes about 25 ms after ten minutes of play: more than one frame.
+`createSim` keeps the simulation state, is advanced to the player time every frame, and applies a click at its frontier (the current player time).
+The applied changes are kept in `result.changes`, and replaying them with `simulate` gives exactly the same events, so the view stays a pure function of its inputs and `t` (spec rule 6).
+
+## D46 - Vertical units and the base pad (T4.1 revised, captain feedback)
+
+The captain asked for the P3 units to stand vertically on the play model and for the base to have its own area.
+
+- Lanes run north-south, and each unit's long side (12.2 m) runs north-south, as on the full site (D33).
+  A cell is 3 lanes wide (63 m) and 4 units tall (56.8 m).
+  Lane neighbors (along the lane, now north-south) are 56.8 m apart and column neighbors 63 m, so the link range of 75 m and the coverage radius of 46 m work as before.
+- The base has its own pad at the center, like the full site's pad (D34): `basePadLanes` x `basePadUnits` (2 lanes by 4 units, 42 m by 57 m) slots with no units, drawn as an outlined pad with a larger base marker.
+  Every cell keeps its radio, because the pad takes only the inner lane of each of the two middle cells, not their middle lanes, where the radios stand.
+- With the grid of D50 the section is 30 lanes of 20 units, 630 m by 284 m: 592 units and 50 radios.
+  The honesty label reads the grid and the unit count from the model.
+
+## D47 - Build & failure view (T4.4)
+
+- Coverage is the union of the connected circles with one fill, plus a 1 px edge around the union only, drawn on an offscreen canvas that cuts away every edge inside another circle.
+  It is not clipped to the section, so the scalloped edge shows each radio's circle and a failed radio leaves a visible hole with its own edge.
+  The map fits the section plus that edge between the panels.
+- From the data step on, the watched route is drawn in blue.
+  After a failure, the routes that went through the failed radio are drawn in blue on their current path, and after the reroute their old path is dashed grey.
+- The upstream radio shows a "n queued" badge in the data color, and the failed radio shows "Missed hellos k/3", then "Down" for a second after detection.
+  Cut-off radios get no queue badge: their queues only grow, and the hollow red ring already says they are cut off.
+- The maintenance ticket appears below the failed radio when the walkthrough's "Recovered" step starts (detection plus the reroute step), so it never covers the new route, which goes north.
+  In "Your turn" it shows for the latest detected failure that is still down.
+- The readout card keeps "STRESS-TEST" for the latest failure even after a repair.
+  Sent and delivered packets are a note under "Packets lost", and failed and cut-off radios are a note under "Radios online", so the card fits at 1280 x 720 next to the legend.
+- The legend has one row for data and its route (both blue), so it shows 7 items.
+
+## D48 - "Your turn" clicks (T4.4)
+
+A click on a radio or Reset during the walkthrough jumps to "Your turn" and plays, because the packets and the reroute need the clock to run (D21).
+A click fails an alive radio or repairs a failed one at the current time; the change goes into the live simulation at once (D45), and the failure, the coverage hole and any cut-off radios show in the same frame.
+The reroute then follows the same detection as in the walkthrough, about 3 s later.
+A click after seeking back drops the user's later changes, so the timeline forks there; Restart clears every user change.
+
+## D49 - Construction phases at the frontier (T4.4, captain's request)
+
+The captain asked to see the work move out at both faces as layers, with the equipment of each layer.
+The layers are illustrative: they follow the construction sequence the team took from Exowatt's challenge video (`research/exowatt-company-research.md` section 3.2) and the autonomous equipment it cites; **Exowatt has not published its construction method**.
+From the outermost layer inward:
+
+1. Grading: a dozer levels the strip.
+2. Foundations: a pile rig drives the piles.
+3. Trenching: a trencher digs the cable trenches.
+4. Placement: a carrier brings each unit and a crane lifts it onto its foundation.
+5. Connection: a crew connects the cables, tests the unit and starts it; its radio is amber (waiting for power).
+6. Live: the unit runs and its radio adds its coverage circle.
+
+- The layers come from the existing build steps, not a separate clock: each layer takes one lane per step, a lane's placement is its build step, grading starts three steps before, and connection lasts until the radio switches on `commissionLagSteps` after placement (`lanePhaseAt`, `frontierAt` in `playModel.ts`).
+  So at every step the layers sit side by side in this order, mirrored on both faces, and the build starts with grading the two middle lanes.
+- The phases are `PLAY.frontierPhases`, so their names, equipment and order can change in the config.
+- The map tints every lane under work with a faint work-amber band (outside the base pad), and draws each layer's equipment as a small amber side-view mark that drives along its lane during the step.
+  The marks of different layers start at different points along their lanes, so a face reads as layers, not as one train.
+- A machine inside the coverage of a connected radio or the base gets a small blue online dot, so the walkthrough shows the network reaching the frontier machines as it grows.
+- Small uppercase labels name the layers once, above the east face, each on a hairline leader to its lane; near the right edge they flip to read leftward, so they never run under the readout card.
+  The legend has no new colors; "Work in progress" (amber) covers the layers, the machines and the radios that wait for power.
+- The walkthrough's build is two steps: "Build" ("Work moves out from the center in layers: grade, piles, trench, place, connect.") until the first radio switches on, then "Power".
+- Hovering a unit shows its phase ("Foundations · pile rig at work", "Live · powered") and the phase number.
+
+## D50 - One design: the play model uses the full-site cost grid (T4.4)
+
+Worker B's cost on the north-south site (D33) puts the default HaLow design in a grid of 5 modules along the lanes by 10 across them: 50 modules for $80.6k.
+The play model now uses that grid, 10 cells across by 5 down (`PLAY.cellCols`, `PLAY.cellRows`), so the play model and the cost readout describe one design, as spec open question 2 asks.
+`tests/buildTab.test.ts` checks that the play grid and the radio count equal `networkCost`'s grid on the generated site, so a change to the pricing file or the site that changes the grid fails the tests instead of drifting silently.
+
+- The walkthrough's radios are derived, not configured: the watched source is the east-most radio of the middle row, (9, 2), and the failed radio is the middle radio of its route, (7, 2) (`presetRadios`).
+- On this grid the detour is 1 hop longer, not the spec's 2: the base also links (5, 3), so the route around (7, 2) through row 3 rejoins the base one hop early.
+- Every number in the walkthrough's captions comes from the code: the "Recovered" caption from the network and a short simulation (packets lost and extra hops), and the "Cost" caption from `networkCost` (modules, total and share of the P3 hardware).
+- The cost section shows the default setup, its total, per container, per kWh of storage and share of the P3 hardware, with the "Team estimate · not quotes" chip while the pricing file is not verified, and a breakdown of modules, batteries, base, spares and contingency with a bar for each share of the total.
+  The breakdown opens by default from the "Cost" step on, and the cost section is outlined and scrolled into view during that step.

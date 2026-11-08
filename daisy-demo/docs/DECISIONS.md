@@ -232,3 +232,8 @@ Planned units are outlines once they are `MAP.unitOutlineFromPx` (4 px) or more 
 - The Done caption reads "Done in 16 h with 3 4x4s. ..." so it fits on one line of the player bar.
 - The kit has no text button, so the Send button is styled in `src/ui/survey/survey.css` from the tokens (spec 6.5: 32 px, radius 8, light fill, dark text).
 - By the captain's request the brand chip and the browser tab title read "Exowatt: Scaling Deployment" (`UI.brand`, `index.html`).
+
+## D37 - The site has a ground tint (T3.4 polish)
+
+Compared with Schoolscape, whose map always has ground under the panels, the full site read as a thin outline on an empty field.
+The map now fills the site rectangle with `--highlight` (white at 4%) inside its outline, a neutral tint, so the parcel reads as land; surveyed ground (`--c-done`) stays clearly lighter.

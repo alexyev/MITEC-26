@@ -26,6 +26,7 @@ interface Palette extends UnitColors {
   siteOutline: string;
   padFill: string;
   padEdge: string;
+  siteGround: string;
 }
 
 /** Map colors from the story tokens (spec 5.2): planned units are thin grey outlines, placed units grey. */
@@ -44,6 +45,7 @@ function readPalette(el: HTMLElement): Palette {
     siteOutline: c.outline,
     padFill: cssVar('--surface-hover', el),
     padEdge: cssVar('--border-strong', el),
+    siteGround: cssVar('--highlight', el),
   };
 }
 
@@ -253,8 +255,10 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      // Site boundary.
+      // The site: a faint ground tint inside its boundary, so the parcel reads as land.
       const tl = worldToScreen(v, 0, model.site.heightM);
+      ctx.fillStyle = palette.siteGround;
+      ctx.fillRect(tl.sx, tl.sy, model.site.widthM * v.scale, model.site.heightM * v.scale);
       ctx.strokeStyle = palette.siteOutline;
       ctx.lineWidth = 1;
       ctx.strokeRect(tl.sx, tl.sy, model.site.widthM * v.scale, model.site.heightM * v.scale);

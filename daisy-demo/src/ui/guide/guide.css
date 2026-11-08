@@ -50,16 +50,21 @@
   transform: translateY(24px);
 }
 
-/* Home screen */
+/*
+ * Home screen (D90, D130): the text column on the left, the daisy on the right. On entry the title slides
+ * in from the left, "Daisy Does It!" follows a word at a time, the lede and the actions rise into place
+ * and the daisy pops in, its center first and then its petals. Reopening from the brand chip replays it.
+ */
 
 .home {
   position: absolute;
   inset: 0;
   z-index: 30;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: var(--sp-4) clamp(24px, 13vw, 208px);
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  align-items: center;
+  column-gap: clamp(32px, 5vw, 80px);
+  padding: var(--sp-4) clamp(24px, 10vw, 192px);
   background:
     radial-gradient(60% 70% at 24% 46%, var(--home-glow), transparent 70%), var(--home-scrim);
   transition: opacity var(--dur-home-fade) var(--ease);
@@ -75,25 +80,23 @@
   pointer-events: none;
 }
 
-.home-column {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  max-width: 600px;
+.home-column,
+.home-art {
   margin-top: calc(-1 * var(--sp-4));
   transition:
     transform var(--dur-home) var(--ease),
     opacity var(--dur-home-fade) var(--ease);
-  animation: home-in 640ms var(--ease) both;
 }
 
-.home[data-phase='closing'] .home-column {
+.home-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.home[data-phase='closing'] :is(.home-column, .home-art) {
   opacity: 0;
   transform: translateY(-16px);
-}
-
-.home[data-phase='opening'] .home-column {
-  transform: translateY(12px);
 }
 
 @keyframes home-in {
@@ -103,8 +106,10 @@
   }
 }
 
-.home-eyebrow {
-  margin-bottom: var(--sp-3);
+@keyframes home-fade {
+  from {
+    opacity: 0;
+  }
 }
 
 .home-title {
@@ -113,6 +118,36 @@
   line-height: 1.1;
   letter-spacing: -0.025em;
   color: var(--text-1);
+  animation: home-title-in 880ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+@keyframes home-title-in {
+  from {
+    opacity: 0;
+    transform: translateX(-48px);
+  }
+}
+
+/* "Daisy Does It!": the daisy's warm center, a word at a time once the title has landed. */
+.home-sub {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-20);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--daisy-center);
+}
+
+.home-sub-word {
+  display: inline-block;
+  animation: home-word-in 560ms cubic-bezier(0.16, 1, 0.3, 1) calc(440ms + var(--i) * 110ms) both;
+}
+
+@keyframes home-word-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em);
+  }
 }
 
 .home-lede {
@@ -121,12 +156,7 @@
   font-size: var(--fs-16);
   line-height: 1.6;
   color: var(--text-2);
-}
-
-.home-note {
-  margin-top: var(--sp-3);
-  font-size: var(--fs-13);
-  color: var(--text-3);
+  animation: home-in 640ms var(--ease) 640ms both;
 }
 
 .home-actions {
@@ -135,6 +165,7 @@
   align-items: center;
   gap: var(--sp-2);
   margin-top: 28px;
+  animation: home-in 640ms var(--ease) 720ms both;
 }
 
 .home-btn {
@@ -183,34 +214,128 @@
   background: var(--surface-hover);
 }
 
-.home-hint {
-  margin-top: var(--sp-3);
-  font-size: var(--fs-12);
-  color: var(--text-3);
+/* The daisy pops in with a small overshoot: its center first, then the petals unfurl clockwise. */
+.home-art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
+.home-art::before {
+  content: '';
+  position: absolute;
+  width: 150%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--daisy-glow), transparent);
+  animation: home-fade 1200ms var(--ease) 640ms both;
+}
+
+.daisy {
+  position: relative;
+  width: clamp(240px, min(30vw, 50vh), 420px);
+  height: auto;
+  overflow: visible;
+  animation: daisy-pop 960ms 560ms both;
+}
+
+@keyframes daisy-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-24deg);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(1.07) rotate(3deg);
+    animation-timing-function: ease-in-out;
+  }
+
+  72% {
+    transform: scale(0.98) rotate(-1deg);
+    animation-timing-function: ease-in-out;
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.daisy-petal {
+  fill: none;
+  stroke: var(--daisy-petal);
+  stroke-width: 2.7;
+  /* The ellipse's left edge is the flower's center, so each petal grows outward from it. */
+  transform-box: fill-box;
+  transform-origin: 0 50%;
+  animation: daisy-bloom 500ms cubic-bezier(0.2, 0.7, 0.3, 1) calc(640ms + var(--i) * 60ms) both;
+}
+
+@keyframes daisy-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.15, 0.4);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.06, 1.04);
+  }
+}
+
+.daisy-center {
+  fill: var(--daisy-center);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: daisy-center-pop 480ms cubic-bezier(0.2, 0.7, 0.3, 1) 580ms both;
+}
+
+@keyframes daisy-center-pop {
+  0% {
+    transform: scale(0);
+  }
+
+  60% {
+    transform: scale(1.2);
+  }
+}
+
+/* The credit sits where the map's credit does, so it stays put as the home screen gives way. */
 .home-foot {
   position: absolute;
-  right: clamp(24px, 13vw, 208px);
-  bottom: 28px;
-  left: clamp(24px, 13vw, 208px);
+  right: 0;
+  bottom: var(--sp-2);
+  left: 0;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--sp-2) var(--sp-4);
-  font-size: var(--fs-12);
-  color: var(--text-3);
-  animation: home-in 640ms var(--ease) both;
+  justify-content: center;
+  animation: home-fade 800ms var(--ease) 960ms both;
 }
 
-.home-foot a {
-  color: var(--text-2);
-  text-decoration: none;
-  transition: color var(--dur-hover) var(--ease);
-}
+@media (max-width: 860px) {
+  .home {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    row-gap: var(--sp-4);
+  }
 
-.home-foot a:hover {
-  color: var(--text-1);
+  .home-art {
+    order: -1;
+    justify-content: flex-start;
+    margin-top: 0;
+  }
+
+  .home-art::before {
+    display: none;
+  }
+
+  .daisy {
+    width: 96px;
+    /* The petal tips sit 8% inside the view box: line them up with the text instead. */
+    margin-left: -8px;
+  }
 }
 
 /* Guided tour: the dim with its holes, the rings, and the callout */
@@ -461,12 +586,23 @@
   .shell[data-home='open'] .stage,
   .shell[data-home='open']
     :is(.top-left, .top-center, .top-right, .dock-left, .dock-right, .dock-bottom),
-  .home[data-phase] .home-column {
+  .home[data-phase] :is(.home-column, .home-art) {
     transform: none;
   }
 
-  .home-column,
-  .home-foot,
+  /* The home screen's entry is a plain fade in the same order: nothing slides, scales or blooms. */
+  .home-title,
+  .home-sub-word,
+  .home-lede,
+  .home-actions,
+  .daisy {
+    animation-name: home-fade;
+    animation-duration: 480ms;
+    animation-timing-function: var(--ease);
+  }
+
+  .daisy-petal,
+  .daisy-center,
   .tour-ring.active,
   .tour-action-dot,
   .tour-content {

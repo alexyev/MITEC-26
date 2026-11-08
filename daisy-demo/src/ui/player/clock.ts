@@ -42,12 +42,26 @@ export function clampTime(steps: readonly WalkStep[], t: number): number {
   return Math.min(endTime(steps), Math.max(0, Number.isFinite(t) ? t : 0));
 }
 
-/** Advance a playing clock by `dt` seconds; a walkthrough with a finite end stops there. */
-export function tick(steps: readonly WalkStep[], s: ClockState, dt: number): ClockState {
+/**
+ * Advance a playing clock by `dt` seconds of wall time at a playback speed (1 is the designed pace); a
+ * walkthrough with a finite end stops there. Everything on screen is a function of `t`, so the speed scales
+ * step durations and every motion on the map together.
+ */
+export function tick(
+  steps: readonly WalkStep[],
+  s: ClockState,
+  dt: number,
+  speed: number = 1,
+): ClockState {
   if (!s.playing) return s;
   const end = endTime(steps);
-  const t = Math.min(end, s.t + dt);
+  const t = Math.min(end, s.t + dt * speed);
   return { t, playing: t < end };
+}
+
+/** Wall-clock seconds a span of walkthrough time takes at a playback speed. */
+export function wallSeconds(walkS: number, speed: number): number {
+  return walkS / speed;
 }
 
 /** Play; at the finite end of a walkthrough, play starts it again. */

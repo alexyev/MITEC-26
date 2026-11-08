@@ -180,17 +180,12 @@ export const UI = {
     stepBackGraceS: 1,
     /** Longest frame step of the clock, so a background tab does not jump ahead on return. */
     maxFrameS: 0.1,
+    /**
+     * Playback speeds of the player bar, shared by both tabs: 1 is the designed pace of the walkthrough,
+     * the others multiply the clock, so step durations and every motion on the map scale together.
+     */
+    speeds: [1, 2, 4],
   },
-  /** Stub of the Build & failure tab until T4.4: the 540-unit play-model section, drawn as planned units. */
-  buildStub: {
-    unitCols: 36,
-    laneRows: 15,
-    rowPitchM: 21,
-    coverageRadiusM: 46,
-    introS: 4,
-  },
-  /** Stub of the Survey tab until T3.4: the site before the build. */
-  surveyStub: { introS: 4 },
 };
 
 /** Map view (spec 10.3, T1.3). Colors live in src/ui/theme.css. */

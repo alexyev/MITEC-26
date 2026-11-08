@@ -9,6 +9,7 @@ export function Segmented<V extends string>({
   value,
   onChange,
   ariaLabel,
+  size = 'default',
 }: SegmentedProps<V>) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = Math.max(
@@ -33,7 +34,12 @@ export function Segmented<V extends string>({
   };
 
   return (
-    <div className="segmented" role="radiogroup" aria-label={ariaLabel} onKeyDown={onKeyDown}>
+    <div
+      className={size === 'compact' ? 'segmented compact' : 'segmented'}
+      role="radiogroup"
+      aria-label={ariaLabel}
+      onKeyDown={onKeyDown}
+    >
       {options.map((o, i) => {
         const selected = i === current;
         return (
@@ -45,6 +51,8 @@ export function Segmented<V extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
+            aria-label={o.title}
+            title={o.title}
             tabIndex={selected ? 0 : -1}
             className={selected ? 'segment selected' : 'segment'}
             onClick={() => onChange(o.value)}

@@ -5,6 +5,7 @@ import { PlayerBar } from '../src/ui/player/PlayerBar';
 import { StepList } from '../src/ui/player/StepList';
 import type { Player, WalkStep } from '../src/ui/player/types';
 import { usePlayer } from '../src/ui/player/usePlayer';
+import { usePlaybackSpeed } from '../src/ui/player/speed';
 
 const STEPS: WalkStep[] = [
   { id: 'a', label: 'Site', caption: 'The site.', durationS: 4 },
@@ -33,6 +34,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  act(() => usePlaybackSpeed.getState().setSpeed(1));
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -146,9 +148,46 @@ function fakePlayer(over: Partial<Player> = {}): Player {
     stepBy: vi.fn(),
     restart: vi.fn(),
     toYourTurn: vi.fn(),
+    speed: 1,
+    setSpeed: vi.fn(),
     ...over,
   };
 }
+
+describe('usePlayer speed', () => {
+  it('advances by the frame time times the shared playback speed', () => {
+    const { result } = renderHook(() => usePlayer(STEPS));
+    act(() => result.current.setSpeed(4));
+    act(() => result.current.play());
+    runFrame(0);
+    for (let i = 0; i < 10; i++) runFrame(50);
+    expect(result.current.speed).toBe(4);
+    expect(result.current.t).toBeCloseTo(2, 5);
+  });
+
+  it('keeps the speed for another player (switching tabs) and never moves t or pauses', () => {
+    const first = renderHook(() => usePlayer(STEPS));
+    act(() => first.result.current.seek(5));
+    act(() => first.result.current.setSpeed(2));
+    expect(first.result.current).toMatchObject({ t: 5, playing: false, stepIndex: 1 });
+    first.unmount();
+    const second = renderHook(() => usePlayer(STEPS));
+    expect(second.result.current.speed).toBe(2);
+  });
+
+  it('does not disturb "Your turn"', () => {
+    const { result } = renderHook(() => usePlayer(STEPS));
+    act(() => result.current.toYourTurn());
+    act(() => result.current.play());
+    runFrame(0);
+    runFrame(50);
+    const t = result.current.t;
+    act(() => result.current.setSpeed(4));
+    expect(result.current).toMatchObject({ t, playing: true, stepIndex: 2 });
+    runFrame(50);
+    expect(result.current.t).toBeCloseTo(t + 0.2, 5);
+  });
+});
 
 describe('PlayerBar', () => {
   it('shows the step, its caption and one tick per step boundary', () => {
@@ -185,6 +224,18 @@ describe('PlayerBar', () => {
     expect((screen.getByRole('button', { name: 'Next step' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
+  });
+
+  it('shows the playback speeds with the current one selected, and sets a new one', () => {
+    const player = fakePlayer();
+    render(<PlayerBar player={player} steps={STEPS} />);
+    const group = screen.getByRole('radiogroup', { name: 'Playback speed' });
+    const options = Array.from(group.querySelectorAll('[role=radio]'));
+    expect(options.map((o) => o.textContent)).toEqual(['1×', '2×', '4×']);
+    expect(options[0].getAttribute('aria-checked')).toBe('true');
+    expect(options[0].getAttribute('title')).toBe('1× · normal speed');
+    fireEvent.click(options[2]);
+    expect(player.setSpeed).toHaveBeenCalledWith(4);
   });
 
   it('seeks where the track is clicked', () => {

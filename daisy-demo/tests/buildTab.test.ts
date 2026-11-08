@@ -3,6 +3,8 @@ import { ROUTING } from '../src/config/defaults';
 import { PLAY, PLAY_WALK } from '../src/config/play';
 import { failedAt, simulate } from '../src/engine/packetSim';
 import { cellRadioId } from '../src/engine/playModel';
+import { findSetup, PRICING } from '../src/engine/pricing';
+import { getSiteModel } from '../src/state/model';
 import {
   FULL_SITE_COST,
   PLAY_GRAPH,
@@ -45,6 +47,32 @@ describe('Build & failure walkthrough (T4.4)', () => {
     expect(start('recovered') - start('reroute')).toBeCloseTo(PLAY_WALK.rerouteS, 9);
     expect(tl.failS - tl.dataStartS).toBeGreaterThanOrEqual(PLAY_WALK.dataS);
     expect(tl.failS - tl.dataStartS).toBeLessThan(PLAY_WALK.dataS + ROUTING.helloIntervalS + 0.1);
+  });
+});
+
+describe('real-life ranges, scaled (D51)', () => {
+  const { pricing } = PRICING;
+  const site = getSiteModel().site;
+  const halow = findSetup(pricing);
+  const reach = halow.rangeM * pricing.placement.spacingFactor;
+  // Full-site radio spacing of networkCost: every n-th unit along a lane, every m-th lane across.
+  const alongM = Math.floor(reach / site.unitPitchM) * site.unitPitchM;
+  const acrossM = Math.floor(reach / site.rowPitchM) * site.rowPitchM;
+
+  it('takes the coverage and link range from the HaLow range over the full-site column spacing', () => {
+    expect(halow.id).toBe('halowIntegrated');
+    const scaled = (PLAY_MODEL.cellWidthM * halow.rangeM) / acrossM;
+    expect(PLAY.coverageRadiusM).toBeCloseTo(scaled, 0);
+    expect(PLAY.linkRangeM).toBeCloseTo(scaled, 0);
+  });
+
+  it('confirms the coverage of a finished column reaches past the next column of radios', () => {
+    // A column of radios covers a strip this wide on either side, along the whole lane.
+    const strip = (r: number, rowSpacing: number) => Math.sqrt(r * r - (rowSpacing / 2) ** 2);
+    expect(strip(halow.rangeM, alongM)).toBeGreaterThan(acrossM);
+    expect(strip(PLAY.coverageRadiusM, PLAY_MODEL.cellHeightM)).toBeGreaterThan(
+      PLAY_MODEL.cellWidthM,
+    );
   });
 });
 
@@ -94,8 +122,8 @@ describe('sceneAt (T4.4)', () => {
     const upstream = cellRadioId(PLAY_MODEL, 8, 2);
     const atFail = scene(start('failure'));
     expect(atFail.failed[failed]).toBe(1);
-    expect(atFail.network.coverage).toBeLessThan(1);
-    expect(atFail.network.coverage * 100).toBeGreaterThan(PLAY.coverageTargetPct);
+    // The neighbors' circles overlap, so the ground stays covered while the data reroutes (D51).
+    expect(atFail.network.coverage).toBe(1);
 
     const detecting = scene(start('reroute') - 0.01);
     expect(detecting.latest?.missedHellos).toBe(ROUTING.missedHellosToDown - 1);

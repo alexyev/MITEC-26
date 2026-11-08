@@ -1,5 +1,5 @@
-// Play model of the Build & failure tab (spec 9.1, 9.2): north-south lanes of P3 units on a 9 x 5 radio grid,
-// the base on its own pad at the center, and the build step and frontier phase of every lane (D46, D49).
+// Play model of the Build & failure tab (spec 9.1, 9.2): north-south lanes of P3 units on the 10 x 5 radio grid,
+// the base on its own pad at the center, and the staged build that only works inside coverage (D46, D51).
 import { SITE } from '../config/defaults';
 import { PLAY, type PlayConfig } from '../config/play';
 import type { Rect, SiteConfig } from './types';
@@ -15,8 +15,13 @@ export interface PlayUnit {
   /** Center of the unit. */
   x: number;
   y: number;
-  /** Build step (1-based) on which the unit is placed. */
-  placedStep: number;
+  /** Build stage (0-based) whose work zone holds the unit. */
+  stage: number;
+  /** Its team in the stage, and its place on that team's route. */
+  team: number;
+  routeIndex: number;
+  /** Build time (seconds from the start of the build) at which the crane sets it down. */
+  placedS: number;
 }
 
 export interface PlayRadio {
@@ -30,10 +35,12 @@ export interface PlayRadio {
   unitId: number;
   x: number;
   y: number;
-  /** Build step on which its unit is placed. */
-  placedStep: number;
-  /** Build step on which the radio switches on: `placedStep + commissionLagSteps`. */
-  onStep: number;
+  /** Build stage of its unit. */
+  stage: number;
+  /** Build time at which its unit is placed (the radio shows amber), and at which it switches on: the end of
+   *  its stage, when the stage's connection work is done. */
+  placedS: number;
+  onS: number;
 }
 
 export interface PlayBase {
@@ -67,15 +74,37 @@ export interface PlayModel {
   /** Radio id of every cell (row-major), -1 for a cell without one. */
   cellRadio: Int32Array;
   base: PlayBase;
-  /** Number of steps that place units (one lane pair each). */
-  placeSteps: number;
-  /** The step on which the last lane goes live; the build is complete from here. */
-  lastStep: number;
+  /** The build stages, from the base outward (D51). */
+  stages: BuildStage[];
+  /** Build time of the whole build: the end of the last stage. */
+  buildS: number;
 }
 
-/** Build state of every unit and radio at one step. */
+/** A team of one phase's machines on one face of a stage, and the units it works, in order. */
+export interface BuildTeam {
+  /** -1 west of the base, 1 east. */
+  face: number;
+  route: number[];
+}
+
+/**
+ * One stage of the build (D51): the unbuilt units inside the coverage at its start. Every phase works the
+ * whole zone, one after the other; at the end of the connection phase the zone's radios switch on.
+ */
+export interface BuildStage {
+  index: number;
+  units: number[];
+  radios: number[];
+  teams: BuildTeam[];
+  /** Build time at which the stage starts, and the length of each of its phases. */
+  startS: number;
+  phaseS: number;
+}
+
+/** Build state of every unit and radio at one build time. */
 export interface BuildState {
-  step: number;
+  /** Seconds since the start of the build. */
+  elapsedS: number;
   /** 1 when the unit is placed. */
   unitPlaced: Uint8Array;
   /** 0 not placed, 1 placed but off (work in progress), 2 on. */
@@ -86,23 +115,17 @@ export interface BuildState {
 
 export const RadioBuild = { None: 0, Placed: 1, On: 2 } as const;
 
-/**
- * Center-out pairing of lanes (decision D5): the middle lane (or the two middle lanes) is step 1, the next
- * pair step 2, and so on, so the build advances east and west at the same pace.
- */
-function laneStep(lane: number, lanes: number): number {
-  return Math.ceil(Math.abs(lane - (lanes - 1) / 2) - 1 / 2) + 1;
-}
-
-/**
- * Build steps of frontier work before a lane's units are placed: the phases outside the placement phase.
- * The first build step grades the middle lane, so the placement of a lane comes this many steps later.
- */
-function placementLead(config: PlayConfig): number {
+/** Index of the placement phase: the phase in which the crane sets the units down. */
+function placementPhase(config: PlayConfig): number {
   return Math.max(
     0,
     config.frontierPhases.findIndex((p) => p.id === 'placement'),
   );
+}
+
+/** Share of a phase after which a team has worked the unit at `index` of a route of `length` units. */
+export function routeShare(index: number, length: number): number {
+  return length > 1 ? index / (length - 1) : 0;
 }
 
 export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SITE): PlayModel {
@@ -136,7 +159,10 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
         pos,
         x: (lane + 1 / 2) * lanePitchM,
         y: (pos + 1 / 2) * unitPitchM,
-        placedStep: laneStep(lane, lanes) + placementLead(config),
+        stage: -1,
+        team: -1,
+        routeIndex: -1,
+        placedS: Infinity,
       });
     }
   }
@@ -165,18 +191,18 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
         }
       }
       if (!best) continue;
-      const unit = best;
       cellRadio[row * config.cellCols + col] = radios.length;
       radios.push({
         id: radios.length,
         cellCol: col,
         cellRow: row,
         label: `C${col}-${row}`,
-        unitId: unit.id,
-        x: unit.x + unitSizeXM / 2,
-        y: unit.y + unitSizeYM / 2,
-        placedStep: unit.placedStep,
-        onStep: unit.placedStep + config.commissionLagSteps,
+        unitId: best.id,
+        x: best.x + unitSizeXM / 2,
+        y: best.y + unitSizeYM / 2,
+        stage: -1,
+        placedS: Infinity,
+        onS: Infinity,
       });
     }
   }
@@ -194,7 +220,7 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
     yard,
   };
 
-  const placeSteps = laneStep(0, lanes) + placementLead(config);
+  const stages = planStages(config, units, radios, base, unitSizeXM, unitSizeYM);
   return {
     config,
     widthM: lanes * lanePitchM,
@@ -212,10 +238,111 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
     unitSlot: slot,
     cellRadio,
     base,
-    placeSteps,
-    // Every lane goes live (powered) commissionLagSteps after its placement, radio or not.
-    lastStep: Math.max(placeSteps + config.commissionLagSteps, ...radios.map((r) => r.onStep)),
+    stages,
+    buildS: stages.length > 0 ? stageEndS(config, stages[stages.length - 1]) : 0,
   };
+}
+
+/** Build time at which a stage's last phase ends and its radios switch on. */
+function stageEndS(config: PlayConfig, stage: BuildStage): number {
+  return stage.startS + config.frontierPhases.length * stage.phaseS;
+}
+
+/**
+ * The staged build (D51). A stage's work zone is every unbuilt unit whose footprint lies inside the coverage
+ * of the base and the radios already on; its teams work the zone from the base outward, lane by lane, and
+ * when the stage ends the zone's radios switch on and the next stage works the newly covered ground.
+ */
+function planStages(
+  config: PlayConfig,
+  units: PlayUnit[],
+  radios: PlayRadio[],
+  base: PlayBase,
+  sizeX: number,
+  sizeY: number,
+): BuildStage[] {
+  const r = config.coverageRadiusM;
+  const sources: { x: number; y: number }[] = [{ x: base.x, y: base.y }];
+  const covered = (x: number, y: number) => sources.some((p) => Math.hypot(p.x - x, p.y - y) <= r);
+  const corners = [-1, 1];
+  const inside = (u: PlayUnit) =>
+    covered(u.x, u.y) &&
+    corners.every((dx) =>
+      corners.every((dy) => covered(u.x + (dx * sizeX) / 2, u.y + (dy * sizeY) / 2)),
+    );
+  const radioOfUnit = new Map(radios.map((radio) => [radio.unitId, radio]));
+  const { teamsPerFace, unitWorkS, minPhaseS } = config.build;
+  const placing = placementPhase(config);
+
+  const stages: BuildStage[] = [];
+  let left = units.slice();
+  let startS = 0;
+  while (left.length > 0) {
+    const zone = left.filter(inside);
+    if (zone.length === 0) {
+      throw new Error(
+        `The coverage cannot reach the ${left.length} units left after stage ${stages.length}.`,
+      );
+    }
+    const index = stages.length;
+    const teams: BuildTeam[] = [];
+    for (const face of [-1, 1]) {
+      const route = faceRoute(zone, face, base.x);
+      for (let k = 0; k < teamsPerFace; k++) {
+        const part = route.slice(
+          Math.floor((k * route.length) / teamsPerFace),
+          Math.floor(((k + 1) * route.length) / teamsPerFace),
+        );
+        if (part.length > 0) teams.push({ face, route: part.map((u) => u.id) });
+      }
+    }
+    const longest = Math.max(...teams.map((t) => t.route.length));
+    const phaseS = Math.max(minPhaseS, longest * unitWorkS);
+    const stage: BuildStage = {
+      index,
+      units: zone.map((u) => u.id),
+      radios: [],
+      teams,
+      startS,
+      phaseS,
+    };
+    const endS = stageEndS(config, stage);
+    teams.forEach((team, t) => {
+      team.route.forEach((id, i) => {
+        const unit = units[id];
+        unit.stage = index;
+        unit.team = t;
+        unit.routeIndex = i;
+        unit.placedS = startS + (placing + routeShare(i, team.route.length)) * phaseS;
+        const radio = radioOfUnit.get(id);
+        if (radio) {
+          radio.stage = index;
+          radio.placedS = unit.placedS;
+          radio.onS = endS;
+          stage.radios.push(radio.id);
+        }
+      });
+    });
+    stage.radios.sort((a, b) => a - b);
+    for (const id of stage.radios) sources.push({ x: radios[id].x, y: radios[id].y });
+    stages.push(stage);
+    left = left.filter((u) => u.stage < 0);
+    startS = endS;
+  }
+  return stages;
+}
+
+/** The zone's units on one face in work order: lane by lane from the base outward, alternating direction. */
+function faceRoute(zone: PlayUnit[], face: number, baseX: number): PlayUnit[] {
+  const mine = zone.filter((u) => Math.sign(u.x - baseX) === face);
+  // Ascending face * lane runs from the base outward on both faces.
+  const lanes = Array.from(new Set(mine.map((u) => u.lane))).sort((a, b) => face * a - face * b);
+  const out: PlayUnit[] = [];
+  lanes.forEach((lane, k) => {
+    const inLane = mine.filter((u) => u.lane === lane).sort((a, b) => a.pos - b.pos);
+    out.push(...(k % 2 === 0 ? inLane : inLane.reverse()));
+  });
+  return out;
 }
 
 /** The radio of a cell, or undefined when the base pad covers all its units. */
@@ -231,76 +358,72 @@ export function cellRadioId(model: PlayModel, col: number, row: number): number 
   return radio.id;
 }
 
-/** Build state at a step; step 0 has only the base. Steps past `lastStep` show the finished build. */
-export function buildStateAt(model: PlayModel, step: number): BuildState {
+/** Build state at a build time; before the build only the base stands, after it the build is finished. */
+export function buildStateAt(model: PlayModel, elapsedS: number): BuildState {
   const unitPlaced = new Uint8Array(model.units.length);
   const radioState = new Uint8Array(model.radios.length);
   let placedUnits = 0;
   let onRadios = 0;
   for (const unit of model.units) {
-    if (unit.placedStep <= step) {
+    if (unit.placedS <= elapsedS) {
       unitPlaced[unit.id] = 1;
       placedUnits++;
     }
   }
   for (const radio of model.radios) {
-    if (radio.onStep <= step) {
+    if (radio.onS <= elapsedS) {
       radioState[radio.id] = RadioBuild.On;
       onRadios++;
-    } else if (radio.placedStep <= step) {
+    } else if (radio.placedS <= elapsedS) {
       radioState[radio.id] = RadioBuild.Placed;
     }
   }
-  return { step, unitPlaced, radioState, placedUnits, onRadios };
+  return { elapsedS, unitPlaced, radioState, placedUnits, onRadios };
 }
 
-/** Phase of a lane before any frontier work. */
-export const PHASE_PLANNED = -1;
-
-/** Phase index of a lane at a build step: PHASE_PLANNED, an index into `frontierPhases`, or `phaseLive`. */
-export function lanePhaseAt(model: PlayModel, lane: number, step: number): number {
-  const { frontierPhases: phases, commissionLagSteps: lag } = model.config;
-  const lead = placementLead(model.config);
-  const placed = laneStep(lane, model.lanes) + lead;
-  const d = step - placed;
-  if (d < -lead) return PHASE_PLANNED;
-  if (d < 0) return lead + d;
-  if (d === 0) return lead;
-  if (d < lag && lead + 1 < phases.length) return lead + 1;
-  return phaseLive(model);
-}
-
-/** The phase index of a finished lane: one past the frontier phases. */
-export function phaseLive(model: PlayModel): number {
-  return model.config.frontierPhases.length;
-}
-
-/** A frontier lane: its phase and which face it is on (-1 west, 1 east, 0 the middle lane). */
-export interface FrontierLane {
-  lane: number;
+/** Where the build is at a build time: the stage and phase at work and how far through the phase. */
+export interface BuildClock {
+  /** The stage at work; `stages.length` once the build is finished. */
+  stage: number;
+  /** Index into `frontierPhases`. */
   phase: number;
-  face: number;
+  /** Share of the phase done, 0 to 1. */
+  frac: number;
+  /** Build time at which the phase started. */
+  phaseStartS: number;
+  done: boolean;
 }
 
-/** Lanes under frontier work at a build step, from the center outward on each face. */
-export function frontierAt(model: PlayModel, step: number): FrontierLane[] {
-  const out: FrontierLane[] = [];
-  const mid = (model.lanes - 1) / 2;
-  for (let lane = 0; lane < model.lanes; lane++) {
-    const phase = lanePhaseAt(model, lane, step);
-    if (phase === PHASE_PLANNED || phase === phaseLive(model)) continue;
-    out.push({ lane, phase, face: Math.sign(lane - mid) });
+export function buildClockAt(model: PlayModel, elapsedS: number): BuildClock {
+  const phases = model.config.frontierPhases.length;
+  const t = Math.max(0, elapsedS);
+  for (const stage of model.stages) {
+    const endS = stageEndS(model.config, stage);
+    if (t >= endS) continue;
+    const phase = Math.min(phases - 1, Math.floor((t - stage.startS) / stage.phaseS));
+    const phaseStartS = stage.startS + phase * stage.phaseS;
+    return {
+      stage: stage.index,
+      phase,
+      frac: (t - phaseStartS) / stage.phaseS,
+      phaseStartS,
+      done: false,
+    };
   }
-  return out;
+  return { stage: model.stages.length, phase: 0, frac: 0, phaseStartS: model.buildS, done: true };
 }
 
-/** Build step shown at a time since the build started (one step every `buildStepS`). */
-export function buildStepAt(model: PlayModel, elapsedS: number): number {
-  if (elapsedS <= 0) return 0;
-  return Math.min(model.lastStep, Math.floor(elapsedS / model.config.buildStepS));
-}
-
-/** Playback time from the start of the build to the finished build. */
-export function buildDurationS(model: PlayModel): number {
-  return model.lastStep * model.config.buildStepS;
+/** What a unit is going through at a build time (for its hover card): planned, a phase of its stage, live. */
+export function unitStatusAt(
+  model: PlayModel,
+  unitId: number,
+  elapsedS: number,
+): { kind: 'planned' | 'work' | 'live'; phase: number; done: boolean } {
+  const unit = model.units[unitId];
+  const clock = buildClockAt(model, elapsedS);
+  if (clock.stage < unit.stage) return { kind: 'planned', phase: 0, done: false };
+  if (clock.stage > unit.stage) return { kind: 'live', phase: 0, done: true };
+  const team = model.stages[unit.stage].teams[unit.team];
+  const done = clock.frac >= routeShare(unit.routeIndex, team.route.length);
+  return { kind: 'work', phase: clock.phase, done };
 }

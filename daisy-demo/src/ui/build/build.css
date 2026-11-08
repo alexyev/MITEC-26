@@ -1,6 +1,6 @@
 /*
- * Build & failure tab (spec 6, 9): the hint and Reset button of the control panel, the play-model note
- * under the map and the maintenance ticket. Every color, size and duration comes from tokens.css.
+ * Build & failure tab (spec 6, 9): the hint and Reset button of the control panel and the maintenance
+ * ticket. Every color, size and duration comes from tokens.css.
  */
 
 .map-canvas.clickable {
@@ -39,15 +39,6 @@
   cursor: default;
 }
 
-.build-model-note {
-  position: absolute;
-  margin-top: var(--sp-2);
-  font-size: var(--fs-11);
-  color: var(--text-3);
-  white-space: nowrap;
-  pointer-events: none;
-}
-
 .build-ticket {
   position: absolute;
   width: var(--hover-card-w);
@@ -78,46 +69,6 @@
   margin-bottom: var(--sp-2);
   font-size: var(--fs-12);
   color: var(--c-fail);
-}
-
-/* Cost section (spec 10.3): highlighted during the walkthrough's cost step. */
-
-.build-cost {
-  margin-top: var(--sp-3);
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--border);
-  border-radius: var(--r-chip);
-  outline: 1px solid transparent;
-  transition: outline-color var(--dur-control) var(--ease);
-}
-
-.build-cost.focus {
-  outline: 1px solid var(--border-strong);
-  outline-offset: var(--sp-1);
-}
-
-.build-cost-setup {
-  margin-bottom: var(--sp-2);
-  font-size: var(--fs-12);
-  color: var(--text-2);
-}
-
-.build-disclosure {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  margin-top: var(--sp-2);
-  padding: var(--sp-1) 0;
-  border: 0;
-  background: transparent;
-  color: var(--text-2);
-  font-size: var(--fs-12);
-  cursor: pointer;
-}
-
-.build-disclosure:hover {
-  color: var(--text-1);
 }
 
 .build-chevron {
@@ -158,4 +109,189 @@
   font-size: var(--fs-12);
   text-align: right;
   color: var(--text-1);
+}
+
+/* Network cost (D54): a quiet chip at the right of the top row, and its card on demand. */
+
+.cost {
+  position: relative;
+  z-index: 2;
+}
+
+.cost-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 40px;
+  padding: 0 var(--sp-3) 0 var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow:
+    var(--shadow-panel),
+    inset 0 1px 0 var(--highlight);
+  backdrop-filter: blur(var(--blur-panel));
+  -webkit-backdrop-filter: blur(var(--blur-panel));
+  color: var(--text-3);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    border-color var(--dur-control) var(--ease),
+    color var(--dur-control) var(--ease);
+}
+
+.cost-chip:hover,
+.cost-chip.open {
+  border-color: var(--border-strong);
+  color: var(--text-2);
+}
+
+.cost-chip-label {
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.cost-chip-value {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+/* Opaque: it opens over the readout card, whose text must not show through. */
+.panel.cost-card {
+  position: absolute;
+  top: calc(100% + var(--sp-2));
+  right: 0;
+  width: var(--panel-w);
+  max-height: none;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  background: linear-gradient(var(--surface-strong), var(--surface-strong)), var(--bg-0);
+}
+
+.cost-card > .label {
+  margin-bottom: var(--sp-2);
+}
+
+.cost-compare {
+  align-self: flex-start;
+  margin-top: var(--sp-3);
+}
+
+/* Alternatives comparison (D54): a sheet over the dimmed view. */
+
+.alts-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: var(--scrim);
+  pointer-events: auto;
+  animation: fade-in var(--dur-control) var(--ease);
+}
+
+.panel.alts {
+  width: min(760px, 100%);
+  max-height: 100%;
+  background: linear-gradient(var(--surface-strong), var(--surface-strong)), var(--bg-0);
+}
+
+.panel.alts:focus,
+.panel.alts:focus-visible {
+  outline: none;
+}
+
+.alts-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  overflow-y: auto;
+}
+
+.alts-section > .label {
+  margin-bottom: var(--sp-1);
+}
+
+.alts-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alts-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px 92px;
+  align-items: center;
+  column-gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2);
+  border-top: 1px solid var(--border);
+}
+
+.alts-row:first-child {
+  border-top: 0;
+}
+
+.alts-row.ours {
+  background: var(--surface-hover);
+  border-radius: var(--r-chip);
+  box-shadow: inset 2px 0 0 var(--c-signal);
+}
+
+.alts-row.ours + .alts-row {
+  border-top-color: transparent;
+}
+
+.alts-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alts-name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.alts-tag {
+  padding: 0 6px;
+  font-size: var(--fs-11);
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--c-signal);
+  border: 1px solid currentColor;
+  border-radius: var(--r-pill);
+}
+
+.alts-verdict {
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.alts-cost {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text-1);
+}
+
+.alts-cost-note {
+  font-size: var(--fs-11);
+  font-weight: 400;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.alts-foot {
+  font-size: var(--fs-11);
+  color: var(--text-3);
 }

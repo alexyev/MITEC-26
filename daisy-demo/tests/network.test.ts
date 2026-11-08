@@ -54,14 +54,14 @@ describe('computeNetwork (T4.2)', () => {
     expect(labels).toEqual(['C9-2', 'C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
   });
 
-  it('keeps every radio connected when (7, 2) fails; coverage drops below 100% but stays above 95%', () => {
+  it('keeps every radio connected and the ground covered when (7, 2) fails: the circles overlap (D51)', () => {
     const failed = cellRadioId(model, 7, 2);
     const net = computeNetwork(graph, aliveExcept(failed));
     expect(net.onlineRadios).toBe(49);
     expect(net.connectedRadios).toBe(49);
     expect(net.cutOffRadios).toBe(0);
-    expect(net.coverage).toBeLessThan(1);
-    expect(net.coverage * 100).toBeGreaterThan(PLAY.coverageTargetPct);
+    // At the real range-to-spacing ratio the neighbors' circles reach over the failed radio's cell.
+    expect(net.coverage).toBe(1);
     expect(net.links.some(([a, b]) => a === failed || b === failed)).toBe(false);
     // The watched route is 1 hop longer: the base also links (5, 3), so the detour is short.
     const watched = cellRadioId(model, 9, 2);
@@ -102,7 +102,8 @@ describe('computeNetwork (T4.2)', () => {
       state.radioState.map((s) => (s === 2 ? 1 : 0)),
     );
     expect(net.onlineRadios).toBe(0);
-    expect(net.coverage).toBeGreaterThan(0);
-    expect(net.coverage).toBeLessThan(0.1);
+    // Only the base's circle, which lies inside the section.
+    const circle = (Math.PI * PLAY.coverageRadiusM ** 2) / (model.widthM * model.heightM);
+    expect(net.coverage).toBeCloseTo(circle, 2);
   });
 });

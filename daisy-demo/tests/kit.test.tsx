@@ -198,6 +198,28 @@ describe('HoverCard', () => {
     });
     expect(placeHoverCard(2, 2, 260, 120, 200, 100)).toEqual({ left: e, top: e });
   });
+
+  it('never covers a panel: it takes the first corner around the pointer that clears them all', () => {
+    const o = UI.hoverCard.offsetPx;
+    const readout = { left: 1104, top: 76, width: 320, height: 420 };
+    const player = { left: 440, top: 738, width: 560, height: 130 };
+    // Right of the pointer would run under the readout card, so the card goes left.
+    expect(placeHoverCard(1000, 200, 260, 120, 1440, 900, [readout])).toEqual({
+      left: 1000 - o - 260,
+      top: 200 + o,
+    });
+    // Below the pointer would cover the player bar, so the card goes above.
+    expect(placeHoverCard(600, 700, 260, 120, 1440, 900, [player])).toEqual({
+      left: 600 + o,
+      top: 700 - o - 120,
+    });
+    // Nowhere is clear: the corner that covers the least.
+    const wall = { left: 0, top: 0, width: 1440, height: 400 };
+    expect(placeHoverCard(600, 380, 260, 120, 1440, 900, [wall])).toEqual({
+      left: 600 + o,
+      top: 380 + o,
+    });
+  });
 });
 
 describe('Legend', () => {

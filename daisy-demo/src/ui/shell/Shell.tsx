@@ -1,16 +1,15 @@
 // The shell (spec 6.2): the map stage under a floating layout. The top row holds the brand chip, the tab switch
-// and the honesty badge; the dock slots hold the tab's panels, map tools, legend and player; the credit sits
-// at the very bottom center, under the player.
+// and a slot for a tab's compact top-right element (the honesty badge was removed, D53); the dock slots hold
+// the tab's panels, map tools, legend and player; the credit sits at the very bottom center, under the player.
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { UI } from '../../config/defaults';
 import { TABS, useShellStore } from '../../state/store';
-import { Chip } from '../kit/Chip';
 import { DockContext } from '../kit/dock';
 import type { DockSlot, DockSlots } from '../kit/dock';
 import { Segmented } from '../kit/Segmented';
 
-const SLOTS: DockSlot[] = ['tl', 'tr', 'tools', 'br', 'player', 'float'];
+const SLOTS: DockSlot[] = ['top', 'tl', 'tr', 'tools', 'br', 'player', 'float'];
 
 /** One stable ref callback per slot; the slots mount once with the shell. */
 function useSlotRefs() {
@@ -45,9 +44,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="top-center">
             <Segmented options={TABS} value={tab} onChange={setTab} ariaLabel="View" />
           </div>
-          <div className="top-right">
-            <Chip text="Simulated · Illustrative values" />
-          </div>
+          <div className="top-right" ref={refs.top} />
           <div className="dock dock-left" ref={refs.tl} />
           <div className="dock dock-right">
             <div className="dock-slot dock-tr" ref={refs.tr} />

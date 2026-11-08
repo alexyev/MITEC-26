@@ -217,7 +217,11 @@ export function SurveyTab() {
       <PlayerBar
         player={player}
         steps={steps}
-        note={sped ? `Sped up: ${plan.config.playbackHoursPerS} h of work plays in 1 s` : undefined}
+        note={
+          sped
+            ? `Sped up: ${plan.config.playbackHoursPerS * player.speed} h of work plays in 1 s`
+            : undefined
+        }
       />
       {card ? <HoverCard {...card} /> : null}
     </>

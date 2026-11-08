@@ -357,3 +357,75 @@ The play model now uses that grid, 10 cells across by 5 down (`PLAY.cellCols`, `
 - Every number in the walkthrough's captions comes from the code: the "Recovered" caption from the network and a short simulation (packets lost and extra hops), and the "Cost" caption from `networkCost` (modules, total and share of the P3 hardware).
 - The cost section shows the default setup, its total, per container, per kWh of storage and share of the P3 hardware, with the "Team estimate · not quotes" chip while the pricing file is not verified, and a breakdown of modules, batteries, base, spares and contingency with a bar for each share of the total.
   The breakdown opens by default from the "Cost" step on, and the cost section is outlined and scrolled into view during that step.
+
+## D51 - The staged build: machines only work inside coverage (round 2, captain's feedback)
+
+The captain saw machines working outside the green coverage, and "a machine can't operate if it's not connected".
+With the old layers (D49) that could not be fixed by pacing: radio columns were 63 m apart and the illustrative coverage was 46 m, so every third lane lay out of reach until its own unit was placed.
+The captain chose the real-life model instead: all work happens inside the coverage, in order, and the coverage grows when a ring is finished.
+
+- **Real ranges, scaled.** The default HaLow setup has a reliable range of 500 m, and `networkCost` spaces its radios every 29 units along a lane (411.8 m) and every 19 lanes across (408.8 m) on the generated site.
+  The play model keeps the ratio of range to column spacing: 63 m x 500 / 408.8 = 77 m for both `coverageRadiusM` and `linkRangeM` (the base uses the same radio).
+  `tests/buildTab.test.ts` keeps the two equal, as D50 does for the grid.
+- **The captain's assumption holds.** A finished column of radios covers a strip of sqrt(500² - 205.9²) = 455.6 m on each side along the whole lane, so the next column's radio spot, 408.8 m out, lies inside coverage with 47 m to spare.
+  In the play model the strip is 71.6 m against a 63 m column spacing.
+- **Stages.** Stage 1's work zone is every unit whose footprint lies inside the base's coverage.
+  Every phase works the whole zone, one after another: grading, foundations, trenching, placement, connection.
+  When the connection phase ends, the zone's radios switch on, the coverage grows, and the newly covered ground is the next stage's zone (`planStages` in `playModel.ts`).
+  On the play model this gives 8 stages, outward on both faces; the last stage holds the two corner units that only the last radios reach.
+- **Teams.** Three teams of each phase work each face, each on a route through its share of the zone: lane by lane from the base outward, alternating direction.
+  Between two lanes a team drives along the lane it leaves, which is nearer the base and so already covered, then across.
+  A phase lasts 0.035 s per unit of the longest route and at least 0.55 s, so the build plays in about 25 s at 1x.
+  The crane sets each unit down as it passes (the unit turns grey), and the carrier trails the crane by one unit.
+- **Offline machines stop.** A team advances only along ground the current network covers (`machinesAt` in `engine/machines.ts`).
+  When a failure leaves it without coverage it stops where it stands, turns grey with a red "no link" ring, and resumes from the same point when coverage returns; the time it waited is lost.
+  The walkthrough's failure and every "Your turn" click happen after the build, when no machines are on the map, so they are machine-free; the engine tests fail radios mid-build to check the rule.
+- **Engine tests** (`tests/machines.test.ts`): at every tenth of every phase of every stage, every machine is online and inside a connected circle; every team route is covered along its whole length; a machine whose coverage fails stops, shows offline and resumes.
+- **Overlap.** At the real ratio a failed radio's neighbors cover its cell, so the walkthrough's failure no longer opens a coverage hole: coverage stays at 100% while the data reroutes.
+  The failure caption says so ("Its neighbors' circles overlap, so the ground stays covered."); failing a full column still cuts off the radios beyond it.
+- **On the map** the stage's zone has a faint amber tint clipped to the coverage, and a small label above the section names the stage and phase ("STAGE 3 OF 8 · TRENCHING").
+  Machines are 22 px dark tiles with the machine's side view in amber, a blue online dot and a soft amber work pulse (none with reduced motion).
+  Hovering a machine shows its kind, phase and task and the radio it is connected through, or "Offline · no coverage, stopped".
+  Hovering a unit shows its stage, and the phase at work there.
+- The construction phases stay illustrative: Exowatt has not published its method (D49).
+- The legend's red ring reads "Cut off or no link", for cut-off radios and offline machines.
+
+## D52 - Playback speed (round 2, captain's request)
+
+The player bar has a speed control after Restart: 1×, 2× and 4× (`UI.player.speeds`), with 1× titled "normal speed", the designed pace.
+The speed multiplies the frame time in `clock.tick`, so step durations, the build, the packets and the survey's vehicles all scale together; `wallSeconds` gives a step's wall-clock length, and the clock tests cover both.
+The speed is one setting for both tabs (`player/speed.ts`), so it persists when switching tabs.
+Changing it never moves `t`, the step or the playing state, so it does not disturb "Your turn".
+The Survey tab's "Sped up" note multiplies its hours per second by the speed, so it stays true.
+
+## D53 - Fewer labels: the badge, the estimate chip, "to confirm" and the map note (round 2, captain's request)
+
+The captain asked to remove the top-right "Simulated · Illustrative values" badge, the "Team estimate · not quotes" chip of the Build tab's cost, every "to confirm" label, and the play-model note under the Build map.
+This overrides the honesty badge of spec 0.4 and D10.
+Honesty stays in what is shown rather than in labels: a cost appears only where the team's cost workbook or the research gives one, and an option without a sourced cost shows its trade-off and no figure.
+The construction phases stay marked illustrative in the code and in D49.
+The Survey tab's cost chip is left to the Survey tab's own work.
+
+## D54 - The cost is small and off to the side, with the alternatives behind it (round 2, captain's request)
+
+The full-site network cost left the readout card, which now holds only CONNECT and STRESS-TEST.
+It is a quiet chip at the right of the top row ("Network cost $80.6k"), in a new `top` dock slot; a click opens a card under it with the total, per container, per kWh of storage, share of the P3 hardware and the breakdown.
+The card opens by itself during the walkthrough's "Cost" step; Escape or a click elsewhere closes it.
+"Compare alternatives" opens a sheet over the dimmed view with two parts:
+
+- **Radio setups:** all six setups of `pricing.json`, each costed with `networkCost` on the generated site, with its module count, a bar for its total and a one-line trade-off (`SETUP_TRADEOFFS`); ours is marked.
+- **Other ways to connect the site:** our corner modules; one site base (Exowatt today, 30/30 online at 315 units and 3/37 at 1,668, from the challenge video, no cost); Exowatt's relay masts along the roads ($41k hardware and 1.7 kW for their example, 84% coverage when one relay fails); HaLow and Rajant relays on 58 solar masts; private LTE (CBRS); Starlink on every machine; and Starlink with Wi-Fi access points (the usual site setup, no sourced cost).
+- The mast, LTE and Starlink costs are the workbook's Alternatives sheet, computed on the generated site by `engine/alternatives.ts` from `config/alternatives.ts` and the pricing file's base, labor, radio and contingency.
+  On the workbook's own geometry the formulas reproduce its totals to the cent (`tests/alternatives.test.ts`); our site has the same area, units and build rate, so the totals match.
+- A footnote names the sources.
+- The research copy of the workbook differs from the older copy only by two Inputs rows (site area and aspect) that `pricing.json` does not use.
+
+## D55 - Contrast of the data steps (round 2, captain's request)
+
+From the data step on, while packets move, the map under the routes is dimmed (`--c-map-dim`), so coverage, units and idle links recede.
+Live routes are 3 px of the data blue on a dark casing, packets are 4 px dots of full-strength blue on a dark ring, larger than the route is wide, and the replaced path is a dashed light grey (`--c-old-route`).
+A failed radio is a red cross in a red ring.
+
+## D56 - Hover cards never cover a panel (round 2)
+
+`placeHoverCard` tries the four corners around the pointer (right and below first) and takes the first that clears every panel, the top row, the cost chip and the map tools, else the one that covers the least of them.

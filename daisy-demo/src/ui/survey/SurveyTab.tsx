@@ -1,12 +1,13 @@
 // Survey tab (spec 8, T3.4, D60, D61, D81, D82): UTVs survey the full site on their own strips around the
 // built-up base pad, each online over its own Starlink, and each with a drone that follows it and links through
-// it; the walkthrough zooms in on one UTV so its drone reads at a glance.
-// The view is a pure function of the fleet size and the player time (spec rule 6); Send runs on the player clock.
+// it; the walkthrough zooms in on one UTV so its drone reads at a glance, and the viewer can follow any UTV up
+// close (D140-D143). The view is a pure function of the fleet size and the player time (spec rule 6); Send runs
+// on the player clock.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SITE } from '../../config/defaults';
 import { SURVEY } from '../../config/survey';
 import { PRICING, surveyCost } from '../../engine/pricing';
-import { droneFlying, surveyedFraction, surveySchedule } from '../../engine/survey';
+import { droneFlying, surveyedFraction, surveySchedule, vehicleAt } from '../../engine/survey';
 import type { VehicleState } from '../../engine/survey';
 import { getSiteModel } from '../../state/model';
 import { getSurveyPlan, useSurveyStore } from '../../state/survey';
@@ -23,7 +24,7 @@ import type { MapLayer, MapPointer } from '../map/MapView';
 import type { Camera, Viewport } from '../map/viewport';
 import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
-import { stepStarts } from '../player/clock';
+import { stepIndexAt, stepStarts } from '../player/clock';
 import { usePlayer } from '../player/usePlayer';
 import { formatHours, formatInt, formatKm, formatPace, formatSharePct } from './format';
 import {
@@ -34,12 +35,26 @@ import {
   drawPaths,
   drawStrips,
   drawSurveyed,
+  drawFollowLinks,
+  drawSatellite,
   drawVehicles,
   hitTest,
+  satelliteAt,
   vehicleMarkers,
 } from './surveyLayers';
 import type { SurveyHit } from './surveyLayers';
 import { SurveyCostChip } from './SurveyCostChip';
+import { FollowSection } from './FollowSection';
+import {
+  exitFollow,
+  followBlend,
+  followCamera,
+  followHoursPerS,
+  followTimeScale,
+  pulsePhase,
+  startFollow,
+} from './follow';
+import type { Follow } from './follow';
 import { utvKitCost } from './utvKit';
 import { whyUtv } from './whyUtv';
 import { surveySteps, walkthroughFrame, yourTurnFrame } from './walkthrough';
@@ -59,6 +74,9 @@ const LEGEND: LegendItem[] = [
 
 const PCT = 100;
 
+/** The key of the walkthrough close-up's camera move (D82, D141). */
+const CLOSE_UP_KEY = 'closeUp';
+
 export function SurveyTab() {
   const vehicles = useSurveyStore((s) => s.vehicles);
   const mode = useSurveyStore((s) => s.mode);
@@ -71,8 +89,24 @@ export function SurveyTab() {
     () => surveySteps(walkPlan, why.comparison.speedUp),
     [walkPlan, why.comparison.speedUp],
   );
-  const player = usePlayer(steps, { onRestart: reset });
   const last = steps.length - 1;
+
+  // Following a UTV (D140): the ease in and out runs on wall time (`nowMs`), so it also plays while paused.
+  const reduced = prefersReducedMotion();
+  const [follow, setFollow] = useState<Follow | null>(null);
+  const [nowMs, setNowMs] = useState(0);
+  const blend = follow ? followBlend(follow, nowMs, reduced) : 0;
+  const followRate = followHoursPerS(walkPlan);
+  // Up close, the work slows down with the zoom (D142): the player's time scale at walkthrough time `time`.
+  const rate = (time: number): number => {
+    if (!follow) return 1;
+    const hoursPerS =
+      stepIndexAt(steps, time) === last
+        ? yourTurnFrame(getSurveyPlan(vehicles), mode, time - sentAtT).hoursPerS
+        : walkthroughFrame(steps, walkPlan, time).hoursPerS;
+    return followTimeScale(hoursPerS, followRate, blend);
+  };
+  const player = usePlayer(steps, { onRestart: reset, rate });
   const inYourTurn = player.stepIndex === last;
   const yourTurnStart = stepStarts(steps)[last];
 
@@ -106,15 +140,78 @@ export function SurveyTab() {
     player.play();
   };
 
-  // The close-up (D82) zooms the map; with reduced motion it cuts in and out instead of zooming.
-  const close = frame.closeUp;
-  const camera: Camera | null = close
+  // The close-up (D82) zooms the map; with reduced motion it cuts in and out instead of zooming. Once a follow
+  // took over from it, or the viewer moved the map, it stays out until its window is over (D141).
+  const [closeUpDismissed, setCloseUpDismissed] = useState(false);
+  if (closeUpDismissed && !frame.closeUp) setCloseUpDismissed(false);
+  const close = closeUpDismissed ? null : frame.closeUp;
+  const closeCamera: Camera | null = close
     ? {
         target: close.target,
         pxPerM: close.pxPerM,
-        blend: prefersReducedMotion() ? Math.round(close.blend) : close.blend,
+        blend: reduced ? Math.round(close.blend) : close.blend,
+        key: CLOSE_UP_KEY,
       }
     : null;
+
+  // The followed UTV; a smaller fleet keeps the camera on its last UTV.
+  const count = plan.vehicles.length;
+  const followId = follow ? Math.min(follow.vehicle, count - 1) : null;
+  const followNow = follow ? { ...follow, vehicle: followId! } : null;
+  const followCam = followNow ? followCamera(plan, followNow, frame.hours, blend) : null;
+  const camera = followCam ?? closeCamera;
+
+  const followUtv = (id: number) => {
+    const at = performance.now();
+    const onScreen = followNow
+      ? followCamera(plan, followNow, frame.hours, followBlend(followNow, at, reduced))
+      : closeCamera;
+    if (frame.closeUp) setCloseUpDismissed(true);
+    setNowMs(at);
+    setFollow(startFollow(followNow, id, at, onScreen, reduced));
+  };
+  const backToSite = () => {
+    if (!followNow || followNow.dir === 'out') return;
+    if (frame.closeUp) setCloseUpDismissed(true);
+    if (reduced) {
+      setFollow(null);
+      return;
+    }
+    const at = performance.now();
+    setNowMs(at);
+    setFollow(exitFollow(followNow, at, reduced));
+  };
+  // The viewer panned or zoomed: the view is theirs now, where they left it (D140).
+  const onCameraRelease = () => {
+    if (frame.closeUp) setCloseUpDismissed(true);
+    setFollow(null);
+  };
+
+  // Run the ease on animation frames; once an ease out lands, the follow is over.
+  useEffect(() => {
+    if (!follow || reduced) return;
+    const endMs = follow.atMs + follow.durS * 1000;
+    let frameId = requestAnimationFrame(function loop(now) {
+      setNowMs(now);
+      if (now < endMs) frameId = requestAnimationFrame(loop);
+      else if (follow.dir === 'out') setFollow(null);
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [follow, reduced]);
+
+  // Escape goes back to the site.
+  const backRef = useRef(backToSite);
+  backRef.current = backToSite;
+  const followingIn = follow?.dir === 'in';
+  useEffect(() => {
+    if (!followingIn) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      backRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [followingIn]);
 
   // Hover (spec 6.6): the pointer comes from the map, the view from its last draw.
   const [pointer, setPointer] = useState<MapPointer | null>(null);
@@ -126,6 +223,15 @@ export function SurveyTab() {
     pointer && view ? hitTest(plan, markers, view, pointer.sx, pointer.sy, drones) : null;
   const hoveredId = hit?.kind === 'vehicle' ? hit.id : null;
   const hoveredDrone = hit?.kind === 'drone' ? hit.id : null;
+  const hitUtv = hoveredId ?? hoveredDrone;
+  const followed = followingIn ? followId : null;
+  const onTap = (p: MapPointer) => {
+    const v = viewRef.current;
+    if (!v) return;
+    const vm = vehicleMarkers(plan, frame.hours, v);
+    const h = hitTest(plan, vm, v, p.sx, p.sy, droneMarkers(plan, vm, frame.hours, v));
+    if (h?.kind === 'vehicle' || h?.kind === 'drone') followUtv(h.id);
+  };
 
   const underlay: MapLayer = (ctx, v, colors) => drawSurveyed(ctx, v, plan, frame.hours, colors);
   const overlay: MapLayer = (ctx, v, colors) => {
@@ -136,14 +242,25 @@ export function SurveyTab() {
     const vm = vehicleMarkers(plan, frame.hours, v);
     const dm = droneMarkers(plan, vm, frame.hours, v);
     drawDroneLinks(ctx, vm, dm, colors);
+    // Following (D143): the Starlink beam to the UTV and the pulses on its drone's link, under the marks.
+    const fv = followId === null ? undefined : vm.find((m) => m.id === followId);
+    const linkAlpha = labelAlpha(blend);
+    if (fv) {
+      const fd = dm.find((m) => m.id === followId);
+      const phase = reduced ? null : pulsePhase(frame.hours);
+      drawFollowLinks(ctx, fv, fd, satelliteAt(v), linkAlpha, phase, colors);
+    }
     drawVehicles(ctx, vm, colors, hoveredId);
     drawDrones(ctx, dm, colors, hoveredDrone);
     // The labels fade in only as the zoom lands, once the UTV has slowed down near the center.
-    if (camera)
-      drawCloseUpLabels(ctx, vm, dm, frame.closeUp!.vehicle, labelAlpha(camera.blend), colors);
+    if (fv) {
+      drawCloseUpLabels(ctx, vm, dm, fv.id, linkAlpha, colors);
+      drawSatellite(ctx, satelliteAt(v), linkAlpha, colors);
+    } else if (close && closeCamera) {
+      drawCloseUpLabels(ctx, vm, dm, close.vehicle, labelAlpha(closeCamera.blend), colors);
+    }
   };
 
-  const count = plan.vehicles.length;
   const surveyed = surveyedFraction(plan, frame.hours);
   const { pricing, errors } = PRICING;
   const cost = surveyCost(pricing, count, plan.vehicleHours, plan.finishH);
@@ -170,6 +287,7 @@ export function SurveyTab() {
         { label: 'Time left', value: `${formatHours(s.timeLeftH)} h` },
         { label: 'Drone', value: droneFlying(s) ? 'Flying · linked' : 'Docked · linked' },
       ],
+      hint: hit.id === followed ? undefined : 'Click to follow',
     };
   } else if (pointer && hit?.kind === 'drone') {
     const s = markers.find((k) => k.id === hit.id)!.state;
@@ -188,6 +306,7 @@ export function SurveyTab() {
         { label: 'Link', value: `UTV #${hit.id + 1}` },
         { label: 'Time left', value: `${formatHours(s.timeLeftH)} h` },
       ],
+      hint: hit.id === followed ? undefined : 'Click to follow its UTV',
     };
   } else if (pointer && hit?.kind === 'base') {
     card = {
@@ -203,11 +322,16 @@ export function SurveyTab() {
   }
 
   const moving = frame.step === 'survey' || running;
+  // Following, the pace is the eased one the clock runs at (D142).
+  const followPace = frame.hoursPerS * followTimeScale(frame.hoursPerS, followRate, blend);
   const note = !moving
     ? undefined
-    : close
-      ? `Up close: 1 s plays ${formatPace(frame.rateHPerS * player.speed)} of work`
-      : `Sped up: ${formatPace(frame.rateHPerS * player.speed)} of work plays in 1 s`;
+    : follow && blend > 0
+      ? `Up close: 1 s plays ${formatPace(followPace * player.speed)} of work`
+      : frame.closeUp
+        ? `Up close: 1 s plays ${formatPace(frame.rateHPerS * player.speed)} of work`
+        : `Sped up: ${formatPace(frame.rateHPerS * player.speed)} of work plays in 1 s`;
+  const followState = followed === null ? null : vehicleAt(plan.vehicles[followed], frame.hours);
   return (
     <>
       <MapView
@@ -216,6 +340,9 @@ export function SurveyTab() {
         onHover={setPointer}
         onView={(v) => (viewRef.current = v)}
         camera={camera}
+        onCameraRelease={onCameraRelease}
+        onTap={onTap}
+        clickable={hitUtv !== null}
       />
 
       <Panel corner="tl" title="Survey">
@@ -232,6 +359,20 @@ export function SurveyTab() {
             {running ? 'Surveying' : 'Send'}
           </button>
         </Section>
+        <FollowSection
+          count={count}
+          following={
+            followed === null || !followState
+              ? null
+              : {
+                  id: followed,
+                  state: followState,
+                  activity: activity(followState, frame.hours),
+                }
+          }
+          onFollow={followUtv}
+          onExit={backToSite}
+        />
         <StepList player={player} steps={steps} />
       </Panel>
 

@@ -721,3 +721,58 @@ The captain asked for a shorter home screen with more character, and for the cre
 
 - **Update (brand rename, captain's request).** The brand reads "Exowatt: Daisy Does It" (`UI.brand`, the tab title, the README, the home title), and the home screen's "Daisy Does It!" subheader and its word reveal are gone: the title slides in, then the lede (20 px below it) and the actions.
   The brand chip carries a small still daisy (24 px, the same `Daisy` drawing with `.daisy-logo`, no spin or entry) to the left of the text.
+
+## D140 - Follow a UTV up close (survey follow round, captain's request)
+
+The captain asked for a zoom on the survey, to watch how a drone follows its UTV, with the speed control unchanged.
+
+- **Starting.** The Survey panel has an "Up close" section with a "Follow a UTV" button (`data-tour="follow"`), which follows UTV #1, and the hint "Or click a UTV on the map."
+  A click on a UTV or its drone follows that UTV; their hover cards end in "Click to follow".
+  A press that moves less than 4 px is a click, not a pan (`MapView`'s `onTap`).
+- **Following.** The map eases in over 1.2 s to 2.4 px/m (`SURVEY_FOLLOW`), and from then on the UTV stays at the center of the area between the panels, where the walkthrough's close-up puts its UTV (D82), parked or driving.
+  The section then shows a UTV picker (#1 to #n), the link chain (D143), "Back to site" and an "Esc" key hint.
+  Another UTV, from the picker or a click on the map, takes over in 1 s from the view on screen.
+- **Ending.** "Back to site" and Escape ease the view back out to where it was before the follow, in 1.2 s.
+  Panning or zooming ends the follow at once and leaves the view where the viewer put it: easing away under the viewer's hand would fight the input.
+  A fleet made smaller keeps the camera on its last UTV.
+- **Pure.** Where the camera looks is a function of the plan, the UTV and the survey hour (`followPoint`, `followCamera` in `ui/survey/follow.ts`), so pausing, seeking and the speed all behave.
+  Only the ease in and out runs on wall time, so it also plays while the walkthrough is paused.
+  With reduced motion the follow cuts in and out.
+
+## D141 - Camera hand-over between the close-up, a follow and the viewer
+
+- `Camera` takes an optional `from`, the camera it takes over from: at blend 0 the view is that camera's view, so a follow that starts during the walkthrough's close-up, or switches UTVs, starts exactly where the screen is.
+  At blend 1 the view does not depend on it.
+- `Camera` takes an optional `key` naming one camera move ("closeUp", "follow").
+  After the viewer pans or zooms, the map tells the tab once (`onCameraRelease`), and a camera with another key starts over from the viewer's view.
+- Once a follow takes over from the close-up, or the viewer moves the map during it, the close-up stays out until its window is over, so it never snaps back in when the follow ends.
+  Its slower clock still runs for the rest of its window, and the player note still says so.
+
+## D142 - The work slows down up close
+
+At the walkthrough's pace, half an hour of work a second, a UTV would cross 18,000 px a second at the follow zoom.
+Following, the player's clock slows so the ground passes under the UTV at 60 px/s on a survey pass at 1x (25 m/s, about 4.5 times real time), close to the close-up's pace (D82).
+
+- `usePlayer` takes a `rate(t)` on top of the shared speed, so everything stays a function of the clock's time and the speed control works unchanged: at 4x, 1 s plays 18 s of work; at ¼x, 1.1 s.
+- The rate eases with the zoom, geometrically as the zoom does, and is 1 while the survey hours stand still (Site, Paths, Done and "Your turn" before Send), so those steps keep their length.
+  It never speeds the clock up, so the close-up's slower hold plays as before.
+- The survey clock gives the slope of its hours (`rateAt`), and the frame how fast the hours pass now (`hoursPerS`).
+- The player note reads "Up close: 1 s plays 4.5 s of work".
+
+## D143 - The link chain while following
+
+The follow makes the point of the survey's connectivity: the drone is online through its UTV, the UTV through Starlink.
+
+- **On the map.** A Starlink satellite (a body between two solar wings, named "Starlink") sits up and to the left of the followed UTV, near the top of the area between the panels, with a dashed blue beam down to the UTV's online dot.
+  It is on the left because the labels are on the right of the marks, so the beam never crosses them.
+  The beam's dashes move up with the data, and one data pulse each way runs on the drone's link: scan data to the UTV, commands back.
+  Both move with the survey hour (`pulsePhase`), so they stop when the clock stops and speed up with it; with reduced motion they hold still and there are no pulses.
+  The UTV and its drone keep the close-up's labels (D82); a parked UTV's label sits below the row, clear of its neighbors.
+  All of it fades in as the zoom lands, in the data color, with the satellite in the neutral text color.
+- **In the panel.** The chain reads Starlink (Online), then the UTV (what it is doing, and its strip progress), then its drone (Flying, or Docked on its UTV during a battery swap or at the base), joined by a dashed and a solid blue line as on the map, with the line "The drone is online through its UTV, the UTV through Starlink."
+- **Tour.** The Plan the survey step spotlights the Up close section with the fleet, and adds "Follow a UTV to ride along with its drone."
+
+## D144 - The map measures its layout size
+
+Opening the demo from the home screen mounts the map while the home screen still scales it to 104% (D90), and `MapView` sized its canvas from that scaled box, so the whole map drew 4% off and hover and clicks missed what they pointed at until the window was resized.
+It now sizes the canvas from the container's layout size (`clientWidth` and `clientHeight`), which a transform does not change.

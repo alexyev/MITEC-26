@@ -105,10 +105,19 @@ export interface MapViewProps {
   /**
    * A walkthrough camera (D82): while set, the view moves from where it was toward `camera.target` by
    * `camera.blend`, and back as the blend returns to 0. Panning or zooming hands the view back to the viewer
-   * until the camera is cleared.
+   * until the camera is cleared, or until a camera with another `key` starts (D141).
    */
   camera?: Camera | null;
+  /** Called once when the viewer pans or zooms while a camera holds the view (D141). */
+  onCameraRelease?: () => void;
+  /** Called with the pointer position when the viewer clicks the map without dragging it (D141). */
+  onTap?: (pointer: MapPointer) => void;
+  /** Shows the pointing-hand cursor, for example over something a click acts on. */
+  clickable?: boolean;
 }
+
+/** A press that moves less than this, in CSS pixels, is a click, not a pan (D141). */
+const TAP_SLOP_PX = 4;
 
 export function MapView({
   day: buildDay = 0,
@@ -117,6 +126,9 @@ export function MapView({
   onHover,
   onView,
   camera = null,
+  onCameraRelease,
+  onTap,
+  clickable = false,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -131,11 +143,12 @@ export function MapView({
   const statesRef = useRef<Uint8Array | null>(null);
   const paletteRef = useRef<Palette | null>(null);
   const colorsRef = useRef<MapColors | null>(null);
-  const layersRef = useRef({ underlay, overlay, onHover, onView, camera });
-  layersRef.current = { underlay, overlay, onHover, onView, camera };
-  /** The view the camera started from, and whether the viewer took the view back from it. */
+  const layersRef = useRef({ underlay, overlay, onHover, onView, camera, onCameraRelease, onTap });
+  layersRef.current = { underlay, overlay, onHover, onView, camera, onCameraRelease, onTap };
+  /** The view the camera started from, whether the viewer took the view back from it, and the camera's key. */
   const cameraFromRef = useRef<Viewport | null>(null);
   const cameraReleasedRef = useRef(false);
+  const cameraKeyRef = useRef<string | undefined>(undefined);
   const patternsRef = useRef<{
     edge: CanvasPattern | null;
     work: CanvasPattern | null;
@@ -163,7 +176,9 @@ export function MapView({
 
   /** The viewer moved the map: the walkthrough camera lets go of the view until it is cleared. */
   const release = useCallback(() => {
-    if (cameraFromRef.current) cameraReleasedRef.current = true;
+    if (!cameraFromRef.current || cameraReleasedRef.current) return;
+    cameraReleasedRef.current = true;
+    layersRef.current.onCameraRelease?.();
   }, []);
 
   const fit = useCallback(() => {
@@ -210,7 +225,9 @@ export function MapView({
     paletteRef.current = readPalette(container);
     colorsRef.current = readColorTokens(container);
     const observer = new ResizeObserver(() => {
-      const rect = container.getBoundingClientRect();
+      // The layout size, not the bounding box: the home screen scales the map while it gives way to it (D90),
+      // and a box measured mid-transition would draw and hit-test the map off scale.
+      const rect = { width: container.clientWidth, height: container.clientHeight };
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.round(rect.width * dpr);
       canvas.height = Math.round(rect.height * dpr);
@@ -252,7 +269,16 @@ export function MapView({
         }
         cameraFromRef.current = null;
         cameraReleasedRef.current = false;
-      } else if (viewRef.current && !cameraReleasedRef.current) {
+        cameraKeyRef.current = undefined;
+      } else if (viewRef.current) {
+        // A new camera move after the viewer took the view back starts from the viewer's view (D141).
+        if (layers.camera.key !== cameraKeyRef.current && cameraReleasedRef.current) {
+          cameraFromRef.current = null;
+          cameraReleasedRef.current = false;
+        }
+        cameraKeyRef.current = layers.camera.key;
+      }
+      if (layers.camera && viewRef.current && !cameraReleasedRef.current) {
         const from = (cameraFromRef.current ??= viewRef.current);
         const pad = UI.mapFitPaddingPx;
         const focus = {
@@ -456,6 +482,9 @@ export function MapView({
     const canvas = canvasRef.current;
     if (!canvas) return;
     let last: { x: number; y: number } | null = null;
+    // Where the press started, and whether it has moved far enough to be a pan rather than a click (D141).
+    let pressAt: { x: number; y: number } | null = null;
+    let panning = false;
     const hover = (e: PointerEvent | null) => {
       const r = canvas.getBoundingClientRect();
       layersRef.current.onHover?.(e ? { sx: e.clientX - r.left, sy: e.clientY - r.top } : null);
@@ -464,15 +493,21 @@ export function MapView({
       if (e.button !== 0) return;
       canvas.setPointerCapture(e.pointerId);
       last = { x: e.clientX, y: e.clientY };
-      canvas.classList.add('dragging');
-      hover(null);
+      pressAt = last;
+      panning = false;
     };
     const leave = () => {
       if (!last) hover(null);
     };
     const move = (e: PointerEvent) => {
       if (!last && e.pointerType !== 'touch') hover(e);
-      if (!last || !viewRef.current) return;
+      if (!last || !pressAt || !viewRef.current) return;
+      if (!panning) {
+        if (Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) < TAP_SLOP_PX) return;
+        panning = true;
+        canvas.classList.add('dragging');
+        hover(null);
+      }
       release();
       viewRef.current = panBy(viewRef.current, e.clientX - last.x, e.clientY - last.y);
       last = { x: e.clientX, y: e.clientY };
@@ -480,8 +515,15 @@ export function MapView({
     };
     const up = (e: PointerEvent) => {
       if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      const tapped = pressAt !== null && !panning && e.type === 'pointerup';
       last = null;
+      pressAt = null;
+      panning = false;
       canvas.classList.remove('dragging');
+      if (tapped) {
+        const r = canvas.getBoundingClientRect();
+        layersRef.current.onTap?.({ sx: e.clientX - r.left, sy: e.clientY - r.top });
+      }
     };
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -513,7 +555,11 @@ export function MapView({
 
   return (
     <div className="map" ref={containerRef}>
-      <canvas ref={canvasRef} className="map-canvas" aria-label="Site map" />
+      <canvas
+        ref={canvasRef}
+        className={clickable ? 'map-canvas clickable' : 'map-canvas'}
+        aria-label="Site map"
+      />
       <DockPortal slot="tools">
         <div className="map-tools" role="toolbar" aria-label="Map view">
           <span className="scale" aria-label="Scale">

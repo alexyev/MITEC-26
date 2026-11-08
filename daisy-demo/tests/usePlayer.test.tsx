@@ -56,6 +56,19 @@ describe('usePlayer', () => {
     expect(result.current.t).toBeCloseTo(0.5, 5);
   });
 
+  it("scales the clock by the tab's rate on top of the shared speed (D142)", () => {
+    let rate = 0.25;
+    const { result } = renderHook(() => usePlayer(STEPS, { rate: () => rate }));
+    act(() => result.current.setSpeed(4));
+    act(() => result.current.play());
+    for (let i = 0; i < 10; i++) runFrame(50);
+    expect(result.current.t).toBeCloseTo(0.5, 5);
+    // The rate is read every frame, as a function of the clock's time.
+    rate = 1;
+    for (let i = 0; i < 10; i++) runFrame(50);
+    expect(result.current.t).toBeCloseTo(2.5, 5);
+  });
+
   it('caps a long frame, so a background tab does not jump ahead', () => {
     const { result } = renderHook(() => usePlayer(STEPS));
     act(() => result.current.play());

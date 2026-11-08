@@ -91,6 +91,20 @@ describe('cameraViewport (D82)', () => {
     expect(s.sy).toBeCloseTo(focus.sy, 9);
   });
 
+  it('starts from the camera it takes over from, and lands the same either way (D141)', () => {
+    const before = { target: { x: 3000, y: 500 }, pxPerM: 1.2, blend: 0.6 };
+    const next = (blend: number) =>
+      cameraViewport(from, { target, pxPerM: 1.8, blend, from: before }, focus);
+    const start = next(0);
+    const shown = cameraViewport(from, before, focus);
+    expect(start.scale).toBeCloseTo(shown.scale, 9);
+    expect(start.cx).toBeCloseTo(shown.cx, 9);
+    expect(start.cy).toBeCloseTo(shown.cy, 9);
+    expect(next(1).cx).toBeCloseTo(cam(1).cx, 9);
+    expect(next(1).cy).toBeCloseTo(cam(1).cy, 9);
+    expect(next(1).scale).toBeCloseTo(cam(1).scale, 9);
+  });
+
   it('zooms geometrically and slides the target on a straight screen line', () => {
     const start = worldToScreen(from, target.x, target.y);
     let prev = from.scale;

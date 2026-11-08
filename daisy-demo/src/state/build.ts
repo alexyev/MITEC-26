@@ -1,6 +1,9 @@
 // State of the Build & failure tab (spec 9.6, 13.1): the user's failures and repairs, the hovered node, and
 // the live packet simulation that plays them back. The view is a pure function of these inputs and `t`.
 import { create } from 'zustand';
+import { BUILD } from '../config/defaults';
+import { networkCost, PRICING, siteLayoutSummary, type NetworkCost } from '../engine/pricing';
+import { getSiteModel } from './model';
 import { buildGraph, type Graph } from '../engine/network';
 import { createSim, failedAt, type LiveSim, type SimChange } from '../engine/packetSim';
 import { buildPlayModel, type PlayModel } from '../engine/playModel';
@@ -9,7 +12,21 @@ import { buildTimeline, type BuildTimeline } from '../ui/build/walkthrough';
 /** The play model, its network graph and the walkthrough timing never change while the app runs. */
 export const PLAY_MODEL: PlayModel = buildPlayModel();
 export const PLAY_GRAPH: Graph = buildGraph(PLAY_MODEL);
-export const PLAY_TIMELINE: BuildTimeline = buildTimeline(PLAY_MODEL, PLAY_GRAPH);
+
+/**
+ * The full-site cost of the default radio design (spec 10.3), from pricing.ts on the generated site;
+ * null when the pricing file cannot be costed. The play model's grid is this design's grid (D50).
+ */
+export const FULL_SITE_COST: NetworkCost | null = (() => {
+  try {
+    return networkCost(PRICING.pricing, siteLayoutSummary(getSiteModel().site, BUILD));
+  } catch (err) {
+    console.error('The full-site radio network cannot be costed:', err);
+    return null;
+  }
+})();
+
+export const PLAY_TIMELINE: BuildTimeline = buildTimeline(PLAY_MODEL, PLAY_GRAPH, FULL_SITE_COST);
 
 /**
  * The live simulation for one list of changes. It advances with the player; seeking back, or a click

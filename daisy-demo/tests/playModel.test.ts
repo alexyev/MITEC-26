@@ -15,17 +15,17 @@ import {
 
 const model = buildPlayModel();
 const { base } = model;
-const yardUnits = PLAY.unitsPerCell * PLAY.lanesPerCell;
+const padUnits = PLAY.basePadLanes * PLAY.basePadUnits;
 const phaseIds = PLAY.frontierPhases.map((p) => p.id);
 const lead = phaseIds.indexOf('placement');
 
 describe('buildPlayModel (T4.1)', () => {
-  it('has 27 north-south lanes of 20 units, less the base yard, and 44 radios plus the base', () => {
-    expect(model.lanes).toBe(27);
+  it('has 30 north-south lanes of 20 units, less the base pad, and one radio per cell', () => {
+    expect(model.lanes).toBe(30);
     expect(model.unitsPerLane).toBe(20);
-    expect(model.units).toHaveLength(540 - yardUnits);
-    expect(model.radios).toHaveLength(44);
-    expect(model.widthM).toBeCloseTo(567, 1);
+    expect(model.units).toHaveLength(600 - padUnits);
+    expect(model.radios).toHaveLength(50);
+    expect(model.widthM).toBeCloseTo(630, 1);
     expect(model.heightM).toBeCloseTo(284, 1);
   });
 
@@ -40,12 +40,13 @@ describe('buildPlayModel (T4.1)', () => {
     expect(model.lanePitchM).toBe(21);
   });
 
-  it('keeps the base yard, its whole cell at the center, free of units', () => {
-    expect(base.id).toBe(44);
+  it('keeps the base pad at the center free of units', () => {
+    expect(base.id).toBe(50);
     expect(base.x).toBeCloseTo(model.widthM / 2, 6);
     expect(base.y).toBeCloseTo(model.heightM / 2, 6);
-    expect(base.yard.w).toBeCloseTo(model.cellWidthM, 6);
-    expect(base.yard.h).toBeCloseTo(model.cellHeightM, 6);
+    expect(base.yard.w).toBeCloseTo(PLAY.basePadLanes * model.lanePitchM, 6);
+    expect(base.yard.h).toBeCloseTo(PLAY.basePadUnits * model.unitPitchM, 6);
+    expect(base.yard.x + base.yard.w / 2).toBeCloseTo(model.widthM / 2, 6);
     for (const u of model.units) {
       const overlapX =
         u.x + model.unitSizeXM / 2 > base.yard.x &&
@@ -55,7 +56,6 @@ describe('buildPlayModel (T4.1)', () => {
         u.y - model.unitSizeYM / 2 < base.yard.y + base.yard.h;
       expect(overlapX && overlapY).toBe(false);
     }
-    expect(radioAt(model, PLAY.baseCell.col, PLAY.baseCell.row)).toBeUndefined();
   });
 
   it('puts each radio on a NE unit corner within about 2 m of its cell center', () => {
@@ -83,14 +83,14 @@ describe('buildPlayModel (T4.1)', () => {
       const mirror = radioAt(model, PLAY.cellCols - 1 - r.cellCol, r.cellRow);
       expect(mirror?.onStep).toBe(r.onStep);
     }
-    // 14 lane steps from the middle lane out, after 3 steps of frontier work on the middle lane.
+    // 15 lane steps from the two middle lanes out, after 3 steps of frontier work on them.
     expect(lead).toBe(3);
-    expect(model.placeSteps).toBe(14 + lead);
+    expect(model.placeSteps).toBe(15 + lead);
     const placedOn = (step: number) =>
       new Set(model.units.filter((u) => u.placedStep === step).map((u) => u.lane));
     expect(placedOn(lead)).toEqual(new Set());
-    expect(placedOn(lead + 1)).toEqual(new Set([13]));
-    expect(placedOn(lead + 2)).toEqual(new Set([12, 14]));
+    expect(placedOn(lead + 1)).toEqual(new Set([14, 15]));
+    expect(placedOn(lead + 2)).toEqual(new Set([13, 16]));
   });
 
   it('switches every radio on exactly commissionLagSteps after its unit', () => {
@@ -109,7 +109,7 @@ describe('buildPlayModel (T4.1)', () => {
     expect(start.onRadios).toBe(0);
     const end = buildStateAt(model, model.lastStep);
     expect(end.placedUnits).toBe(model.units.length);
-    expect(end.onRadios).toBe(44);
+    expect(end.onRadios).toBe(50);
     expect(model.lastStep).toBe(model.placeSteps + PLAY.commissionLagSteps);
   });
 

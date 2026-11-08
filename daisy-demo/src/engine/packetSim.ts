@@ -230,9 +230,7 @@ export function presetFailS(
   play: PlayConfig = PLAY,
 ): number {
   const { helloPhase } = simTiming(graph, seed, routing, play);
-  return (
-    nextHelloAt(helloPhase[radio], routing.helloIntervalS, notBeforeS) + play.preset.failAfterHelloS
-  );
+  return nextHelloAt(helloPhase[radio], routing.helloIntervalS, notBeforeS) + play.failAfterHelloS;
 }
 
 function pushTimeline(line: Timeline, t: number, value: number): void {

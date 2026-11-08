@@ -234,9 +234,12 @@ function frontierEquipment(
     const besideYard = x > yard.x && x < yard.x + yard.w;
     const y0 = (besideYard ? yard.y + yard.h : 0) + margin;
     const y1 = model.heightM - margin;
-    const northward = (f.lane + f.phase) % 2 === 0;
-    const along = northward ? frac : 1 - frac;
-    const glyphs = model.config.frontierPhases[f.phase].glyphs;
+    const phases = model.config.frontierPhases;
+    // Machines of different phases are spread along their lanes, so a face reads as layers, not a train.
+    const u = (frac + f.phase / phases.length) % 1;
+    const northward = f.lane % 2 === 0;
+    const along = northward ? u : 1 - u;
+    const glyphs = phases[f.phase].glyphs;
     glyphs.forEach((glyph, i) => {
       // A second machine of the same phase (the carrier behind the crane) trails the first.
       const trail = i * PLAY_VIEW.equipmentTrailM * (northward ? -1 : 1);

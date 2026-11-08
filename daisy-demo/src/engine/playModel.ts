@@ -1,5 +1,5 @@
 // Play model of the Build & failure tab (spec 9.1, 9.2): north-south lanes of P3 units on a 9 x 5 radio grid,
-// the base in its own yard at the center, and the build step and frontier phase of every lane (D46, D49).
+// the base on its own pad at the center, and the build step and frontier phase of every lane (D46, D49).
 import { SITE } from '../config/defaults';
 import { PLAY, type PlayConfig } from '../config/play';
 import type { Rect, SiteConfig } from './types';
@@ -39,11 +39,9 @@ export interface PlayRadio {
 export interface PlayBase {
   /** Node id in the network: always `radios.length`. */
   id: number;
-  cellCol: number;
-  cellRow: number;
   x: number;
   y: number;
-  /** The base yard: its whole cell, where no unit stands. */
+  /** The base pad at the center, where no unit stands. */
   yard: Rect;
 }
 
@@ -66,7 +64,7 @@ export interface PlayModel {
   radios: PlayRadio[];
   /** Unit id of every lane slot (`lane * unitsPerLane + pos`), -1 in the base yard. */
   unitSlot: Int32Array;
-  /** Radio id of every cell (row-major), -1 for the base cell. */
+  /** Radio id of every cell (row-major), -1 for a cell without one. */
   cellRadio: Int32Array;
   base: PlayBase;
   /** Number of steps that place units (one lane pair each). */
@@ -116,20 +114,21 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
   const cellHeightM = config.unitsPerCell * unitPitchM;
   const unitSizeXM = site.unitDepthM;
   const unitSizeYM = site.unitWidthM;
-  const baseCol = config.baseCell.col;
-  const baseRow = config.baseCell.row;
-  const cellOf = (lane: number, pos: number) => ({
-    col: Math.floor(lane / config.lanesPerCell),
-    row: Math.floor(pos / config.unitsPerCell),
-  });
+  // The base pad: the middle basePadLanes lanes by the middle basePadUnits units.
+  const padLane0 = Math.floor((lanes - config.basePadLanes) / 2);
+  const padPos0 = Math.floor((unitsPerLane - config.basePadUnits) / 2);
+  const inPad = (lane: number, pos: number) =>
+    lane >= padLane0 &&
+    lane < padLane0 + config.basePadLanes &&
+    pos >= padPos0 &&
+    pos < padPos0 + config.basePadUnits;
 
-  // Every unit slot except the base yard, lane by lane.
+  // Every unit slot except the base pad, lane by lane.
   const units: PlayUnit[] = [];
   const slot = new Int32Array(lanes * unitsPerLane).fill(-1);
   for (let lane = 0; lane < lanes; lane++) {
     for (let pos = 0; pos < unitsPerLane; pos++) {
-      const cell = cellOf(lane, pos);
-      if (cell.col === baseCol && cell.row === baseRow) continue;
+      if (inPad(lane, pos)) continue;
       slot[lane * unitsPerLane + pos] = units.length;
       units.push({
         id: units.length,
@@ -143,12 +142,11 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
   }
 
   // Each radio sits on the NE corner of the unit (of its cell) whose NE corner is nearest the cell
-  // center; ties go to the lower unit id. The base cell has no units and no radio.
+  // center; ties go to the lower unit id. A cell whose units all lie in the pad has no radio.
   const radios: PlayRadio[] = [];
   const cellRadio = new Int32Array(config.cellCols * config.cellRows).fill(-1);
   for (let row = 0; row < config.cellRows; row++) {
     for (let col = 0; col < config.cellCols; col++) {
-      if (col === baseCol && row === baseRow) continue;
       const cx = (col + 1 / 2) * cellWidthM;
       const cy = (row + 1 / 2) * cellHeightM;
       let best: PlayUnit | null = null;
@@ -157,6 +155,7 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
         for (let u = 0; u < config.unitsPerCell; u++) {
           const id =
             slot[(col * config.lanesPerCell + l) * unitsPerLane + row * config.unitsPerCell + u];
+          if (id < 0) continue;
           const unit = units[id];
           const d = Math.hypot(unit.x + unitSizeXM / 2 - cx, unit.y + unitSizeYM / 2 - cy);
           if (d < bestD) {
@@ -165,7 +164,8 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
           }
         }
       }
-      const unit = best as PlayUnit;
+      if (!best) continue;
+      const unit = best;
       cellRadio[row * config.cellCols + col] = radios.length;
       radios.push({
         id: radios.length,
@@ -181,13 +181,17 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
     }
   }
 
+  const yard: Rect = {
+    x: padLane0 * lanePitchM,
+    y: padPos0 * unitPitchM,
+    w: config.basePadLanes * lanePitchM,
+    h: config.basePadUnits * unitPitchM,
+  };
   const base: PlayBase = {
     id: radios.length,
-    cellCol: baseCol,
-    cellRow: baseRow,
-    x: (baseCol + 1 / 2) * cellWidthM,
-    y: (baseRow + 1 / 2) * cellHeightM,
-    yard: { x: baseCol * cellWidthM, y: baseRow * cellHeightM, w: cellWidthM, h: cellHeightM },
+    x: yard.x + yard.w / 2,
+    y: yard.y + yard.h / 2,
+    yard,
   };
 
   const placeSteps = laneStep(0, lanes) + placementLead(config);
@@ -214,16 +218,16 @@ export function buildPlayModel(config: PlayConfig = PLAY, site: SiteConfig = SIT
   };
 }
 
-/** The radio of a cell, or undefined for the base cell. */
+/** The radio of a cell, or undefined when the base pad covers all its units. */
 export function radioAt(model: PlayModel, col: number, row: number): PlayRadio | undefined {
   const id = model.cellRadio[row * model.config.cellCols + col];
   return id >= 0 ? model.radios[id] : undefined;
 }
 
-/** The radio id of a cell; the base cell has none. */
+/** The radio id of a cell. */
 export function cellRadioId(model: PlayModel, col: number, row: number): number {
   const radio = radioAt(model, col, row);
-  if (!radio) throw new Error(`Cell (${col}, ${row}) holds the base, not a radio.`);
+  if (!radio) throw new Error(`Cell (${col}, ${row}) has no radio.`);
   return radio.id;
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROUTING } from '../src/config/defaults';
 import { PLAY } from '../src/config/play';
-import { buildGraph } from '../src/engine/network';
+import { buildGraph, presetRadios } from '../src/engine/network';
 import {
   createSim,
   failedAt,
@@ -19,9 +19,8 @@ import { buildPlayModel, cellRadioId } from '../src/engine/playModel';
 
 const model = buildPlayModel();
 const graph = buildGraph(model);
-const failed = cellRadioId(model, PLAY.preset.failedCell.col, PLAY.preset.failedCell.row);
-const watched = cellRadioId(model, PLAY.preset.watchedCell.col, PLAY.preset.watchedCell.row);
-const upstream = cellRadioId(model, 7, 2);
+const { failed, watched } = presetRadios(model, graph);
+const upstream = cellRadioId(model, 8, 2);
 const failS = presetFailS(graph, failed, 5);
 const endS = failS + 30;
 const preset: SimChange[] = [{ tS: failS, radio: failed, kind: 'fail' }];
@@ -32,7 +31,7 @@ const label = (id: number): string => (id === graph.baseId ? 'base' : model.radi
 describe('simulate: preset failure (T4.3)', () => {
   it('fails the radio just after one of its hellos', () => {
     expect(record.radio).toBe(failed);
-    expect(record.failS).toBeCloseTo(record.lastHelloS + PLAY.preset.failAfterHelloS, 9);
+    expect(record.failS).toBeCloseTo(record.lastHelloS + PLAY.failAfterHelloS, 9);
     expect(failedAt(sim, failS - 0.01)[failed]).toBe(0);
     expect(failedAt(sim, failS)[failed]).toBe(1);
   });
@@ -49,12 +48,12 @@ describe('simulate: preset failure (T4.3)', () => {
     expect(missedHellosAt(sim, record, at(3))).toBe(3);
     expect(record.detectS).toBeCloseTo(at(3), 9);
     const downs = sim.events.filter((e) => e.kind === 'neighborDown' && e.other === failed);
-    expect(downs.map((e) => label(e.node)).sort()).toEqual(['C6-1', 'C6-3', 'C7-2', 'C5-2'].sort());
+    expect(downs.map((e) => label(e.node)).sort()).toEqual(['C7-1', 'C6-2', 'C8-2', 'C7-3'].sort());
   });
 
   it('repairs locally at once, then floods the route update', () => {
     const repairs = sim.events.filter((e) => e.kind === 'localRepair');
-    expect(repairs.map((e) => [label(e.node), label(e.other)])).toEqual([['C7-2', 'C7-3']]);
+    expect(repairs.map((e) => [label(e.node), label(e.other)])).toEqual([['C8-2', 'C8-3']]);
     expect(repairs[0].tS).toBe(record.detectS);
     expect(record.reroutedS as number).toBeGreaterThan(record.detectS as number);
     expect((record.reroutedS as number) - (record.detectS as number)).toBeLessThan(0.5);
@@ -79,12 +78,12 @@ describe('simulate: preset failure (T4.3)', () => {
     expect(statsAt(sim, (record.reroutedS as number) + 2).queued).toBe(0);
   });
 
-  it('makes the watched route 2 hops longer', () => {
+  it('makes the watched route 1 hop longer', () => {
     const before = pathAt(sim, watched, failS - 0.01).map(label);
     const after = pathAt(sim, watched, (record.reroutedS as number) + 1).map(label);
-    expect(before).toEqual(['C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
-    expect(after).toEqual(['C8-2', 'C7-2', 'C7-3', 'C6-3', 'C5-3', 'C4-3', 'base']);
-    expect(hopsAt(sim, watched, endS) - hopsAt(sim, watched, 0)).toBe(2);
+    expect(before).toEqual(['C9-2', 'C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
+    expect(after).toEqual(['C9-2', 'C8-2', 'C8-3', 'C7-3', 'C6-3', 'C5-3', 'base']);
+    expect(hopsAt(sim, watched, endS) - hopsAt(sim, watched, 0)).toBe(1);
   });
 
   it('shows packets in flight as dots on hops', () => {
@@ -122,7 +121,7 @@ describe('simulate: user failures and repairs (T4.3)', () => {
     expect((rec.rejoinS as number) - repairS).toBeLessThan(ROUTING.helloIntervalS);
     expect(failedAt(s, (rec.rejoinS as number) - 0.001)[failed]).toBe(1);
     expect(failedAt(s, rec.rejoinS as number)[failed]).toBe(0);
-    expect(hopsAt(s, watched, (rec.rejoinS as number) + 1)).toBe(4);
+    expect(hopsAt(s, watched, (rec.rejoinS as number) + 1)).toBe(5);
     expect(statsAt(s, failS + 20).lost).toBe(0);
   });
 

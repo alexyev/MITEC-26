@@ -1,6 +1,6 @@
 // Radio network of the play model (spec 4, 9.3): lane and column links, shortest-hop routes to the base
 // with a backup next hop, connected and cut-off radios, and coverage as the union of the radio circles.
-import type { PlayModel } from './playModel';
+import { cellRadioId, type PlayModel } from './playModel';
 
 /** Static network graph: every link that exists when both ends are alive. Node `baseId` is the base. */
 export interface Graph {
@@ -76,8 +76,7 @@ export function buildGraph(model: PlayModel): Graph {
     if (east >= 0) link(r.id, east);
     if (north >= 0) link(r.id, north);
   }
-  // The base is a radio with the same link range: it links to every radio within range (decision D41),
-  // which are the four lane and column neighbors of its yard.
+  // The base is a radio with the same link range: it links to every radio within range (decision D41).
   for (const r of radios) link(baseId, r.id);
   for (const list of neighbors) list.sort((a, b) => a - b);
 
@@ -237,4 +236,16 @@ export function computeNetwork(graph: Graph, aliveRadios: Uint8Array): NetworkSt
     cutOffRadios,
     coverage: coverageShare(graph, connected),
   };
+}
+
+/**
+ * The walkthrough's radios (spec 9.5): the watched source is the east-most radio of the middle row, and
+ * the failed radio is the middle radio of the watched source's route on the healthy network.
+ */
+export function presetRadios(model: PlayModel, graph: Graph): { watched: number; failed: number } {
+  const { cellCols, cellRows } = model.config;
+  const watched = cellRadioId(model, cellCols - 1, Math.floor(cellRows / 2));
+  const routing = computeRouting(graph, new Uint8Array(graph.nodeCount).fill(1));
+  const between = routePath(routing, watched).slice(1, -1);
+  return { watched, failed: between[Math.floor((between.length - 1) / 2)] };
 }

@@ -3,7 +3,14 @@ import { ROUTING } from '../src/config/defaults';
 import { PLAY, PLAY_WALK } from '../src/config/play';
 import { failedAt, simulate } from '../src/engine/packetSim';
 import { cellRadioId } from '../src/engine/playModel';
-import { PLAY_GRAPH, PLAY_MODEL, PLAY_TIMELINE, simAt, useBuildStore } from '../src/state/build';
+import {
+  FULL_SITE_COST,
+  PLAY_GRAPH,
+  PLAY_MODEL,
+  PLAY_TIMELINE,
+  simAt,
+  useBuildStore,
+} from '../src/state/build';
 import { sceneAt } from '../src/ui/build/scene';
 
 const tl = PLAY_TIMELINE;
@@ -23,6 +30,7 @@ describe('Build & failure walkthrough (T4.4)', () => {
       'detection',
       'reroute',
       'recovered',
+      'cost',
       'your-turn',
     ]);
     expect(tl.steps[tl.steps.length - 1].durationS).toBe(Infinity);
@@ -31,12 +39,35 @@ describe('Build & failure walkthrough (T4.4)', () => {
 
   it('puts the failure, the missed hellos and the detection on step boundaries', () => {
     expect(start('failure')).toBeCloseTo(tl.failS, 9);
-    const lastHello = tl.failS - PLAY.preset.failAfterHelloS;
+    const lastHello = tl.failS - PLAY.failAfterHelloS;
     expect(start('detection')).toBeCloseTo(lastHello + ROUTING.helloIntervalS, 9);
     expect(start('reroute')).toBeCloseTo(tl.detectS, 9);
     expect(start('recovered') - start('reroute')).toBeCloseTo(PLAY_WALK.rerouteS, 9);
     expect(tl.failS - tl.dataStartS).toBeGreaterThanOrEqual(PLAY_WALK.dataS);
     expect(tl.failS - tl.dataStartS).toBeLessThan(PLAY_WALK.dataS + ROUTING.helloIntervalS + 0.1);
+  });
+});
+
+describe('one design: play model and full-site cost (T4.4, D50)', () => {
+  it('draws the radio grid of the full-site cost design, 10 across the lanes by 5 along them', () => {
+    const cost = FULL_SITE_COST;
+    expect(cost).not.toBeNull();
+    if (!cost) return;
+    // networkCost counts gridCols modules along a lane (north-south) and gridRows across lanes.
+    expect(PLAY.cellCols).toBe(cost.gridRows);
+    expect(PLAY.cellRows).toBe(cost.gridCols);
+    expect(PLAY_MODEL.radios).toHaveLength(cost.modules);
+  });
+
+  it('takes every number of the cost and recovered captions from the code', () => {
+    const cost = FULL_SITE_COST as NonNullable<typeof FULL_SITE_COST>;
+    const caption = (id: string) => tl.steps.find((s) => s.id === id)?.caption ?? '';
+    expect(caption('cost')).toContain(`needs ${cost.modules} of these radios`);
+    expect(caption('cost')).toContain(`${(cost.shareOfP3 * 100).toFixed(2)}%`);
+    expect(caption('cost')).not.toMatch(/74\.6|\b45\b/);
+    expect(caption('recovered')).toBe(
+      'No data lost. The new path is 1 hop longer. A repair ticket is sent.',
+    );
   });
 });
 
@@ -54,13 +85,13 @@ describe('sceneAt (T4.4)', () => {
   it('shows data on the watched route before the failure', () => {
     const s = scene(start('data') + 2);
     expect(s.packets.length).toBeGreaterThan(5);
-    expect(s.routes[0].map(label)).toEqual(['C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
+    expect(s.routes[0].map(label)).toEqual(['C9-2', 'C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
     expect(s.latest).toBeNull();
   });
 
   it('fails the radio, queues at its upstream neighbor, then reroutes with a ticket', () => {
-    const failed = cellRadioId(PLAY_MODEL, 6, 2);
-    const upstream = cellRadioId(PLAY_MODEL, 7, 2);
+    const failed = tl.failedRadio;
+    const upstream = cellRadioId(PLAY_MODEL, 8, 2);
     const atFail = scene(start('failure'));
     expect(atFail.failed[failed]).toBe(1);
     expect(atFail.network.coverage).toBeLessThan(1);
@@ -74,15 +105,15 @@ describe('sceneAt (T4.4)', () => {
     const recovered = scene(start('recovered') + 0.01);
     expect(recovered.oldRoutes.length).toBeGreaterThan(0);
     expect(recovered.routes[0].map(label)).toEqual([
+      'C9-2',
       'C8-2',
-      'C7-2',
+      'C8-3',
       'C7-3',
       'C6-3',
       'C5-3',
-      'C4-3',
       'base',
     ]);
-    expect(recovered.watchedExtraHops).toBe(2);
+    expect(recovered.watchedExtraHops).toBe(1);
     expect(recovered.ticket?.radio).toBe(failed);
     expect(recovered.stats?.lost).toBe(0);
   });

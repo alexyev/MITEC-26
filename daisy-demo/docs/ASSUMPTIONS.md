@@ -114,17 +114,19 @@ This replaces "Pricing (spec section 5)" above.
 
 ## Play model and radio network (spec sections 4 and 9)
 
-- The play model is a section of 27 north-south lanes of 20 units, about 567 m by 284 m, with no roads; each unit's long side runs north-south.
-  It is cut into a 9 x 5 grid of cells, 3 lanes by 4 units each (63 m by about 57 m), the same grid as the full-site default design.
-  The center cell is the base yard, with no units; every other cell has one corner radio, so the section has 528 units and 44 radios.
+- The play model is a section of 30 north-south lanes of 20 units, 630 m by 284 m, with no roads; each unit's long side runs north-south.
+  It is cut into a 10 x 5 grid of cells, 3 lanes by 4 units each (63 m by about 57 m), the same grid as the full-site default design (D50).
+  The base stands on its own pad at the center, 2 lanes by 4 units with no units; every cell has one corner radio, so the section has 592 units and 50 radios.
   Distances are not to scale with the full-site design.
 - Each radio is a corner module with 4 beams (both ways down the lane and both ways down the column), so it links to its lane and column neighbors on the radio grid.
   Lane neighbors (along the lane) are about 57 m apart and column neighbors about 63 m; the link range of 75 m reaches both, but not the diagonals (about 85 m).
 - Each connected radio covers a circle of 46 m for machines and people on the ground.
   The coverage radius is shorter than the link range, because radio-to-radio links run down the open corridors, while ground users are among the metal units.
-- The base stands in its own yard at the center of the section, has a Starlink backhaul, and has the same link range and coverage radius as a radio.
+- The base stands on its pad at the center of the section, has a Starlink backhaul, and has the same link range and coverage radius as a radio.
 - Coverage is sampled on a 2 m grid, and only connected radios and the base count.
 - A radio switches on 2 build steps after its unit is placed, when the unit is powered.
+- At the build front, each lane goes through grading, foundations, trenching, placement and connection, one build step each (connection until the radio is on).
+  These phases are illustrative, from the team's reading of Exowatt's challenge video; Exowatt has not published its construction method (D49).
 - Routing uses hellos every 1 s; a neighbor is declared down after 3 missed hellos; traffic goes to a backup next hop at once, and the route update spreads at 0.02 s per hop (as in the failure scenario above).
 - Each radio sends one packet per second, and a hop takes 0.15 s of playback; both are slowed for visibility.
 - The radio swap time on the maintenance ticket, 15 minutes, is a placeholder.

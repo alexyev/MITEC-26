@@ -73,3 +73,89 @@
   font-size: var(--fs-12);
   color: var(--text-2);
 }
+
+.build-warning {
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-12);
+  color: var(--c-fail);
+}
+
+/* Cost section (spec 10.3): highlighted during the walkthrough's cost step. */
+
+.build-cost {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  outline: 1px solid transparent;
+  transition: outline-color var(--dur-control) var(--ease);
+}
+
+.build-cost.focus {
+  outline: 1px solid var(--border-strong);
+  outline-offset: var(--sp-1);
+}
+
+.build-cost-setup {
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.build-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  cursor: pointer;
+}
+
+.build-disclosure:hover {
+  color: var(--text-1);
+}
+
+.build-chevron {
+  transition: transform var(--dur-control) var(--ease);
+}
+
+.build-chevron.open {
+  transform: rotate(180deg);
+}
+
+.build-breakdown {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px auto;
+  align-items: center;
+  column-gap: var(--sp-3);
+  row-gap: 6px;
+  margin-top: var(--sp-1);
+}
+
+.build-breakdown-row {
+  display: contents;
+}
+
+.build-breakdown-label {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.build-breakdown-detail {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+}
+
+.build-breakdown-value {
+  min-width: 48px;
+  font-size: var(--fs-12);
+  text-align: right;
+  color: var(--text-1);
+}

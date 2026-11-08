@@ -2,11 +2,16 @@
 // The failure steps sit on the failed radio's hello times, so 1/3, 2/3 and 3/3 land on step boundaries (D44).
 import { ROUTING } from '../../config/defaults';
 import { PLAY, PLAY_WALK } from '../../config/play';
-import type { Graph } from '../../engine/network';
-import { presetFailS } from '../../engine/packetSim';
-import { buildDurationS, cellRadioId, type PlayModel } from '../../engine/playModel';
+import { computeNetwork, presetRadios, type Graph } from '../../engine/network';
+import { presetFailS, simulate, statsAt } from '../../engine/packetSim';
+import type { NetworkCost } from '../../engine/pricing';
+import { formatUsd } from '../survey/format';
+import { formatShare } from './format';
+import { buildDurationS, type PlayModel } from '../../engine/playModel';
 import { stepStarts } from '../player/clock';
 import type { WalkStep } from '../player/types';
+
+const count = new Intl.NumberFormat('en-US');
 
 export interface BuildTimeline {
   steps: WalkStep[];
@@ -24,25 +29,51 @@ export interface BuildTimeline {
   yourTurnS: number;
 }
 
-/** A caption for the cost step, or null while the cost section is not wired. */
-export type CostCaption = string | null;
+/** The full-site cost behind the cost step's caption; null when the pricing file cannot be costed. */
+export type CostSummary = Pick<NetworkCost, 'modules' | 'totalUsd' | 'shareOfP3'> | null;
 
 export function buildTimeline(
   model: PlayModel,
   graph: Graph,
-  costCaption: CostCaption = null,
+  cost: CostSummary = null,
 ): BuildTimeline {
-  const failedRadio = cellRadioId(model, PLAY.preset.failedCell.col, PLAY.preset.failedCell.row);
-  const watchedRadio = cellRadioId(model, PLAY.preset.watchedCell.col, PLAY.preset.watchedCell.row);
+  const { watched: watchedRadio, failed: failedRadio } = presetRadios(model, graph);
   const buildS = buildDurationS(model) + PLAY_WALK.buildHoldS;
   // The build step shows the frontier layers; the power step starts when the first radio switches on.
   const firstRadioS = Math.min(...model.radios.map((r) => r.onStep)) * PLAY.buildStepS;
   const buildStartS = PLAY_WALK.sectionS;
   const dataStartS = buildStartS + buildS + PLAY_WALK.coverageS;
   const failS = presetFailS(graph, failedRadio, dataStartS + PLAY_WALK.dataS);
-  const lastHelloS = failS - PLAY.preset.failAfterHelloS;
+  const lastHelloS = failS - PLAY.failAfterHelloS;
   const firstMissS = lastHelloS + ROUTING.helloIntervalS;
   const detectS = lastHelloS + ROUTING.missedHellosToDown * ROUTING.helloIntervalS;
+  const recoveredS = detectS + PLAY_WALK.rerouteS;
+
+  // Captions state what the simulation shows: the detour's extra hops and the packets lost by recovery.
+  const alive = new Uint8Array(model.radios.length).fill(1);
+  const healthy = computeNetwork(graph, alive).routing.hops[watchedRadio];
+  alive[failedRadio] = 0;
+  const detour = computeNetwork(graph, alive).routing.hops[watchedRadio];
+  const extraHops = detour - healthy;
+  const lost = statsAt(
+    simulate({
+      graph,
+      startS: dataStartS,
+      endS: recoveredS,
+      changes: [{ tS: failS, radio: failedRadio, kind: 'fail' }],
+    }),
+    recoveredS,
+  ).lost;
+  const lostText = lost === 0 ? 'No data lost.' : `${count.format(lost)} packets lost.`;
+  const hopsText =
+    extraHops === 0
+      ? 'The new path is as short as the old one.'
+      : `The new path is ${extraHops} ${extraHops === 1 ? 'hop' : 'hops'} longer.`;
+  const costCaption = cost
+    ? `The full site needs ${count.format(cost.modules)} of these radios: about ${formatUsd(
+        cost.totalUsd,
+      )}, ${formatShare(cost.shareOfP3)} of the P3 hardware.`
+    : null;
 
   const steps: WalkStep[] = [
     {
@@ -96,7 +127,7 @@ export function buildTimeline(
     {
       id: 'recovered',
       label: 'Recovered',
-      caption: 'No data lost. The new path is 2 hops longer. A repair ticket is sent.',
+      caption: `${lostText} ${hopsText} A repair ticket is sent.`,
       durationS: PLAY_WALK.recoveredS,
     },
   ];

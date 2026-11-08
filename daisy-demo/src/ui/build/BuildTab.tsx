@@ -4,7 +4,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { forwardedAt, hopsAt, queueAt, type SimChange } from '../../engine/packetSim';
+import { PRICING } from '../../engine/pricing';
 import {
+  FULL_SITE_COST,
   PLAY_GRAPH,
   PLAY_MODEL,
   PLAY_TIMELINE,
@@ -203,7 +205,14 @@ export function BuildTab() {
         </Section>
         <StepList player={player} steps={steps} />
       </Panel>
-      <BuildReadout model={PLAY_MODEL} scene={scene} />
+      <BuildReadout
+        model={PLAY_MODEL}
+        scene={scene}
+        cost={FULL_SITE_COST}
+        pricingErrors={PRICING.errors.length}
+        costFocus={stepId === 'cost'}
+        breakdownDefault={t >= PLAY_TIMELINE.costS}
+      />
       <Legend items={LEGEND} />
       <PlayerBar
         player={player}

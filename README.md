@@ -4,7 +4,7 @@ How to keep every machine online while a 2,000-acre, 23,000-unit Exowatt P3 site
 
 [![Open the live demo](https://img.shields.io/badge/Open_the_live_demo-mitec.alexanderyevchenko.com-f2f4f7?style=for-the-badge&labelColor=0b0d11)](https://mitec.alexanderyevchenko.com)
 
-[![The Build & failure tab mid-reroute: radio C6-2 is down and the pile rig's data takes the backup route](daisy-demo/docs/demo.png)](https://mitec.alexanderyevchenko.com)
+[![The Build & failure tab mid-handover: edge radio C8-2 is down and the pile rig connects to edge radio C8-3](daisy-demo/docs/demo.png)](https://mitec.alexanderyevchenko.com)
 
 ## What the demo shows
 

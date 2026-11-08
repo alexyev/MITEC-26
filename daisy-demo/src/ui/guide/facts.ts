@@ -24,7 +24,7 @@ let facts: TourFacts | null = null;
 
 export function tourFacts(): TourFacts {
   if (facts) return facts;
-  const { scenario, failedRadio, watchedRadio } = PLAY_TIMELINE;
+  const { scenario, failedRadio, handoverRadio } = PLAY_TIMELINE;
   facts = {
     vehicle: SURVEY_VEHICLE,
     acres: formatInt(SITE.areaAcres),
@@ -42,9 +42,9 @@ export function tourFacts(): TourFacts {
     buildStages: PLAY_MODEL.stages.length,
     radios: PLAY_MODEL.radios.length,
     robot: PLAY.equipment.kinds[scenario.robot.glyph].name.toLowerCase(),
-    uplink: PLAY_MODEL.radios[watchedRadio].label,
-    uplinkHops: scenario.route.length - 1,
     failed: PLAY_MODEL.radios[failedRadio].label,
+    failedHops: scenario.route.length - 1,
+    handover: PLAY_MODEL.radios[handoverRadio]?.label ?? 'none',
     cornerRadio: PLAY_MODEL.radios[featuredRadio(PLAY_MODEL)].label,
     missedHellos: ROUTING.missedHellosToDown,
   };

@@ -12,6 +12,7 @@ import {
   queueAt,
   sentByAt,
   statsAt,
+  uplinkChangeAt,
   type FailureRecord,
   type InFlight,
   type SimResult,
@@ -48,6 +49,23 @@ export interface RobotView {
   uplink: number;
   hops: number;
   sent: number;
+  /** Packets it holds while its radio is silent (D170). */
+  queued: number;
+  /** Its radio has failed and it has not linked to another yet: its link is down, its data waits. */
+  linkDown: boolean;
+  /** Its latest switch from one radio to another (D170), up to t; null before any. */
+  handover: { from: number; to: number; atS: number } | null;
+}
+
+/**
+ * The robot's link to a radio (D170): `live` while it sends through it, `down` while that radio is silent and
+ * the robot has not moved on, `dropped` for the radio it left at a handover, fading out. `age` is the seconds
+ * since the link began (live after a handover), went down, or was dropped; Infinity for a link from the start.
+ */
+export interface AccessLink {
+  radio: number;
+  kind: 'live' | 'down' | 'dropped';
+  age: number;
 }
 
 export interface Scene {
@@ -75,9 +93,14 @@ export interface Scene {
   dataShown: boolean;
   packets: InFlight[];
   queues: { node: number; count: number }[];
-  /** Highlighted routes to the base (blue) and the old paths they replaced (dashed). */
+  /**
+   * Highlighted routes to the base (blue) and the old paths they replaced (dashed). A route from the robot
+   * starts at its node; its first hop, the robot's link to its radio, is drawn from `access` instead.
+   */
   routes: number[][];
   oldRoutes: number[][];
+  /** The robot's links to radios while it sends (D170). */
+  access: AccessLink[];
   failures: FailureView[];
   stats: SimStats | null;
   /** The latest failure up to t, repaired or not, for the stress-test numbers. */
@@ -98,6 +121,7 @@ export interface Scene {
 /** The longest mark that keeps playing after its event: the route update ring, the fail flash, a radio's
  *  fade-in and the missed-hello label. */
 const MARKS_TAIL_S = Math.max(
+  PLAY_VIEW.handoverFadeS,
   PLAY_VIEW.updateRingS,
   PLAY_VIEW.failFlashS,
   PLAY_VIEW.radioFadeInS,
@@ -169,16 +193,36 @@ export function sceneAt(
     sending && clock.stage === sc.stage && clock.phase === sc.phase
       ? machines.findIndex((m) => m.team === sc.team)
       : -1;
-  const robot: RobotView | null =
-    robotIndex >= 0
-      ? {
-          index: robotIndex,
-          node: timeline.robotNode,
-          uplink: nextHopAt(sim, timeline.robotNode, t),
-          hops: hopsAt(sim, timeline.robotNode, t),
-          sent: sentByAt(sim, timeline.robotNode, t),
-        }
-      : null;
+  let robot: RobotView | null = null;
+  const access: AccessLink[] = [];
+  if (robotIndex >= 0) {
+    const node = timeline.robotNode;
+    const uplink = nextHopAt(sim, node, t);
+    const change = uplinkChangeAt(sim, node, t);
+    const handover = change && change.from >= 0 && change.to >= 0 ? change : null;
+    const linkDown = uplink >= 0 && failed[uplink] === 1;
+    robot = {
+      index: robotIndex,
+      node,
+      uplink,
+      hops: hopsAt(sim, node, t),
+      sent: sentByAt(sim, node, t),
+      queued: queueAt(sim, node, t),
+      linkDown,
+      handover,
+    };
+    if (uplink >= 0) {
+      let downFrom = t;
+      for (const d of sim.down[uplink]) if (d.from <= t) downFrom = d.from;
+      access.push(
+        linkDown
+          ? { radio: uplink, kind: 'down', age: t - downFrom }
+          : { radio: uplink, kind: 'live', age: handover ? t - handover.atS : Infinity },
+      );
+    }
+    if (handover && t - handover.atS < PLAY_VIEW.handoverFadeS)
+      access.push({ radio: handover.from, kind: 'dropped', age: t - handover.atS });
+  }
 
   const failures: FailureView[] = [];
   let latest: FailureView | null = null;
@@ -212,16 +256,18 @@ export function sceneAt(
     const addRoute = (source: number) => {
       const isRadio = source < graph.nodeCount;
       if (shown.has(source) || (isRadio && (failed[source] || !network.alive[source]))) return;
+      if (robot?.linkDown && source === robot.node) return;
       shown.add(source);
       const path = pathAt(sim, source, t);
       if (path.length > 1) routes.push(path);
     };
-    // While the robot sends, its route is the story; otherwise the watched radio's (D70).
+    // While the robot sends, its route is the story; otherwise the watched radio's (D70). While its radio is
+    // silent its data waits, so it has no live route, only the old one, dashed from the failure on (D170).
     addRoute(robot ? robot.node : timeline.watchedRadio);
     for (const f of failures) {
       for (const a of f.affected) {
         addRoute(a.source);
-        if (f.rerouted) oldRoutes.push(a.oldPath);
+        if (f.rerouted || a.source === robot?.node) oldRoutes.push(a.oldPath);
       }
     }
   }
@@ -234,6 +280,7 @@ export function sceneAt(
       const count = queueAt(sim, node, t);
       if (count > 0) queues.push({ node, count });
     }
+    if (robot && robot.queued > 0) queues.push({ node: robot.node, count: robot.queued });
   }
 
   // The watched route against the same built network without failures.
@@ -281,6 +328,7 @@ export function sceneAt(
     queues,
     routes,
     oldRoutes,
+    access,
     failures,
     stats: traffic ? statsAt(sim, t) : null,
     latest,

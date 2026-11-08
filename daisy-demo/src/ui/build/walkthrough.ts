@@ -1,9 +1,9 @@
-// Walkthrough of the Build & failure tab (spec 9.8, D70): the build, a radio failure mid-build traced through a
-// frontier robot's data, the build to its end, then "Your turn". The failure steps sit on hello times (D44).
+// Walkthrough of the Build & failure tab (spec 9.8, D70, D170): the build, an edge radio failure mid-build traced
+// through a frontier robot's data and its handover to another edge radio, the build to its end, then "Your turn".
+// The failure steps sit on hello times (D44).
 import { ROUTING } from '../../config/defaults';
 import { PLAY, PLAY_WALK } from '../../config/play';
-import { coveringNode } from '../../engine/machines';
-import { computeNetwork, type Graph } from '../../engine/network';
+import type { Graph } from '../../engine/network';
 import {
   pathAt,
   presetFailS,
@@ -17,6 +17,7 @@ import {
 import type { NetworkCost } from '../../engine/pricing';
 import type { PlayModel } from '../../engine/playModel';
 import { failureScenario, type FailureScenario } from '../../engine/scenario';
+import { featuredRadio } from '../scene3d/featured';
 import { formatUsd } from '../survey/format';
 import { formatShare } from './format';
 import { stepStarts } from '../player/clock';
@@ -56,12 +57,17 @@ export interface BuildTimeline {
   scenario: FailureScenario;
   /** Node id of the robot in the simulation. */
   robotNode: number;
+  /** The edge radio the robot sends through, which fails (D170). */
   failedRadio: number;
-  /** The radio that covers the robot; "Your turn" keeps its route highlighted. */
+  /** The edge radio the robot connects to once the failed radio is gone; -1 when none covers it. */
+  handoverRadio: number;
+  /** The radio that covered the robot at the hold; "Your turn" keeps its route highlighted. */
   watchedRadio: number;
   failS: number;
-  /** The neighbors declare the radio down here (3/3 missed hellos). */
+  /** The neighbors declare the radio down here (3/3 missed hellos), and the "Handover" step starts. */
   detectS: number;
+  /** The robot links to the handover radio here: when it, like the neighbors, has missed the hellos. */
+  handoverS: number;
   /** The ticket goes out here, when the "Recovered" step starts. */
   ticketS: number;
   costS: number;
@@ -97,8 +103,9 @@ export function buildTimeline(
   graph: Graph,
   cost: CostSummary = null,
 ): BuildTimeline {
-  const scenario = failureScenario(model, graph);
-  const { holdBuildS, uplink, failed, robot } = scenario;
+  // The "Take me there" radio stays up: the 3D view is there to show its four beams (D121, D170).
+  const scenario = failureScenario(model, graph, [featuredRadio(model)]);
+  const { holdBuildS, failed, robot } = scenario;
   const label = (id: number) => (id === graph.baseId ? 'the base' : model.radios[id].label);
   const machine = PLAY.equipment.kinds[robot.glyph].name;
   const robotName = machine.toLowerCase();
@@ -111,9 +118,8 @@ export function buildTimeline(
   const holdS = buildStartS + holdBuildS;
   const failS = presetFailS(graph, failed, holdS + PLAY_WALK.dataS);
   const lastHelloS = failS - PLAY.failAfterHelloS;
-  const firstMissS = lastHelloS + ROUTING.helloIntervalS;
   const detectS = lastHelloS + n * ROUTING.helloIntervalS;
-  const ticketS = detectS + PLAY_WALK.rerouteS;
+  const ticketS = detectS + PLAY_WALK.handoverS;
   const resumeS = ticketS + PLAY_WALK.recoveredS;
   const restS = model.buildS - holdBuildS + PLAY_WALK.buildHoldS;
   const buildEndS = resumeS + model.buildS - holdBuildS;
@@ -151,36 +157,26 @@ export function buildTimeline(
   const radioHops = scenario.route.length - 1;
   const extraHops = hopsAtS(resumeS - BEFORE_S) - hopsAtS(holdS);
   const end = statsAt(sim, resumeS - BEFORE_S);
-  const waiting = statsAt(sim, detectS - BEFORE_S).queued;
-  let queueNode = uplink;
-  for (let i = 0; i < graph.nodeCount; i++) {
-    if (queueAt(sim, i, detectS - BEFORE_S) > queueAt(sim, queueNode, detectS - BEFORE_S))
-      queueNode = i;
-  }
-  const repair = sim.events.find((e) => e.kind === 'localRepair');
-
-  // The robot's own link through the failure, by the coverage rule (D51).
-  const alive = scenario.online.slice();
-  alive[failed] = 0;
-  const via = coveringNode(
-    graph,
-    computeNetwork(graph, alive).connected,
-    PLAY.coverageRadiusM,
-    robot.x,
-    robot.y,
+  // The robot's handover (D170): the radio it links to once it, like the failed radio's neighbors, has missed
+  // its hellos. The coverage rule (D51) picks the same radio the scenario chose.
+  const relink = sim.events.find(
+    (e) => e.kind === 'uplink' && e.node === robotNode && e.tS > failS,
   );
-  const robotLink =
-    via >= 0
-      ? `${label(via)} still covers the ${robotName}, so it keeps working.`
-      : `The ${robotName} has no coverage left and stops.`;
-  let lostText = `No data lost: all ${count.format(waiting)} queued packets reach the base.`;
-  if (end.lost > 0) lostText = `${count.format(end.lost)} packets lost.`;
-  else if (end.queued > 0)
-    lostText = `No data lost; ${count.format(end.queued)} packets still queued.`;
+  const handoverRadio = relink ? relink.other : -1;
+  const handoverS = relink ? relink.tS : Infinity;
+  const held = relink ? queueAt(sim, robotNode, handoverS - BEFORE_S) : 0;
+  const waiting = statsAt(sim, detectS - BEFORE_S).queued;
+  const packets = (k: number) => `${count.format(k)} ${k === 1 ? 'packet' : 'packets'}`;
+
+  let lostText = `No data lost: all ${packets(waiting)} queued reach the base`;
+  if (end.lost > 0) lostText = `${packets(end.lost)} lost`;
+  else if (end.queued > 0) lostText = `No data lost; ${packets(end.queued)} still queued`;
   const hopsText =
     extraHops === 0
-      ? 'The route is as short as before.'
-      : `The route is ${extraHops} ${extraHops === 1 ? 'hop' : 'hops'} longer.`;
+      ? 'on a route as short as before.'
+      : `on a route ${Math.abs(extraHops)} ${Math.abs(extraHops) === 1 ? 'hop' : 'hops'} ${
+          extraHops > 0 ? 'longer' : 'shorter'
+        }.`;
   const costCaption = cost
     ? `The full site needs ${count.format(cost.modules)} of these radios: about ${formatUsd(
         cost.totalUsd,
@@ -211,33 +207,28 @@ export function buildTimeline(
     {
       id: 'robot',
       label: 'Robot data',
-      caption: `Time slows mid-build. The ${robotName} reports via ${label(uplink)}, ${radioHops} hops from the base.`,
+      caption: `Time slows mid-build. The ${robotName} sends via edge radio ${label(failed)}, ${radioHops} hops from the base.`,
       durationS: failS - holdS,
     },
     {
       id: 'failure',
-      label: 'Failure',
-      caption: `Radio ${label(failed)} on its route fails. ${robotLink}`,
-      durationS: firstMissS - failS,
+      label: 'Edge radio fails',
+      caption: `Edge radio ${label(failed)} fails and the ${robotName}'s link drops. Still in coverage, it keeps working.`,
+      durationS: detectS - failS,
     },
     {
-      id: 'detection',
-      label: 'Detection',
-      caption: `Its neighbors miss ${n} hellos in a row. The data waits in a queue at ${label(queueNode)}.`,
-      durationS: detectS - firstMissS,
-    },
-    {
-      id: 'reroute',
-      label: 'Reroute',
-      caption: repair
-        ? `${label(repair.node)} switches to its backup, ${label(repair.other)}, and the new route spreads.`
-        : "The new route spreads from the failed radio's neighbors.",
+      id: 'handover',
+      label: 'Handover',
+      caption:
+        handoverRadio >= 0
+          ? `The ${robotName} connects to ${label(handoverRadio)}, another edge radio, and sends the ${packets(held)} it held.`
+          : `No other radio covers the ${robotName}, so it stops.`,
       durationS: ticketS - detectS,
     },
     {
       id: 'recovered',
       label: 'Recovered',
-      caption: `${lostText} ${hopsText}`,
+      caption: `${lostText}, ${hopsText}`,
       durationS: resumeS - ticketS,
     },
     {
@@ -276,9 +267,11 @@ export function buildTimeline(
     scenario,
     robotNode,
     failedRadio: failed,
-    watchedRadio: uplink,
+    handoverRadio,
+    watchedRadio: failed,
     failS,
     detectS,
+    handoverS,
     ticketS,
     costS: costCaption ? startOf('cost') : Infinity,
     yourTurnS: startOf('your-turn'),
@@ -287,11 +280,4 @@ export function buildTimeline(
 }
 
 /** Steps whose motion is slowed for visibility (spec 0.5). */
-export const SLOWED_STEPS = new Set([
-  'robot',
-  'failure',
-  'detection',
-  'reroute',
-  'recovered',
-  'your-turn',
-]);
+export const SLOWED_STEPS = new Set(['robot', 'failure', 'handover', 'recovered', 'your-turn']);

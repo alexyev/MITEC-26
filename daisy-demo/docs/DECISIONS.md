@@ -1040,3 +1040,48 @@ A folded panel used to be a text-only chip ("Survey", "Full site", "Legend"), an
 - The icons say what the panel holds: sliders for the control panel, a gauge for the readout card ("Full site" and "Readout") and a palette for the legend.
 - The control panel's chip reads "Controls & steps" on both tabs (`UI.controlsChip`), since the panel's own title is the tab's name; the panel keeps its title when open.
 - At 1280 x 720 and 1440 x 900 the chips sit at the top of the left and right docks, under the brand and the cost chip, and the legend's chip under the map tools, clear of the player bar and the "Take me there" call to action.
+
+## D170 - The walkthrough's failure is on the edge (edge failure round, captain's request)
+
+The captain asked for the radio that fails in the Build walkthrough to be on the edge of the network rather than inside it, and to show a robot that was talking to one edge radio carry on through a different one.
+This supersedes the interior failure of D70 (C6-2, behind the front); the moment, the robot's traffic and the repair of D70 and D71 stay.
+
+- **Edge radio.** A radio that is on is on the edge of the network when one of its four sides on the radio grid has no radio that is on, because that radio is not built yet or the site ends there (`edgeRadios` in `engine/scenario.ts`).
+- **The choice.** `failureScenario` looks for a frontier robot whose serving radio (the nearest connected radio that covers it, D51) is an edge radio, and which another edge radio also covers, so the same coverage rule hands it over once the first is gone.
+  The radio that fails is the robot's serving radio; the radio it hands over to is what the coverage rule picks without it.
+- **No one else is stranded.** The failure must leave every other machine of the moment in coverage too, so the handover is the only change on the map.
+- **The hold moment follows from the model.** The hold stays in the foundations phase of the middle stage, at the first of `PLAY.scenario.phaseShares` (0.5, 0.75, 0.25) where a robot qualifies, and in the nearest stage otherwise.
+  Halfway through the phase every candidate's edge radio is also the only cover of another pile rig; three quarters through, the east face's pile rig at the frontier qualifies.
+- **The result.** Stage 5 of 8, 75% through the foundations: the pile rig sends via edge radio C8-2, 4 hops from the base; C8-2 fails and the pile rig hands over to edge radio C8-3, also 4 hops from the base, so its route is as short as before.
+- **Ranking.** Among qualifying robots the east face's comes first (D70's story), then the longest route to the base, then the row nearest the base's.
+- **The "Take me there" radio is out.** C4-3 (D121) is passed as excluded, so it never fails and never takes over in the walkthrough.
+
+## D171 - The handover in the engine and the steps (D170)
+
+- **Engine.** A machine source already relinks at every detection (D71): it hears the same hellos as the failed radio's neighbors, so when its serving radio goes silent it holds its packets in its own queue, and at detection it links to the nearest radio that still covers it and flushes the queue there.
+  The handover therefore comes 3 hello intervals after the last hello, the same moment the neighbors declare the radio down.
+  `uplinkChangeAt` reads the latest switch of a node's next hop back from the result.
+- **Steps.** Robot data, Edge radio fails (from the failure to detection, which merges D70's Failure and Detection), Handover (from detection for `PLAY_WALK.handoverS`), then Recovered and Resume as before.
+- **Captions from the simulation.** The handover radio is the radio of the robot's first `uplink` event after the failure, and the packets it held are its queue just before; the Recovered caption counts every packet that waited and compares the route's hops before and after.
+  Every caption stays within 90 characters.
+- **"Your turn" is unchanged.** A click on a radio inside the mesh still reroutes around it with local repair and the spreading route update (`tests/robotSource.test.ts` keeps the C6-2 case).
+- **Tests** (`tests/robotSource.test.ts`, `tests/buildTab.test.ts`): the failed radio is on the edge and is the robot's serving radio; another commissioned edge radio covers the robot; no other machine loses coverage; C4-3 is never chosen; the robot relinks to the other edge radio within the hello timing; zero packets lost and every queued packet delivered; the same seed gives the same events; the scene's link states, routes and captions through the steps.
+
+## D172 - Drawing the handover (D170)
+
+The moment the robot connects to a different edge radio is the visual focus of the failure steps.
+
+- **The robot's link has its own mark.** The robot's first hop is drawn apart from its route: live, a data-blue line wider than a route on a dark casing; while its radio is silent, dashed in the fail red; after the handover, the old link stays dashed red and fades out over `handoverFadeS`.
+- **The new link arrives.** For `handoverGlowS` after the handover the new link glows and a data-blue ring grows from the new radio.
+  The large route-update ring of a reroute is left out while the robot sends, so it does not compete with the handover.
+- **The robot names its radio.** Its badge reads "Pile rig · via C8-2", then "Pile rig · link lost" in red while C8-2 is silent, then "Pile rig · via C8-3".
+  The badge moves sideways off any radio dot it would cover, so C8-3 and its ring stay in view.
+- **The data waits at the robot.** The robot's own queue gets a badge under its frame, and its route before the failure shows dashed grey from the failure on, while it has no live route.
+- **The missed-hello badge leans away from the robot** when the failed radio is the robot's own, so the two badges never overlap.
+
+## D173 - Readout and hover cards for the handover (D170)
+
+- **Readout.** While the robot sends, STRESS-TEST shows "Handover in" (the failure to the robot's switch) in place of "Rerouted in", and the watched row is "Pile rig sends via" with the radio's name, or "Lost" while it is silent.
+  The row stays one line, so the card still fits beside the legend at 1280 x 720 (D72).
+  "Your turn" keeps "Rerouted in" and the extra hops on C8-2's route.
+- **Hover cards.** The robot's card says when its radio is silent and that it is holding data, and adds its queue and, after the handover, "C8-2 to C8-3"; the radio it sends through gets a "Serves" row.

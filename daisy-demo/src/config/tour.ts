@@ -141,9 +141,11 @@ export interface TourFacts {
   buildStages: number;
   radios: number;
   robot: string;
-  uplink: string;
-  uplinkHops: number;
+  /** The edge radio the robot sends through, which fails, and its hops to the base (D170). */
   failed: string;
+  failedHops: number;
+  /** The other edge radio the robot connects to once the first is gone (D170). */
+  handover: string;
   /** The radio the Build map's "Take me there" pin flies to in 3D (D121). */
   cornerRadio: string;
   missedHellos: number;
@@ -216,7 +218,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'story',
       title: 'The story',
-      body: `A section of the site goes up in ${f.buildStages} stages, ${f.radios} radios in all. Mid-build, a ${f.robot} sends its data via ${f.uplink}, ${f.uplinkHops} hops from the base. Radio ${f.failed} on its route fails; its neighbors miss ${f.missedHellos} hellos and reroute the data around it.`,
+      body: `A section of the site goes up in ${f.buildStages} stages, ${f.radios} radios in all. Mid-build, a ${f.robot} sends its data via edge radio ${f.failed}, ${f.failedHops} hops from the base. ${f.failed} fails; once its neighbors miss ${f.missedHellos} hellos, the ${f.robot} connects to ${f.handover}, another edge radio that covers it, and keeps working.`,
       targets: ['steps'],
       tab: 'build',
     },

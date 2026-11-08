@@ -204,30 +204,23 @@ export function drawScene(
     ctx.restore();
   }
 
-  // Old paths (dashed grey) under the live routes (blue on a dark casing).
+  // Old paths (dashed grey) under the live routes (blue on a dark casing). A route from the robot starts at its
+  // radio: the robot's own link is drawn below, by its state (D170).
+  const fromRadio = (paths: number[][]) =>
+    paths.map((path) => (path[0] >= graph.nodeCount ? path.slice(1) : path));
+  const oldRoutes = fromRadio(scene.oldRoutes);
+  const routes = fromRadio(scene.routes);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  strokePaths(
-    ctx,
-    scene.oldRoutes,
-    px,
-    c.oldRoute,
-    PLAY_VIEW.oldRouteWidthPx,
-    PLAY_VIEW.oldRouteDashPx,
-  );
-  strokePaths(
-    ctx,
-    scene.routes,
-    px,
-    c.halo,
-    PLAY_VIEW.routeWidthPx + PLAY_VIEW.routeCasingPx * 2,
-    [],
-  );
-  strokePaths(ctx, scene.routes, px, c.dataRoute, PLAY_VIEW.routeWidthPx, []);
+  strokePaths(ctx, oldRoutes, px, c.oldRoute, PLAY_VIEW.oldRouteWidthPx, PLAY_VIEW.oldRouteDashPx);
+  strokePaths(ctx, routes, px, c.halo, PLAY_VIEW.routeWidthPx + PLAY_VIEW.routeCasingPx * 2, []);
+  strokePaths(ctx, routes, px, c.dataRoute, PLAY_VIEW.routeWidthPx, []);
+  if (scene.robot) drawAccess(ctx, scene, px(scene.robot.node), px, c, opt.reducedMotion);
 
-  // Route update: a ring that spreads from the failed radio at detection (slowed for visibility).
+  // Route update: a ring that spreads from the failed radio at detection (slowed for visibility). While the
+  // robot sends, its handover is the change to watch, with its own ring at the new radio (D170).
   for (const f of scene.failures) {
-    if (opt.reducedMotion || f.record.detectS === null) continue;
+    if (opt.reducedMotion || f.record.detectS === null || scene.robot) continue;
     const age = (t - f.record.detectS) / PLAY_VIEW.updateRingS;
     if (age < 0 || age >= 1) continue;
     const p = px(f.record.radio);
@@ -353,15 +346,24 @@ export function drawScene(
     const p = worldToScreen(v, m.x, m.y);
     const top = p.sy - PLAY_VIEW.machineTilePx - PLAY_VIEW.robotFrameGapPx - PLAY_VIEW.labelGapPx;
     const name = model.config.equipment.kinds[m.glyph].name;
-    const text = robot.uplink >= 0 ? `${name} · sending` : `${name} · no link`;
-    badge(
-      ctx,
-      text,
-      p.sx,
-      top - PLAY_VIEW.badgeHeightPx / 2,
-      robot.uplink >= 0 ? c.data : c.fail,
-      c,
-    );
+    // The radio it sends through, by name, so the handover reads on the robot itself (D170).
+    let text = `${name} · no link`;
+    if (robot.linkDown) text = `${name} · link lost`;
+    else if (robot.uplink >= 0) text = `${name} · via ${nodeLabel(model, graph, robot.uplink)}`;
+    const live = robot.uplink >= 0 && !robot.linkDown;
+    // The label clears every radio dot, so the radios the robot links to stay in view (D170).
+    const half = Math.ceil(ctx.measureText(text).width) / 2 + PLAY_VIEW.badgePadPx;
+    const y = top - PLAY_VIEW.badgeHeightPx / 2;
+    const clear = PLAY_VIEW.radioPx + PLAY_VIEW.radioHaloPx + PLAY_VIEW.labelGapPx / 2;
+    let x = p.sx;
+    for (const r of model.radios) {
+      if (scene.radioBuild[r.id] === RadioBuild.None) continue;
+      const q = px(r.id);
+      if (Math.abs(q.sy - y) > PLAY_VIEW.badgeHeightPx / 2 + clear) continue;
+      if (Math.abs(q.sx - x) > half + clear) continue;
+      x = q.sx < p.sx ? q.sx + clear + half : q.sx - clear - half;
+    }
+    badge(ctx, text, x, y, live ? c.data : c.fail, c);
   }
 
   // Labels: missed hellos next to a failed radio, queue badges next to waiting radios.
@@ -375,18 +377,99 @@ export function drawScene(
     const text = f.detected
       ? `Down · ${n}/${n} hellos missed`
       : `Missed hellos ${f.missedHellos}/${n}`;
-    badge(ctx, text, p.sx, p.sy - PLAY_VIEW.labelGapPx - PLAY_VIEW.badgeHeightPx / 2, c.fail, c);
+    // Beside the robot's own radio (D170), the label leans away from the robot, so both stay readable.
+    let x = p.sx;
+    if (robot && scene.access.some((a) => a.radio === f.record.radio)) {
+      const r = px(robot.node);
+      const half = Math.ceil(ctx.measureText(text).width) / 2 + PLAY_VIEW.badgePadPx;
+      x += (r.sx > p.sx ? -1 : 1) * (half - PLAY_VIEW.failRingPx);
+    }
+    badge(ctx, text, x, p.sy - PLAY_VIEW.labelGapPx - PLAY_VIEW.badgeHeightPx / 2, c.fail, c);
   }
   for (const q of scene.queues) {
     const p = px(q.node);
+    // The robot's own queue sits under its frame, not under its center.
+    const below =
+      q.node >= graph.nodeCount ? PLAY_VIEW.machineTilePx + PLAY_VIEW.robotFrameGapPx : 0;
     badge(
       ctx,
       `${q.count} queued`,
       p.sx,
-      p.sy + PLAY_VIEW.labelGapPx + PLAY_VIEW.badgeHeightPx / 2,
+      p.sy + below + PLAY_VIEW.labelGapPx + PLAY_VIEW.badgeHeightPx / 2,
       c.data,
       c,
     );
+  }
+}
+
+/** A radio's label, or "base". */
+function nodeLabel(model: PlayModel, graph: Graph, id: number): string {
+  return id === graph.baseId ? 'base' : model.radios[id].label;
+}
+
+/**
+ * The robot's links to its radios (D170): a live link wider than a route, in data blue on a dark casing; a link
+ * to a silent radio dashed in red; the link it left at a handover dashed red and fading. A new link glows and a
+ * ring grows from its radio, so the moment the robot connects to a different radio is the one the eye lands on.
+ */
+function drawAccess(
+  ctx: CanvasRenderingContext2D,
+  scene: Scene,
+  from: { sx: number; sy: number },
+  px: (id: number) => { sx: number; sy: number },
+  c: DrawColors,
+  reducedMotion: boolean,
+): void {
+  const line = (to: { sx: number; sy: number }) => {
+    ctx.beginPath();
+    ctx.moveTo(from.sx, from.sy);
+    ctx.lineTo(to.sx, to.sy);
+  };
+  for (const a of scene.access) {
+    const to = px(a.radio);
+    if (a.kind === 'live') {
+      const k = a.age / PLAY_VIEW.handoverGlowS;
+      if (!reducedMotion && k >= 0 && k < 1) {
+        ctx.globalAlpha = (1 - k) * 0.45;
+        ctx.strokeStyle = c.data;
+        ctx.lineWidth = PLAY_VIEW.accessWidthPx + PLAY_VIEW.handoverGlowPx * (1 - k);
+        line(to);
+        ctx.stroke();
+        ctx.globalAlpha = 1 - k;
+        ring(
+          ctx,
+          to.sx,
+          to.sy,
+          PLAY_VIEW.radioPx + easeOut(k) * PLAY_VIEW.handoverRingPx,
+          c.data,
+          2,
+        );
+        ctx.globalAlpha = 1;
+      }
+      ctx.strokeStyle = c.halo;
+      ctx.lineWidth = PLAY_VIEW.accessWidthPx + PLAY_VIEW.routeCasingPx * 2;
+      line(to);
+      ctx.stroke();
+      ctx.strokeStyle = c.data;
+      ctx.lineWidth = PLAY_VIEW.accessWidthPx;
+      line(to);
+      ctx.stroke();
+      continue;
+    }
+    const alpha = a.kind === 'dropped' ? 1 - clamp01(a.age / PLAY_VIEW.handoverFadeS) : 1;
+    if (alpha <= 0) continue;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = c.halo;
+    ctx.lineWidth = PLAY_VIEW.accessDownWidthPx + PLAY_VIEW.routeCasingPx * 2;
+    ctx.setLineDash(PLAY_VIEW.accessDashPx);
+    line(to);
+    ctx.stroke();
+    ctx.strokeStyle = c.fail;
+    ctx.lineWidth = PLAY_VIEW.accessDownWidthPx;
+    line(to);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
   }
 }
 

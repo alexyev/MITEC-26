@@ -835,6 +835,21 @@ export function hopsAt(sim: SimResult, node: number, t: number): number {
   return timelineAt(sim.hops[node], t, sim.versions[0].hops[node] ?? -1);
 }
 
+/**
+ * The latest change of a node's next hop at or before t (for a machine source: its switch from one radio to
+ * another, D170), or null when it has not changed since the start. -1 stands for no next hop.
+ */
+export function uplinkChangeAt(
+  sim: SimResult,
+  node: number,
+  t: number,
+): { from: number; to: number; atS: number } | null {
+  const line = sim.nextHop[node];
+  const i = countAtOrBefore(line.tS, t) - 1;
+  if (i < 1) return null;
+  return { from: line.value[i - 1], to: line.value[i], atS: line.tS[i] };
+}
+
 /** The route a node's packets take at time t, following each node's own next hop. */
 export function pathAt(sim: SimResult, from: number, t: number): number[] {
   const path = [from];

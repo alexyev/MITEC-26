@@ -67,11 +67,16 @@ export interface PlayConfig {
    */
   clickTrafficS: number;
   /**
-   * The walkthrough's failure mid-build (D70): the build holds `phaseShare` of the way through the `phase` of
-   * the middle stage, and one of that phase's robots on the east face sends its task status and safety
-   * messages, one packet every `robotPacketIntervalS` (placeholder), while a radio on its route fails.
+   * The walkthrough's failure mid-build (D70, D170): the build holds part of the way through the `phase` of the
+   * middle stage, at the first of `phaseShares` (shares of the phase, in order of preference) where a robot
+   * qualifies, else in the nearest stage that has one. The robot sends its task status and safety messages, one
+   * packet every `robotPacketIntervalS` (placeholder), while the edge radio it sends through fails.
    */
-  scenario: { phase: FrontierPhase['id']; phaseShare: number; robotPacketIntervalS: number };
+  scenario: {
+    phase: FrontierPhase['id'];
+    phaseShares: readonly number[];
+    robotPacketIntervalS: number;
+  };
   /** Playback time per hop ("Packets slowed for visibility"). */
   hopS: number;
   /** Spacing of the packets that leave a queue once the radio has a route again. */
@@ -130,7 +135,7 @@ export const PLAY: PlayConfig = {
   },
   packetIntervalS: 1.0,
   clickTrafficS: 6,
-  scenario: { phase: 'foundations', phaseShare: 0.5, robotPacketIntervalS: 0.25 },
+  scenario: { phase: 'foundations', phaseShares: [0.5, 0.75, 0.25], robotPacketIntervalS: 0.25 },
   hopS: 0.15,
   queueFlushIntervalS: 0.05,
   maxPacketHops: 64,
@@ -155,7 +160,8 @@ export const PLAY_WALK = {
   coverageS: 4,
   /** Planned length of the data step; it stretches to the failed radio's next hello (D44). */
   dataS: 5,
-  rerouteS: 3,
+  /** The robot's handover to another edge radio plays from detection for this long (D170). */
+  handoverS: 3,
   recoveredS: 5,
   costS: 5,
 };
@@ -186,6 +192,18 @@ export const PLAY_VIEW = {
   routeCasingPx: 1.5,
   oldRouteWidthPx: 1.5,
   oldRouteDashPx: [5, 4],
+  /**
+   * The robot's link to its radio (D170): wider than a route while live; dashed red while its radio is silent,
+   * then fading out over `handoverFadeS` once the robot has moved on. A new link glows for `handoverGlowS`,
+   * this much wider, while a ring grows from the new radio to `handoverRingPx`.
+   */
+  accessWidthPx: 4,
+  accessDashPx: [6, 5],
+  accessDownWidthPx: 2.5,
+  handoverFadeS: 2.5,
+  handoverGlowS: 1.2,
+  handoverGlowPx: 8,
+  handoverRingPx: 26,
   coverageEdgePx: 1,
   /** A radio's coverage circle scales in over this time when it comes online (spec 6.7). */
   radioFadeInS: 0.3,

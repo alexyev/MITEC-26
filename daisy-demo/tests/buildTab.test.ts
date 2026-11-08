@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ROUTING } from '../src/config/defaults';
-import { PLAY, PLAY_WALK } from '../src/config/play';
-import { failedAt, hopsAt, simulate, statsAt } from '../src/engine/packetSim';
+import { PLAY, PLAY_VIEW, PLAY_WALK } from '../src/config/play';
+import { failedAt, hopsAt, queueAt, simulate, statsAt } from '../src/engine/packetSim';
 import { cellRadioId, UnitState } from '../src/engine/playModel';
 import { findSetup, PRICING } from '../src/engine/pricing';
 import { getSiteModel } from '../src/state/model';
@@ -29,8 +29,7 @@ describe('Build & failure walkthrough (T4.4, D70)', () => {
       'power',
       'robot',
       'failure',
-      'detection',
-      'reroute',
+      'handover',
       'recovered',
       'resume',
       'coverage',
@@ -47,12 +46,16 @@ describe('Build & failure walkthrough (T4.4, D70)', () => {
     expect(start('coverage')).toBeCloseTo(tl.buildEndS + PLAY_WALK.buildHoldS, 9);
   });
 
-  it('puts the failure, the missed hellos and the detection on step boundaries', () => {
+  it('puts the failure and the handover at detection on step boundaries (D170)', () => {
     expect(start('failure')).toBeCloseTo(tl.failS, 9);
     const lastHello = tl.failS - PLAY.failAfterHelloS;
-    expect(start('detection')).toBeCloseTo(lastHello + ROUTING.helloIntervalS, 9);
-    expect(start('reroute')).toBeCloseTo(tl.detectS, 9);
-    expect(start('recovered') - start('reroute')).toBeCloseTo(PLAY_WALK.rerouteS, 9);
+    expect(tl.detectS).toBeCloseTo(
+      lastHello + ROUTING.missedHellosToDown * ROUTING.helloIntervalS,
+      9,
+    );
+    expect(start('handover')).toBeCloseTo(tl.detectS, 9);
+    expect(tl.handoverS).toBeCloseTo(tl.detectS, 9);
+    expect(start('recovered') - start('handover')).toBeCloseTo(PLAY_WALK.handoverS, 9);
     expect(tl.failS - tl.holdS).toBeGreaterThanOrEqual(PLAY_WALK.dataS);
     expect(tl.failS - tl.holdS).toBeLessThan(PLAY_WALK.dataS + ROUTING.helloIntervalS + 0.1);
   });
@@ -118,20 +121,18 @@ describe('one design: play model and full-site cost (T4.4, D50)', () => {
     const sim = simAt([], tl.resumeS - 0.01).result;
     const waiting = statsAt(sim, tl.detectS - 1e-6).queued;
     expect(caption('robot')).toBe(
-      'Time slows mid-build. The pile rig reports via C8-2, 4 hops from the base.',
+      'Time slows mid-build. The pile rig sends via edge radio C8-2, 4 hops from the base.',
     );
     expect(caption('failure')).toBe(
-      'Radio C6-2 on its route fails. C8-2 still covers the pile rig, so it keeps working.',
+      "Edge radio C8-2 fails and the pile rig's link drops. Still in coverage, it keeps working.",
     );
-    expect(caption('detection')).toContain(`miss ${ROUTING.missedHellosToDown} hellos`);
-    expect(caption('detection')).toContain('queue at C7-2');
-    expect(caption('reroute')).toBe(
-      'C7-2 switches to its backup, C7-3, and the new route spreads.',
+    expect(caption('handover')).toBe(
+      `The pile rig connects to C8-3, another edge radio, and sends the ${waiting} packets it held.`,
     );
     expect(caption('recovered')).toBe(
-      `No data lost: all ${waiting} queued packets reach the base. The route is 1 hop longer.`,
+      `No data lost: all ${waiting} packets queued reach the base, on a route as short as before.`,
     );
-    expect(caption('resume')).toContain('A crew swaps C6-2');
+    expect(caption('resume')).toContain('A crew swaps C8-2');
   });
 });
 
@@ -184,26 +185,77 @@ describe('sceneAt (T4.4, D70)', () => {
     expect(s.latest).toBeNull();
   });
 
-  it('fails the radio, queues, then reroutes the robot data with a ticket, losing nothing', () => {
+  it('shows the robot on a live, highlighted link to its edge radio before the failure (D170)', () => {
+    const s = scene(start('failure') - 0.01);
+    const robot = s.robot as NonNullable<typeof s.robot>;
+    expect(robot.uplink).toBe(tl.failedRadio);
+    expect(robot.linkDown).toBe(false);
+    expect(robot.handover).toBeNull();
+    expect(s.access).toEqual([{ radio: tl.failedRadio, kind: 'live', age: Infinity }]);
+    expect(s.oldRoutes).toEqual([]);
+  });
+
+  it('fails the edge radio: the link drops and the robot holds its data, still working (D170)', () => {
     const failed = tl.failedRadio;
-    const upstream = cellRadioId(PLAY_MODEL, 7, 2);
     const atFail = scene(start('failure'));
     expect(atFail.failed[failed]).toBe(1);
     // Overlapping circles: the robot keeps its coverage and keeps working (D51).
     for (const m of atFail.machines) expect(m.online).toBe(true);
+    const robot = atFail.robot as NonNullable<typeof atFail.robot>;
+    expect(robot.linkDown).toBe(true);
+    expect(atFail.access).toEqual([{ radio: failed, kind: 'down', age: 0 }]);
+    // No live route while its data waits; the old one is dashed from the failure on.
+    expect(atFail.routes).toEqual([]);
+    const name = (id: number) => (id >= PLAY_GRAPH.nodeCount ? 'robot' : label(id));
+    expect(atFail.oldRoutes.map((r) => r.map(name))).toEqual([
+      ['robot', 'C8-2', 'C7-2', 'C6-2', 'C5-2', 'base'],
+    ]);
 
-    const detecting = scene(start('reroute') - 0.01);
+    const detecting = scene(start('handover') - 0.01);
     expect(detecting.latest?.missedHellos).toBe(ROUTING.missedHellosToDown - 1);
-    expect(detecting.queues.find((q) => q.node === upstream)?.count).toBeGreaterThan(0);
+    expect(detecting.queues.find((q) => q.node === tl.robotNode)?.count).toBeGreaterThan(5);
+    expect(detecting.robot?.queued).toBeGreaterThan(5);
     expect(detecting.ticket).toBeNull();
+    for (const m of detecting.machines) expect(m.online).toBe(true);
+  });
+
+  it('hands the robot over to the other edge radio, then delivers its data, losing nothing', () => {
+    const failed = tl.failedRadio;
+    const to = tl.handoverRadio;
+    expect(label(to)).toBe('C8-3');
+    const handover = scene(start('handover') + 0.01);
+    const robot = handover.robot as NonNullable<typeof handover.robot>;
+    expect(robot.uplink).toBe(to);
+    expect(robot.linkDown).toBe(false);
+    expect(robot.handover).toEqual({ from: failed, to, atS: tl.handoverS });
+    expect(handover.access.map((a) => [a.radio, a.kind])).toEqual([
+      [to, 'live'],
+      [failed, 'dropped'],
+    ]);
+    expect(robotPath(handover)).toEqual(['robot', 'C8-3', 'C7-3', 'C6-3', 'C5-3', 'base']);
+    // The dropped link fades out; the new one stays.
+    const later = scene(tl.handoverS + PLAY_VIEW.handoverFadeS + 0.01);
+    expect(later.access.map((a) => a.kind)).toEqual(['live']);
 
     const recovered = scene(start('recovered') + 0.01);
     expect(recovered.oldRoutes.map((r) => r.includes(failed))).toEqual([true]);
-    expect(robotPath(recovered)).toEqual(['robot', 'C8-2', 'C7-2', 'C7-3', 'C6-3', 'C5-3', 'base']);
-    expect(recovered.watchedExtraHops).toBe(1);
+    expect(robotPath(recovered)).toEqual(['robot', 'C8-3', 'C7-3', 'C6-3', 'C5-3', 'base']);
+    expect(recovered.watchedExtraHops).toBe(0);
     expect(recovered.ticket?.radio).toBe(failed);
     expect(recovered.stats?.lost).toBe(0);
     expect(recovered.stats?.queued).toBe(0);
+  });
+
+  it('states every name and number of the failure steps from the simulation (D170)', () => {
+    const caption = (id: string) => tl.steps.find((s) => s.id === id)?.caption ?? '';
+    const sim = simAt([], tl.resumeS).result;
+    const held = queueAt(sim, tl.robotNode, tl.handoverS - 1e-6);
+    expect(caption('robot')).toContain('edge radio C8-2, 4 hops');
+    expect(caption('failure')).toContain('Edge radio C8-2 fails');
+    expect(caption('handover')).toContain(`connects to C8-3, another edge radio`);
+    expect(caption('handover')).toContain(`the ${held} packets it held`);
+    expect(caption('recovered')).toContain(`all ${held} packets queued reach the base`);
+    expect(caption('recovered')).toContain('as short as before');
   });
 
   it('repairs the radio as the build resumes and finishes the build on the full network', () => {

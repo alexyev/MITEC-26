@@ -19,12 +19,29 @@ function coverageText(share: number): string {
   return tenths.toFixed(1);
 }
 
-/** The route the extra hops are about: the robot's while it sends (D70), else its radio's. */
-function watchedLabel(model: PlayModel, scene: Scene): string {
-  const robot = scene.robot ? scene.machines[scene.robot.index] : null;
-  if (robot)
-    return `Extra hops, ${model.config.equipment.kinds[robot.glyph].name.toLowerCase()} route`;
-  return `Extra hops, ${model.radios[scene.watchedRadio].label} route`;
+const extraHopsText = (extra: number | null) =>
+  extra === null ? 'No route' : `${extra > 0 ? '+' : ''}${extra}`;
+
+/**
+ * The watched row. While the robot sends (D70) it is the robot's link (D170): the radio it sends through, or
+ * "Lost" while that radio is silent. Otherwise, the extra hops on the route of the radio that covered it. One
+ * line either way, so the readout fits beside the legend at 1280 x 720 (D72).
+ */
+function WatchedKpi({ model, scene }: BuildReadoutProps) {
+  const robot = scene.robot;
+  if (!robot)
+    return (
+      <Kpi
+        label={`Extra hops, ${model.radios[scene.watchedRadio].label} route`}
+        value={extraHopsText(scene.watchedExtraHops)}
+      />
+    );
+  const name = model.config.equipment.kinds[scene.machines[robot.index].glyph].name;
+  const radio = (id: number) => model.radios[id]?.label ?? 'base';
+  let value = 'No link';
+  if (robot.linkDown) value = 'Lost';
+  else if (robot.uplink >= 0) value = radio(robot.uplink);
+  return <Kpi label={`${name} sends via`} value={value} />;
 }
 
 export interface BuildReadoutProps {
@@ -71,29 +88,34 @@ export function BuildReadout({ model, scene }: BuildReadoutProps) {
             }
             unit={latest.detected ? 's' : undefined}
           />
-          <Kpi
-            label="Rerouted in"
-            value={
-              latest.record.reroutedS !== null && latest.rerouted
-                ? formatSeconds(latest.record.reroutedS - latest.record.failS)
-                : '-'
-            }
-            unit={latest.rerouted ? 's' : undefined}
-          />
+          {scene.robot ? (
+            <Kpi
+              label="Handover in"
+              value={
+                scene.robot.handover
+                  ? formatSeconds(scene.robot.handover.atS - latest.record.failS)
+                  : '-'
+              }
+              unit={scene.robot.handover ? 's' : undefined}
+            />
+          ) : (
+            <Kpi
+              label="Rerouted in"
+              value={
+                latest.record.reroutedS !== null && latest.rerouted
+                  ? formatSeconds(latest.record.reroutedS - latest.record.failS)
+                  : '-'
+              }
+              unit={latest.rerouted ? 's' : undefined}
+            />
+          )}
           <Kpi
             label="Packets lost"
             value={formatCount(stats.lost)}
             note={`${formatCount(stats.sent)} sent · ${formatCount(stats.delivered)} delivered`}
           />
           <Kpi label="Largest queue" value={formatCount(stats.largestQueue)} />
-          <Kpi
-            label={watchedLabel(model, scene)}
-            value={
-              scene.watchedExtraHops === null
-                ? 'No route'
-                : `${scene.watchedExtraHops > 0 ? '+' : ''}${scene.watchedExtraHops}`
-            }
-          />
+          <WatchedKpi model={model} scene={scene} />
         </Section>
       ) : null}
     </Panel>

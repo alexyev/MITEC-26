@@ -109,9 +109,15 @@ function hoverCardFor(
   else if (net.cutOff[id]) subtitle = 'Cut off · no route to the base';
   else
     subtitle = `Online · ${net.routing.hops[id]} ${net.routing.hops[id] === 1 ? 'hop' : 'hops'} to base`;
+  // The radio the robot sends through says so (D170).
+  const serves =
+    scene.robot && scene.robot.uplink === id && !scene.robot.linkDown
+      ? PLAY_MODEL.config.equipment.kinds[scene.machines[scene.robot.index].glyph].name
+      : null;
   const rows: HoverCardProps['rows'] = failed
     ? []
     : [
+        ...(serves ? [{ label: 'Serves', value: serves }] : []),
         {
           label: 'Hops',
           value: hops >= 0 ? String(hops) : '-',
@@ -153,10 +159,9 @@ function machineCard(m: Machine, robot: RobotView | null, pointer: Pointer): Hov
     ? `Online · via ${nodeName(m.coveredBy)}`
     : 'Offline · no coverage, stopped';
   if (robot && m.online) {
-    subtitle =
-      robot.uplink >= 0
-        ? `Online · sending via ${nodeName(robot.uplink)}`
-        : 'Online · finding a radio';
+    if (robot.linkDown) subtitle = `Online · ${nodeName(robot.uplink)} silent, holding data`;
+    else if (robot.uplink >= 0) subtitle = `Online · sending via ${nodeName(robot.uplink)}`;
+    else subtitle = 'Online · finding a radio';
   }
   const rows: HoverCardProps['rows'] = [
     {
@@ -171,7 +176,16 @@ function machineCard(m: Machine, robot: RobotView | null, pointer: Pointer): Hov
     rows.push(
       { label: 'Hops to base', value: robot.hops >= 0 ? String(robot.hops) : '-' },
       { label: 'Packets sent', value: robot.sent.toLocaleString('en-US') },
+      { label: 'Queued', value: robot.queued.toLocaleString('en-US') },
     );
+    // The handover (D170): from the radio it left to the one it sends through now.
+    if (robot.handover) {
+      const radio = (id: number) => PLAY_MODEL.radios[id]?.label ?? 'base';
+      rows.push({
+        label: 'Handover',
+        value: `${radio(robot.handover.from)} to ${radio(robot.handover.to)}`,
+      });
+    }
   }
   return { ...pointer, title: kind.name, subtitle, rows };
 }

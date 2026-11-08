@@ -69,7 +69,7 @@ const press = (name: 'Play' | 'Pause') => fireEvent.click(screen.getByRole('butt
 describe('packets follow the playing clock (D103)', () => {
   it('stand still while paused at every data step', () => {
     render(<App />);
-    for (const step of ['Failure', 'Detection', 'Reroute', 'Recovered']) {
+    for (const step of ['Edge radio fails', 'Handover', 'Recovered']) {
       goTo(step);
       press('Play');
       runFrames(5);

@@ -45,6 +45,7 @@ export type TourTarget =
   | 'cost'
   | 'cost-card'
   | 'try-it'
+  | 'start'
   | 'tour'
   | 'brand'
   | 'player';
@@ -154,7 +155,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'play',
       title: 'Play the walkthrough',
-      body: 'Each tab is a short walkthrough. The caption above the controls says what is happening at each step.',
+      body: 'Each tab is a short walkthrough. The caption above the controls says what is happening at each step. On the Build tab the panel has its own Start button too.',
       targets: ['play'],
       anchor: 'player',
       tab: 'survey',

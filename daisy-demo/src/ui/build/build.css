@@ -7,6 +7,34 @@
   cursor: pointer;
 }
 
+.build-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.build-start {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 var(--sp-4);
+  border: 1px solid transparent;
+  border-radius: var(--r-chip);
+  background: var(--text-1);
+  color: var(--on-primary);
+  font-size: var(--fs-13);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-control) var(--ease);
+}
+
+.build-start:hover {
+  background: var(--text-2);
+}
+
 .build-hint {
   margin-bottom: var(--sp-3);
   color: var(--text-2);

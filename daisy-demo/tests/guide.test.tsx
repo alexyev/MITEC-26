@@ -305,7 +305,7 @@ describe('home screen (D90)', () => {
       expect(home.textContent).not.toContain(gone);
     }
     // The daisy: decorative, five outlined petals and a center, nothing behind them.
-    const daisy = home.querySelector('.home-art svg.daisy')!;
+    const daisy = home.querySelector('.home-art > svg.daisy')!;
     expect(daisy.getAttribute('aria-hidden')).toBe('true');
     expect(daisy.querySelectorAll('ellipse.daisy-petal')).toHaveLength(5);
     expect(daisy.querySelectorAll('circle.daisy-center')).toHaveLength(1);
@@ -314,6 +314,11 @@ describe('home screen (D90)', () => {
     expect(daisy.querySelectorAll('g.daisy-spin ellipse.daisy-petal')).toHaveLength(5);
     expect(daisy.querySelectorAll('g.daisy-spin circle.daisy-center')).toHaveLength(1);
     expect(home.querySelector('.home-lede')!.textContent).toContain('daisy-chained');
+    // A handful of mini daisies bloom around it and fade: decorative, the same drawing, no layout of their own.
+    const minis = home.querySelectorAll('.daisy-burst[aria-hidden="true"] svg.daisy-mini');
+    expect(minis.length).toBeGreaterThanOrEqual(6);
+    expect(minis.length).toBeLessThanOrEqual(10);
+    expect(minis[0].querySelectorAll('ellipse.daisy-petal')).toHaveLength(5);
   });
 
   it('credits the site by its bare domain on the home screen and the map, in a new tab (D130)', () => {

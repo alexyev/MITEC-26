@@ -8,7 +8,7 @@ import { HOME } from '../../config/tour';
 import { UI } from '../../config/defaults';
 import { skipTourFromHome, useGuideStore } from '../../state/guide';
 import { prefersReducedMotion } from '../kit/tokens';
-import { Daisy } from './Daisy';
+import { Daisy, DaisyBurst } from './Daisy';
 import { tourFacts } from './facts';
 import './guide.css';
 
@@ -129,6 +129,7 @@ function HomeScreen() {
         </div>
       </div>
       <div className="home-art">
+        <DaisyBurst />
         <Daisy />
       </div>
       <footer className="home-foot">

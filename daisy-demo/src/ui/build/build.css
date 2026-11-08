@@ -168,8 +168,53 @@
   background: linear-gradient(var(--surface-strong), var(--surface-strong)), var(--bg-0);
 }
 
-.cost-card > .label {
-  margin-bottom: var(--sp-2);
+.cost-setup {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.cost-setup .label {
+  /* The name is a brand ("HaLow"), so it keeps its case. */
+  font-size: var(--fs-12);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.cost-help {
+  display: inline-flex;
+  color: var(--text-3);
+  border-radius: var(--r-chip);
+  pointer-events: auto;
+  transition: color var(--dur-control) var(--ease);
+}
+
+.cost-help:hover {
+  color: var(--text-1);
+}
+
+.cost-proven {
+  display: block;
+  margin: var(--sp-1) 0 var(--sp-2);
+  font-size: var(--fs-11);
+  line-height: 16px;
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.cost-proven strong {
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.cost-proven svg {
+  margin-left: var(--sp-1);
+  vertical-align: -2px;
+}
+
+.cost-proven:hover {
+  color: var(--text-2);
+  text-decoration: underline;
 }
 
 .cost-compare {

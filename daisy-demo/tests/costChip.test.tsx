@@ -54,3 +54,17 @@ describe('CostChip (D54)', () => {
     expect(text).not.toContain('estimate');
   });
 });
+
+describe('CostChip links', () => {
+  it('names the setup HaLow with a help link, and links the proven-technology note, both in new tabs', () => {
+    renderChip(true);
+    expect(screen.queryByText(/integrated antennas/)).toBeNull();
+    const help = screen.getByRole('link', { name: 'What is HaLow?' });
+    expect(help.getAttribute('href')).toBe('https://en.wikipedia.org/wiki/IEEE_802.11ah');
+    expect(help.getAttribute('target')).toBe('_blank');
+    const proven = screen.getByRole('link', { name: /Proven technology/ });
+    expect(proven.getAttribute('href')).toBe('https://rajant.com/markets/mining/');
+    expect(proven.getAttribute('target')).toBe('_blank');
+    expect(proven.getAttribute('rel')).toContain('noopener');
+  });
+});

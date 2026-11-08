@@ -1,6 +1,7 @@
-// The 3D world of a radio's corner (D122 to D124): the play-model section as it stood on the map when the
-// viewer flew down (the units placed by then, every built radio's corner module with its status light, the
-// base), on desert ground under a morning sky, with the focus module's four beams. Colors come from tokens.
+// The 3D world of a radio's corner (D122 to D124, D150 to D152): the play-model section as it stood on the map
+// when the viewer flew down (the units placed by then, each with its sun tracker, every built radio's corner
+// module with its status light, the base), on desert ground under a morning sky, with the focus module's four
+// beams. Colors come from tokens.
 import {
   BufferAttribute,
   BufferGeometry,
@@ -35,11 +36,20 @@ import { createRng } from '../../engine/rng';
 import type { Scene as MapScene } from '../build/scene';
 import { cssVar } from '../kit/tokens';
 import { radioStatus, type CornerFacts } from './cornerFacts';
-import { antennaOffset, baseParts, moduleParts, p3Parts, type PartKey } from './geometry';
 import {
+  antennaOffset,
+  baseParts,
+  moduleParts,
+  p3BodyParts,
+  trackerLayout,
+  trackerParts,
+  type PartKey,
+} from './geometry';
+import {
+  brandTexture,
   corrugationNormalMap,
   fresnelNormalMap,
-  fresnelRingMap,
+  fresnelSheenMap,
   grainTexture,
   toneNoise,
 } from './textures';
@@ -49,6 +59,8 @@ export interface ScenePalette {
   steel: Color;
   dark: Color;
   lens: Color;
+  tracker: Color;
+  mark: Color;
   module: Color;
   ground: Color;
   graded: Color;
@@ -71,6 +83,8 @@ export function readScenePalette(): ScenePalette {
     steel: c('--c-scene-steel'),
     dark: c('--c-scene-dark'),
     lens: c('--c-scene-lens'),
+    tracker: c('--c-scene-tracker'),
+    mark: c('--c-scene-mark'),
     module: c('--c-scene-module'),
     ground: c('--c-scene-ground'),
     graded: c('--c-scene-graded'),
@@ -350,9 +364,16 @@ export function buildWorld(renderer: WebGLRenderer, input: WorldInput): World {
   scene.environmentIntensity = cfg.render.envIntensity;
 
   // Materials.
+  const t = cfg.tracker;
+  const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const corrugation = keep(corrugationNormalMap(cfg.unit.corrugationStrength));
-  const fresnel = keep(fresnelNormalMap(cfg.lens.rings, cfg.lens.texturePx));
-  const rings = keep(fresnelRingMap(cfg.lens.rings, cfg.lens.texturePx, cfg.lens.ringDepth));
+  const fresnel = keep(fresnelNormalMap(t.rings, t.texturePx));
+  const sheen = keep(fresnelSheenMap(t.texturePx, t.clearOpacity, t.sheenOpacity, t.sheenSeed));
+  fresnel.anisotropy = anisotropy;
+  sheen.anisotropy = anisotropy;
+  const brand = keep(brandTexture(cfg.unit.branding.texturePx));
+  brand.channel = 1;
+  brand.anisotropy = anisotropy;
   const enclosure = p.module.clone().lerp(p.dark, 0.32);
   const materials: Record<PartKey, Material> = {
     wall: new MeshStandardMaterial({
@@ -365,13 +386,39 @@ export function buildWorld(renderer: WebGLRenderer, input: WorldInput): World {
     frame: new MeshStandardMaterial({ color: p.unit, roughness: 0.52, metalness: 0.12 }),
     dark: new MeshStandardMaterial({ color: p.dark, roughness: 0.7, metalness: 0.25 }),
     steel: new MeshStandardMaterial({ color: p.steel, roughness: 0.36, metalness: 0.8 }),
-    glass: new MeshStandardMaterial({
+    // The porthole's window: a satin metal cover that catches the sky.
+    window: new MeshStandardMaterial({
+      color: p.steel.clone().lerp(p.dark, 0.25),
+      roughness: 0.24,
+      metalness: 1,
+    }),
+    // The wordmark's white paint, on the wall's ridges; its drawing is a coverage map on the decal's uv1.
+    mark: new MeshStandardMaterial({
+      color: p.mark,
+      roughness: 0.55,
+      metalness: 0.05,
+      normalMap: corrugation,
+      alphaMap: brand,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -4,
+    }),
+    // The tracker's white powder coat: pole, yoke, axle, fin, arm and the lens frame.
+    tracker: new MeshStandardMaterial({ color: p.tracker, roughness: 0.42, metalness: 0.08 }),
+    // The Fresnel panes: clear acrylic with the grooves' radial sheen, seen from both sides.
+    lens: new MeshStandardMaterial({
       color: p.lens,
-      map: rings,
-      roughness: 0.1,
-      metalness: 0.35,
+      alphaMap: sheen,
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+      roughness: 0.12,
+      metalness: 0.6,
+      envMapIntensity: 1.4,
       normalMap: fresnel,
-      normalScale: new Vector2(0.55, 0.55),
+      normalScale: new Vector2(0.5, 0.5),
     }),
     module: new MeshStandardMaterial({ color: p.module, roughness: 0.42, metalness: 0.02 }),
     enclosure: new MeshStandardMaterial({ color: enclosure, roughness: 0.5, metalness: 0.05 }),
@@ -379,10 +426,14 @@ export function buildWorld(renderer: WebGLRenderer, input: WorldInput): World {
     led: new MeshBasicMaterial({ color: new Color(1, 1, 1), toneMapped: false }),
   };
   for (const m of Object.values(materials)) keep(m);
-  for (const key of ['wall', 'frame'] as const) {
+  for (const key of ['wall', 'frame', 'tracker'] as const) {
     groundFade(materials[key] as MeshStandardMaterial, cfg.unit.groundDark, cfg.unit.groundFadeM);
   }
 
+  // Flat or see-through parts cast no shadow; the decals and the panes draw after the opaque scene, the
+  // panes over the decals, the beams last.
+  const noShadow = new Set<PartKey>(['led', 'mark', 'lens', 'window']);
+  const order: Partial<Record<PartKey, number>> = { mark: 1, lens: 1.5 };
   const matrix = new Matrix4();
   const instanced = (geoms: Map<PartKey, BufferGeometry>, at: Vector3[]) => {
     const meshes: InstancedMesh[] = [];
@@ -392,8 +443,9 @@ export function buildWorld(renderer: WebGLRenderer, input: WorldInput): World {
       mesh.count = at.length;
       at.forEach((v, i) => mesh.setMatrixAt(i, matrix.makeTranslation(v.x, v.y, v.z)));
       mesh.instanceMatrix.needsUpdate = true;
-      mesh.castShadow = key !== 'led';
-      mesh.receiveShadow = key !== 'led';
+      mesh.castShadow = !noShadow.has(key);
+      mesh.receiveShadow = key !== 'led' && key !== 'lens';
+      mesh.renderOrder = order[key] ?? 0;
       mesh.computeBoundingSphere();
       scene.add(mesh);
       meshes.push(mesh);
@@ -401,12 +453,18 @@ export function buildWorld(renderer: WebGLRenderer, input: WorldInput): World {
     return meshes;
   };
 
-  // The units placed by the time the viewer flew down, each with its lens array tilted toward the sun.
-  const tilt = Math.atan2(sunDir.x, sunDir.y);
-  const unitsAt = model.units
-    .filter((u) => map.unitState[u.id] !== UnitState.Planned)
-    .map((u) => new Vector3(u.x, 0, -u.y));
-  instanced(p3Parts(tilt).merged(), unitsAt);
+  // The units placed by the time the viewer flew down, each with its tracker (D152): a live unit's lens faces
+  // the sun and focuses into its porthole; a placed or commissioned unit, not yet powered, stows its lens flat.
+  const onSite = model.units.filter((u) => map.unitState[u.id] !== UnitState.Planned);
+  const spots = (units: typeof onSite) => units.map((u) => new Vector3(u.x, 0, -u.y));
+  const live = onSite.filter((u) => map.unitState[u.id] === UnitState.Live);
+  const unpowered = onSite.filter((u) => map.unitState[u.id] !== UnitState.Live);
+  instanced(p3BodyParts().merged(), spots(onSite));
+  const layout = trackerLayout(sunDir);
+  if (live.length) instanced(trackerParts(layout, layout.sunElevation).merged(), spots(live));
+  if (unpowered.length) {
+    instanced(trackerParts(layout, t.stowElevationDeg * DEG).merged(), spots(unpowered));
+  }
 
   // Every built radio's module, its light in the map's story colors.
   const built = model.radios.filter((r) => map.radioBuild[r.id] !== RadioBuild.None);

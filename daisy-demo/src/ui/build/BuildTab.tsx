@@ -258,9 +258,9 @@ export function BuildTab() {
     if (was && !corner.visit && was.resume) player.play();
   }, [corner.visit, player]);
 
-  // The pin shows once its radio is built, and steps aside while that radio is failed: the 3D view is
-  // there to show its four beams, and a failed radio's labels need the space above it.
-  const pin: BuildMapPin | null =
+  // "Take me there" is offered once its radio is built and steps aside while that radio is failed: the 3D view
+  // is there to show its four beams, and a failed radio's labels need the space above it.
+  const offer: BuildMapPin | null =
     FEATURED_RADIO >= 0 &&
     scene.radioBuild[FEATURED_RADIO] !== RadioBuild.None &&
     scene.failed[FEATURED_RADIO] !== 1 &&
@@ -272,6 +272,11 @@ export function BuildTab() {
           onIntent: corner.prefetch,
         }
       : null;
+  // Where: the pin on the radio while the walkthrough plays, then, once it has reached "Your turn", the
+  // call to action under the tab switch instead. One button at a time, never two with the same name.
+  const atEnd = steps[player.stepIndex]?.id === 'your-turn';
+  const pin = atEnd ? null : offer;
+  const cta = atEnd ? offer : null;
 
   const card = hover ? hoverCardFor(hover, scene, userChanges, t, pointer) : null;
   const anyFailed = scene.failed.some((f, i) => f === 1 && i < PLAY_MODEL.radios.length);
@@ -287,6 +292,7 @@ export function BuildTab() {
         onHover={onHover}
         onClickRadio={onClickRadio}
         pin={pin}
+        cta={cta}
       />
       {corner.visit && corner.View ? (
         <corner.View

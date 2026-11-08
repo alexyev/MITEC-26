@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { UI } from '../src/config/defaults';
 import {
+  cameraViewport,
   fitViewport,
   panBy,
   scaleBar,
@@ -67,5 +69,39 @@ describe('map viewport', () => {
     }
     expect(scaleBar(0.3, 120).label).toBe('200 m');
     expect(scaleBar(0.05, 120).label).toBe('2 km');
+  });
+});
+
+describe('cameraViewport (D82)', () => {
+  const from = fitViewport(4000, 2000, 1440, 900, UI.mapFitPaddingPx);
+  const target = { x: 1000, y: 1500 };
+  const focus = { sx: 720, sy: 400 };
+  const cam = (blend: number) => cameraViewport(from, { target, pxPerM: 1.8, blend }, focus);
+
+  it('is the start view at blend 0 and centers the target at the close zoom at blend 1', () => {
+    expect(cam(0)).toEqual({
+      ...from,
+      cx: expect.closeTo(from.cx, 9),
+      cy: expect.closeTo(from.cy, 9),
+    });
+    const close = cam(1);
+    expect(close.scale).toBeCloseTo(1.8, 9);
+    const s = worldToScreen(close, target.x, target.y);
+    expect(s.sx).toBeCloseTo(focus.sx, 9);
+    expect(s.sy).toBeCloseTo(focus.sy, 9);
+  });
+
+  it('zooms geometrically and slides the target on a straight screen line', () => {
+    const start = worldToScreen(from, target.x, target.y);
+    let prev = from.scale;
+    for (const f of [0.25, 0.5, 0.75]) {
+      const v = cam(f);
+      expect(v.scale).toBeCloseTo(from.scale * Math.pow(1.8 / from.scale, f), 9);
+      expect(v.scale).toBeGreaterThan(prev);
+      prev = v.scale;
+      const s = worldToScreen(v, target.x, target.y);
+      expect(s.sx).toBeCloseTo(start.sx + (focus.sx - start.sx) * f, 6);
+      expect(s.sy).toBeCloseTo(start.sy + (focus.sy - start.sy) * f, 6);
+    }
   });
 });

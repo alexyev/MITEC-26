@@ -1,7 +1,7 @@
 // The survey cost, small and off to the side (D63), in the Build tab's pattern (D54): a quiet chip at the
 // right of the top row that opens a card with the cost and its breakdown, and from there the Alternatives.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Scale } from 'lucide-react';
+import { ChevronDown, ChevronRight, Scale } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { PERCENT } from '../../config/play';
 import type { SurveyCost } from '../../engine/pricing';
@@ -12,9 +12,13 @@ import '../build/build.css';
 import { formatHours, formatInt, formatUsd } from './format';
 import { SurveyAlternativesSheet } from './SurveyAlternativesSheet';
 import { surveyAlternatives } from './surveyAlternatives';
+import { UtvKitSheet } from './UtvKitSheet';
+import type { UtvKitCost } from './utvKit';
 
 export interface SurveyCostChipProps {
   cost: SurveyCost;
+  /** One survey UTV, all in (D84), behind its own sheet. */
+  kit: UtvKitCost;
   pricingErrors: number;
   /** The walkthrough's Done step: the card opens by itself while it plays. */
   focus: boolean;
@@ -34,8 +38,8 @@ export function surveyCostRows(cost: SurveyCost): Row[] {
   const rows: Row[] = [];
   if (cost.vehicleHoursUsd !== null)
     rows.push({
-      label: '4x4 hire',
-      detail: `${formatHours(cost.vehicleHours)} 4x4-hours`,
+      label: 'UTV hire',
+      detail: `${formatHours(cost.vehicleHours)} UTV-hours`,
       usd: cost.vehicleHoursUsd,
     });
   if (cost.dronesUsd !== null)
@@ -58,16 +62,16 @@ export function surveyCostRows(cost: SurveyCost): Row[] {
 /** The parts of a survey the figure leaves out, as a sentence, or null when everything is priced. */
 export function unpricedText(cost: SurveyCost): string | null {
   const parts: string[] = [];
-  if (cost.vehicleHoursUsd === null) parts.push('the 4x4 hire');
-  if (cost.dronesUsd === null) parts.push(`the ${plural(cost.vehicles, 'drone')}`);
+  if (cost.vehicleHoursUsd === null) parts.push('the UTV hire');
   if (parts.length === 0) return null;
-  return `Without ${parts.join(' and ')}: no sourced price yet.`;
+  // The drones are bought with their UTVs, so the UTV's kit below prices them (D84).
+  return `Without ${parts.join(' and ')}: no sourced hourly rate yet. To buy, each UTV with its drone:`;
 }
 
-export function SurveyCostChip({ cost, pricingErrors, focus }: SurveyCostChipProps) {
+export function SurveyCostChip({ cost, kit, pricingErrors, focus }: SurveyCostChipProps) {
   // null follows the walkthrough; a click decides until the walkthrough's default changes again.
   const [choice, setChoice] = useState<{ open: boolean; forFocus: boolean } | null>(null);
-  const [sheet, setSheet] = useState(false);
+  const [sheet, setSheet] = useState<'alternatives' | 'utv' | null>(null);
   const open = choice && choice.forFocus === focus ? choice.open : focus;
   const rootRef = useRef<HTMLDivElement>(null);
   const toggle = (next: boolean) => setChoice({ open: next, forFocus: focus });
@@ -90,7 +94,7 @@ export function SurveyCostChip({ cost, pricingErrors, focus }: SurveyCostChipPro
   }, [open, sheet, focus]);
 
   const rows = surveyCostRows(cost);
-  const fleet = plural(cost.vehicles, '4x4');
+  const fleet = plural(cost.vehicles, 'UTV');
   const chipLabel = cost.complete ? 'Survey cost' : 'Survey connectivity';
   const unpriced = unpricedText(cost);
 
@@ -127,7 +131,7 @@ export function SurveyCostChip({ cost, pricingErrors, focus }: SurveyCostChipPro
               value={formatUsd(cost.pricedUsd)}
               headline
             />
-            <Kpi label="4x4-hours" value={formatHours(cost.vehicleHours)} unit="h" />
+            <Kpi label="UTV-hours" value={formatHours(cost.vehicleHours)} unit="h" />
             <div className="build-breakdown">
               {rows.map((r) => (
                 <div className="build-breakdown-row" key={r.label}>
@@ -141,18 +145,34 @@ export function SurveyCostChip({ cost, pricingErrors, focus }: SurveyCostChipPro
               ))}
             </div>
             {unpriced ? <p className="survey-cost-note">{unpriced}</p> : null}
-            <button type="button" className="build-btn cost-compare" onClick={() => setSheet(true)}>
+            <button type="button" className="utv-open" onClick={() => setSheet('utv')}>
+              <span className="utv-open-main">
+                One survey UTV, all in
+                <span className="utv-open-detail">
+                  Lidar front and back, RTK, Starlink, compute and drone
+                </span>
+              </span>
+              <span className="utv-open-value num">{formatUsd(kit.totalUsd)}</span>
+              <ChevronRight
+                size={UI.icon.sizePx}
+                strokeWidth={UI.icon.strokeWidth}
+                aria-hidden="true"
+              />
+            </button>
+            <button
+              type="button"
+              className="build-btn cost-compare"
+              onClick={() => setSheet('alternatives')}
+            >
               <Scale size={UI.icon.sizePx} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
               Compare alternatives
             </button>
           </section>
         ) : null}
-        {sheet ? (
-          <SurveyAlternativesSheet
-            rows={surveyAlternatives(cost)}
-            onClose={() => setSheet(false)}
-          />
+        {sheet === 'alternatives' ? (
+          <SurveyAlternativesSheet rows={surveyAlternatives(cost)} onClose={() => setSheet(null)} />
         ) : null}
+        {sheet === 'utv' ? <UtvKitSheet kit={kit} onClose={() => setSheet(null)} /> : null}
       </div>
     </DockPortal>
   );

@@ -38,3 +38,299 @@
 .alts-row.survey-alts-row {
   grid-template-columns: minmax(0, 1fr) 92px;
 }
+
+/* The survey UTV sheet (D84): the drawing, the kit with its prices, and the lidar grades. */
+.utv-sheet .alts-body {
+  gap: var(--sp-3);
+}
+
+.utv-figure {
+  margin: 0;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  background: var(--c-map-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+}
+
+.utv-figure figcaption {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.utv-art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.utv-art .utv-ground {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.utv-art .utv-fan-near {
+  stop-color: var(--c-data);
+  stop-opacity: 0.22;
+}
+
+.utv-art .utv-fan-far {
+  stop-color: var(--c-data);
+  stop-opacity: 0;
+}
+
+.utv-art .utv-beam {
+  fill: none;
+  stroke: var(--c-data);
+  stroke-width: 0.75;
+  stroke-opacity: 0.5;
+  stroke-dasharray: 2 3;
+}
+
+.utv-art .utv-body,
+.utv-art .utv-seat {
+  fill: var(--c-art-fill);
+  stroke: var(--text-3);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+}
+
+.utv-art .utv-line {
+  fill: none;
+  stroke: var(--text-3);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+.utv-art .utv-line.strong {
+  stroke: var(--text-2);
+  stroke-width: 2.5;
+}
+
+.utv-art .utv-cage {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.utv-art .utv-cage.thin {
+  stroke-width: 2;
+  stroke: var(--text-3);
+}
+
+.utv-art .utv-fender {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.utv-art .utv-tire {
+  fill: var(--c-map-halo);
+  stroke: var(--text-3);
+  stroke-width: 1.25;
+}
+
+.utv-art .utv-tread {
+  fill: none;
+  stroke: var(--border-strong);
+  stroke-width: 3;
+  stroke-dasharray: 3 3.5;
+}
+
+.utv-art .utv-rim {
+  fill: var(--surface-raised);
+  stroke: var(--text-3);
+  stroke-width: 1.25;
+}
+
+.utv-art .utv-hub {
+  fill: var(--text-3);
+}
+
+.utv-art .utv-box {
+  fill: var(--surface-strong);
+  stroke: var(--text-2);
+  stroke-width: 1.25;
+}
+
+.utv-art .utv-fins {
+  stroke: var(--text-3);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.utv-art .utv-led {
+  fill: var(--c-signal);
+}
+
+.utv-art .utv-dock {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.utv-art .utv-dock-pad {
+  stroke: var(--c-work);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.utv-art .utv-guide {
+  stroke: var(--c-work);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  stroke-opacity: 0.6;
+}
+
+.utv-art .utv-rotor {
+  fill: none;
+  stroke: var(--c-work);
+  stroke-width: 1.25;
+}
+
+.utv-art .utv-drone-arm {
+  fill: none;
+  stroke: var(--c-work);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.utv-art .utv-drone-body {
+  fill: var(--c-work);
+}
+
+.utv-art .utv-antenna {
+  fill: var(--text-1);
+  stroke: var(--text-2);
+  stroke-width: 1;
+}
+
+.utv-art .utv-panel {
+  fill: var(--text-1);
+  stroke: var(--text-2);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.utv-art .utv-lidar {
+  fill: var(--text-1);
+  stroke: var(--text-2);
+  stroke-width: 1;
+}
+
+.utv-art .utv-lidar-window {
+  stroke: var(--c-data);
+  stroke-width: 3;
+}
+
+.utv-art .utv-leader {
+  stroke: var(--text-3);
+  stroke-width: 1;
+}
+
+.utv-art .utv-leader-dot {
+  fill: var(--text-1);
+}
+
+.utv-art .utv-callouts text {
+  font-size: var(--fs-11);
+  font-weight: 500;
+  fill: var(--text-2);
+}
+
+/* Kit rows: the part and what is priced, then its price; the total under a rule. */
+.utv-kit {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.utv-kit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--sp-3);
+  padding: 6px var(--sp-2);
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-13);
+  color: var(--text-1);
+}
+
+.utv-kit-row:first-child {
+  border-top: 0;
+}
+
+.utv-kit-detail {
+  margin-left: var(--sp-2);
+  font-size: var(--fs-12);
+  color: var(--text-3);
+}
+
+.utv-kit-value {
+  font-weight: 500;
+  text-align: right;
+}
+
+.utv-kit-value.none {
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.utv-kit-row.total {
+  border-top: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+.utv-kit-row.sub {
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.utv-sources {
+  margin: 0;
+  padding-left: var(--sp-4);
+  font-size: var(--fs-11);
+  color: var(--text-3);
+}
+
+/* The card's way into the sheet: a quiet row with the per-UTV figure and a chevron. */
+.utv-open {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  margin-top: var(--sp-3);
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: transparent;
+  color: var(--text-1);
+  font-size: var(--fs-13);
+  text-align: left;
+  cursor: pointer;
+}
+
+.utv-open:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.utv-open-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.utv-open-detail {
+  font-size: var(--fs-11);
+  color: var(--text-3);
+}
+
+.utv-open-value {
+  font-weight: 600;
+}

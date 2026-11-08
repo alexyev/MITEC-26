@@ -119,15 +119,15 @@ describe('Stepper', () => {
   it('steps within min and max and locks when disabled', () => {
     const onChange = vi.fn();
     const { rerender } = render(
-      <Stepper min={1} max={8} value={8} onChange={onChange} label="4x4s" />,
+      <Stepper min={1} max={8} value={8} onChange={onChange} label="UTVs" />,
     );
     expect(screen.getByText('8')).toBeTruthy();
-    const more = screen.getByRole('button', { name: 'More 4x4s' }) as HTMLButtonElement;
+    const more = screen.getByRole('button', { name: 'More UTVs' }) as HTMLButtonElement;
     expect(more.disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Fewer 4x4s' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fewer UTVs' }));
     expect(onChange).toHaveBeenCalledWith(7);
-    rerender(<Stepper min={1} max={8} value={3} onChange={onChange} label="4x4s" disabled />);
-    expect((screen.getByRole('button', { name: 'Fewer 4x4s' }) as HTMLButtonElement).disabled).toBe(
+    rerender(<Stepper min={1} max={8} value={3} onChange={onChange} label="UTVs" disabled />);
+    expect((screen.getByRole('button', { name: 'Fewer UTVs' }) as HTMLButtonElement).disabled).toBe(
       true,
     );
   });
@@ -229,7 +229,7 @@ describe('Legend', () => {
       { token: 'data', label: 'Data', shape: 'dot' },
       { token: 'fail', label: 'Failed radio', shape: 'cross' },
       { token: 'fail', label: 'Cut off', shape: 'ring' },
-      { token: 'work', label: '4x4 path', shape: 'dash' },
+      { token: 'work', label: 'UTV path', shape: 'dash' },
       { token: 'signal', label: 'Link', shape: 'line' },
       { token: 'base', label: 'Base', shape: 'square' },
       { token: 'done', label: 'Surveyed', shape: 'fill' },

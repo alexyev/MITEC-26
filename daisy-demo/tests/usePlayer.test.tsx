@@ -231,11 +231,25 @@ describe('PlayerBar', () => {
     render(<PlayerBar player={player} steps={STEPS} />);
     const group = screen.getByRole('radiogroup', { name: 'Playback speed' });
     const options = Array.from(group.querySelectorAll('[role=radio]'));
-    expect(options.map((o) => o.textContent)).toEqual(['1×', '2×', '4×']);
-    expect(options[0].getAttribute('aria-checked')).toBe('true');
-    expect(options[0].getAttribute('title')).toBe('1× · normal speed');
-    fireEvent.click(options[2]);
+    expect(options.map((o) => o.textContent)).toEqual(['¼×', '½×', '1×', '2×', '4×']);
+    expect(options.map((o) => o.getAttribute('aria-checked'))).toEqual([
+      'false',
+      'false',
+      'true',
+      'false',
+      'false',
+    ]);
+    expect(options.map((o) => o.getAttribute('title'))).toEqual([
+      '0.25× · slower',
+      '0.5× · slower',
+      '1× · normal speed',
+      '2× · faster',
+      '4× · faster',
+    ]);
+    fireEvent.click(options[4]);
     expect(player.setSpeed).toHaveBeenCalledWith(4);
+    fireEvent.click(options[0]);
+    expect(player.setSpeed).toHaveBeenCalledWith(0.25);
   });
 
   it('seeks where the track is clicked', () => {

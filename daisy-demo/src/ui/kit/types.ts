@@ -6,7 +6,7 @@ export type ColorToken = 'signal' | 'data' | 'fail' | 'work' | 'unit' | 'done' |
 export interface LegendItem {
   token: ColorToken;
   label: string;
-  shape: 'dot' | 'circle' | 'line' | 'dash' | 'cross' | 'ring' | 'square' | 'fill' | 'drone';
+  shape: 'dot' | 'circle' | 'line' | 'dash' | 'cross' | 'ring' | 'square' | 'fill' | 'drone' | 'pad';
   /** A map variant of the token to draw with instead, as a CSS variable (for example '--c-old-route'). */
   colorVar?: string;
 }
@@ -61,7 +61,7 @@ export interface StepperProps {
   value: number;
   onChange: (value: number) => void;
   label: string;
-  /** Locks the stepper, for example while the 4x4s are driving. */
+  /** Locks the stepper, for example while the UTVs are driving. */
   disabled?: boolean;
 }
 

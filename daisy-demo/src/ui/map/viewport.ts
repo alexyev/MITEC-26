@@ -87,3 +87,34 @@ export function scaleBar(
   const label = meters >= 1000 ? `${meters / 1000} km` : `${meters} m`;
   return { meters, px: meters * scale, label };
 }
+
+/** A walkthrough camera (D82): zoom toward a world point, by `blend` from 0 (the start view) to 1. */
+export interface Camera {
+  target: { x: number; y: number };
+  /** Zoom at blend 1, in CSS pixels per meter. */
+  pxPerM: number;
+  blend: number;
+}
+
+/**
+ * The view part of the way from `from` to a close view of `camera.target`. The zoom eases geometrically, and
+ * the target slides on a straight screen line from where `from` shows it to `focus`, so it never leaves the
+ * screen while the map zooms.
+ */
+export function cameraViewport(
+  from: Viewport,
+  camera: Camera,
+  focus: { sx: number; sy: number },
+): Viewport {
+  const f = Math.min(1, Math.max(0, camera.blend));
+  const scale = from.scale * Math.pow(camera.pxPerM / from.scale, f);
+  const start = worldToScreen(from, camera.target.x, camera.target.y);
+  const sx = start.sx + (focus.sx - start.sx) * f;
+  const sy = start.sy + (focus.sy - start.sy) * f;
+  return {
+    ...from,
+    scale,
+    cx: camera.target.x - (sx - from.width / 2) / scale,
+    cy: camera.target.y + (sy - from.height / 2) / scale,
+  };
+}

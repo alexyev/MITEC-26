@@ -1,5 +1,5 @@
-// 4x4 survey planning (spec 8.2, D31, D60): one strip per 4x4, back-and-forth north-south passes that stop
-// at the base pad, a time model per leg, and the hour each ground cell is surveyed, as pure functions.
+// UTV survey planning (spec 8.2, D31, D60, D81): one strip per UTV, north-south passes around the built-up base
+// pad, which no leg crosses, from and back to its gate; a time model per leg and the hour each cell is surveyed.
 import { SURVEY } from '../config/survey';
 import { UNITS } from '../config/units';
 import type { Rect } from './types';
@@ -10,6 +10,17 @@ export interface SurveyConfig {
   swathM: number;
   surveySpeedKmh: number;
   transitSpeedKmh: number;
+  /** Speed through the U-turn at the end of a pass, a half circle as wide as the pass spacing (D83). */
+  turnSpeedKmh: number;
+  /** Minutes a drone flies on one set of batteries, and minutes to land on its UTV, swap and take off. */
+  droneFlightMin: number;
+  droneSwapMin: number;
+  /** Km a UTV drives on a tank, and minutes to refuel it where it stands. */
+  fuelRangeKm: number;
+  refuelMin: number;
+  /** Hours of a field day, and hours each day starts with setting up and checking the RTK base. */
+  shiftH: number;
+  baseSetupH: number;
   cellM: number;
   playbackHoursPerS: number;
   /** A strip section narrower than this joins its neighbor, and the base this close to a strip edge is on it. */
@@ -23,9 +34,24 @@ export interface Point {
 
 /**
  * A leg is a straight drive: between the base pad and the strip, or between the parts of a strip around the
- * pad ('transit'), a survey pass, or the shift to the next pass.
+ * pad ('transit'), a survey pass, or the U-turn to the next pass ('shift'); or a stop where the UTV stands
+ * while its drone swaps batteries or the UTV refuels (D83).
  */
-export type LegKind = 'transit' | 'pass' | 'shift';
+export type LegKind = 'transit' | 'pass' | 'shift' | 'stop';
+
+/** Why a UTV stops (D83). */
+export type StopReason = 'swap' | 'refuel';
+
+/** Hours of one UTV's work by kind (D83): they add up to its drive time. */
+export interface WorkBreakdown {
+  /** Passes and the drives between the base and the strip. */
+  drivingH: number;
+  /** U-turns between passes. */
+  turnsH: number;
+  /** Drone battery swaps. */
+  swapsH: number;
+  refuelsH: number;
+}
 
 export interface SurveyLeg {
   kind: LegKind;
@@ -44,33 +70,45 @@ export interface SurveyLeg {
   /** Passes only: the column of the strip the pass records (0 at the strip's west edge) and its width in m. */
   column?: number;
   widthM?: number;
+  /** Stops only: why the UTV stands. */
+  stop?: StopReason;
 }
 
 export interface VehiclePlan {
-  /** 0-based; the UI names it "4x4 #(id + 1)". */
+  /** 0-based; the UI names it "UTV #(id + 1)". */
   id: number;
   strip: Rect;
   /** Number of pass legs; a column beside the base pad has two, one on each side of the pad. */
   passes: number;
   /** Widest pass spacing in the strip, at most `swathM`. */
   passSpacingM: number;
-  /** True when the 4x4 starts at the strip's west edge and works toward the east. */
+  /** True when the UTV starts at the strip's west edge and works toward the east. */
   eastward: boolean;
-  /** The base: where the 4x4 parks before Send and after its return. */
+  /** The gate of the base pad (D81): where the UTV parks before Send and after its return. */
   home: Point;
   legs: SurveyLeg[];
-  /** Hours from Send until this 4x4 is back at the base. */
+  /** Hours from Send until this UTV is back at the base. */
   driveH: number;
   driveKm: number;
   /** Distance on passes and shifts, in km. */
   surveyKm: number;
+  /** Hours of its work by kind; they add up to `driveH`. */
+  work: WorkBreakdown;
+  /** Its drone battery swaps and refuels. */
+  swaps: number;
+  refuels: number;
 }
 
 export interface SurveyPlan {
   area: Rect;
   base: Point;
-  /** The base pad, which no 4x4 drives over and which is not surveyed (D60); null when the site has none. */
+  /** The base pad, which no UTV drives over and which is not surveyed (D60); null when the site has none. */
   pad: Rect | null;
+  /**
+   * Where the UTVs leave and re-enter the base (D81): the middle of the pad's edge on the side the survey
+   * starts, so a UTV at the gate is never on the pad; the base itself when there is no pad.
+   */
+  gate: Point;
   config: SurveyConfig;
   vehicles: VehiclePlan[];
   /** Ground cells of `cellM`, row-major from the south-west corner: id = row * cellCols + col. */
@@ -80,22 +118,24 @@ export interface SurveyPlan {
   cellSurveyedH: Float32Array;
   /** The hours of the cells off the pad, sorted, so the surveyed share at any hour is one binary search. */
   sortedCellH: Float32Array;
-  /** Hours until the last 4x4 is back at the base (spec 8.2, step 5). */
+  /** Hours until the last UTV is back at the base (spec 8.2, step 5). */
   finishH: number;
-  /** Sum of every 4x4's drive time (spec 10.4). */
+  /** Sum of every UTV's drive time (spec 10.4). */
   vehicleHours: number;
 }
 
-/** Where a 4x4 is at an hour, and what its hover card shows. */
+/** Where a UTV is at an hour, and what its hover card shows. */
 export interface VehicleState {
   x: number;
   y: number;
-  /** 'base' before Send and after the 4x4 is back. */
+  /** 'base' before Send and after the UTV is back. */
   kind: LegKind | 'base';
+  /** Why it stands, on a stop. */
+  stop?: StopReason;
   /** Heading in radians (0 = east, counter-clockwise), from the current or the last leg. */
   heading: number;
   km: number;
-  /** Share of this 4x4's survey distance done, 0 to 1. */
+  /** Share of this UTV's survey distance done, 0 to 1. */
   stripProgress: number;
   timeLeftH: number;
   done: boolean;
@@ -209,18 +249,16 @@ export function routeAround(a: Point, b: Point, rect: Rect | null): Point[] {
   return path;
 }
 
-/** Where the line from `from` (on the pad) toward `to` leaves the pad; `from` when there is no pad. */
-function padEdgeToward(from: Point, to: Point, pad: Rect | null): Point {
-  if (!pad) return from;
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  let t = Infinity;
-  if (dx > 0) t = Math.min(t, (pad.x + pad.w - from.x) / dx);
-  if (dx < 0) t = Math.min(t, (pad.x - from.x) / dx);
-  if (dy > 0) t = Math.min(t, (pad.y + pad.h - from.y) / dy);
-  if (dy < 0) t = Math.min(t, (pad.y - from.y) / dy);
-  if (!(t < 1)) return from;
-  return { x: from.x + dx * t, y: from.y + dy * t };
+/**
+ * The gate of the base pad (D81): the middle of its south edge when the survey starts at the south edge of
+ * the area, else of its north edge, below or above the base; the base itself when there is no pad.
+ */
+export function padGate(base: Point, pad: Rect | null, south: boolean): Point {
+  if (!pad) return base;
+  return {
+    x: Math.min(pad.x + pad.w, Math.max(pad.x, base.x)),
+    y: south ? pad.y : pad.y + pad.h,
+  };
 }
 
 /** The sections of a strip, west to east: one, or the parts beside, and west and east of, the pad. */
@@ -241,11 +279,11 @@ function stripSections(strip: Rect, pad: Rect | null, minM: number): Section[] {
 }
 
 /**
- * Plans the survey of `area` by `count` 4x4s that start and end at `base` on its `pad` (spec 8.2, D31, D60).
+ * Plans the survey of `area` by `count` UTVs from `base` on its `pad` (spec 8.2, D31, D60, D81).
  * Each section of a strip gets `ceil(width / swathM)` evenly spaced columns, so the spacing is at most
  * `swathM`; columns beside the pad are split at its edges, so a pass stops at the pad instead of crossing it.
- * A 4x4 sweeps its strip from the edge nearest the base, surveying the side of the pad it reaches first, and
- * sweeps the other side on its way back. It leaves and enters the pad where the line to the base meets it.
+ * A UTV sweeps its strip from the edge nearest the base, surveying the side of the pad it reaches first, and
+ * sweeps the other side on its way back. It starts and ends at the pad's gate, and drives around the pad.
  */
 export function planSurvey(
   area: Rect,
@@ -255,13 +293,20 @@ export function planSurvey(
   pad: Rect | null = null,
 ): SurveyPlan {
   if (!Number.isInteger(count) || count < 1)
-    throw new Error(`4x4 count must be at least 1: ${count}`);
+    throw new Error(`UTV count must be at least 1: ${count}`);
   const passMPerH = config.surveySpeedKmh * UNITS.mPerKm;
   const transitMPerH = config.transitSpeedKmh * UNITS.mPerKm;
+  const turnMPerH = config.turnSpeedKmh * UNITS.mPerKm;
+  // A U-turn between passes is a half circle whose diameter is the shift: pi / 2 times its straight length.
+  const turnPathPerM = Math.PI / 2;
+  const flightH = config.droneFlightMin / UNITS.minPerH;
+  const swapH = config.droneSwapMin / UNITS.minPerH;
+  const refuelH = config.refuelMin / UNITS.minPerH;
   const minM = config.minSectionM;
   const yA = area.y;
   const yB = area.y + area.h;
   const startSouth = Math.abs(base.y - yA) <= Math.abs(base.y - yB);
+  const gate = padGate(base, pad, startSouth);
   const columnsFor = (width: number, parity: number | null): number => {
     const n = Math.max(1, Math.ceil(width / config.swathM));
     return parity === null || n % 2 === parity ? n : n + 1;
@@ -279,8 +324,8 @@ export function planSurvey(
     const ordered = eastward ? sections : [...sections].reverse();
     const padAt = ordered.findIndex((s) => s.pad);
 
-    // Columns in the order the 4x4 reaches them. A pad section has an even number, so its first side ends
-    // where it began; the last section after the pad has an odd number, so the 4x4 ends on the pad's far side.
+    // Columns in the order the UTV reaches them. A pad section has an even number, so its first side ends
+    // where it began; the last section after the pad has an odd number, so the UTV ends on the pad's far side.
     const sweep: Column[] = [];
     const runs: Column[][] = [];
     ordered.forEach((s, k) => {
@@ -314,12 +359,53 @@ export function planSurvey(
     let t = 0;
     let km = 0;
     let surveyKm = 0;
-    let pos: Point | null = null;
+    let pos: Point = gate;
+    const work: WorkBreakdown = { drivingH: 0, turnsH: 0, swapsH: 0, refuelsH: 0 };
+    let swaps = 0;
+    let refuels = 0;
+    // Flight time of the drone's batteries and km on the UTV's tank since the last swap or refuel.
+    let flownH = 0;
+    let tankKm = 0;
+    let returning = false;
+    const stopFor = (reason: StopReason, hours: number): void => {
+      legs.push({
+        kind: 'stop',
+        stop: reason,
+        x0: pos.x,
+        y0: pos.y,
+        x1: pos.x,
+        y1: pos.y,
+        t0H: t,
+        t1H: t + hours,
+        km0: km,
+        lengthKm: 0,
+        surveyKm0: surveyKm,
+      });
+      t += hours;
+    };
+    /** After a leg: refuel when the tank is due, swapping the drone's batteries meanwhile, else swap if due. */
+    const service = (): void => {
+      if (returning) return;
+      if (tankKm >= config.fuelRangeKm) {
+        stopFor('refuel', refuelH);
+        work.refuelsH += refuelH;
+        refuels++;
+        tankKm = 0;
+        flownH = 0;
+      } else if (flownH >= flightH) {
+        stopFor('swap', swapH);
+        work.swapsH += swapH;
+        swaps++;
+        flownH = 0;
+      }
+    };
     const drive = (kind: LegKind, to: Point, pass?: Column): number => {
-      const from: Point = pos ?? padEdgeToward(base, to, pad);
+      const from = pos;
       const lengthM = Math.hypot(to.x - from.x, to.y - from.y);
-      const lengthKm = lengthM / UNITS.mPerKm;
-      const t1 = t + lengthM / (kind === 'transit' ? transitMPerH : passMPerH);
+      const pathM = kind === 'shift' ? lengthM * turnPathPerM : lengthM;
+      const lengthKm = pathM / UNITS.mPerKm;
+      const mPerH = kind === 'transit' ? transitMPerH : kind === 'shift' ? turnMPerH : passMPerH;
+      const t1 = t + pathM / mPerH;
       const leg: SurveyLeg = {
         kind,
         x0: from.x,
@@ -337,20 +423,26 @@ export function planSurvey(
         leg.widthM = pass.x1 - pass.x0;
       }
       legs.push(leg);
+      if (kind === 'shift') work.turnsH += t1 - t;
+      else work.drivingH += t1 - t;
+      flownH += t1 - t;
+      tankKm += lengthKm;
       t = t1;
       km += lengthKm;
       if (kind !== 'transit') surveyKm += lengthKm;
       pos = to;
-      return legs.length - 1;
+      const index = legs.length - 1;
+      service();
+      return index;
     };
-    /** Drives to `to` around the pad: a shift when the way is clear, transit legs when it is not. */
+    /**
+     * Drives to `to` around the pad: a shift when the way is clear, transit legs when it is not, and always
+     * transit on the way out of the gate.
+     */
     const reach = (kind: LegKind, to: Point): void => {
-      if (pos === null) {
-        drive('transit', to);
-        return;
-      }
       const way = routeAround(pos, to, pad);
-      for (const p of way) drive(way.length > 1 ? 'transit' : kind, p);
+      const out = legs.length === 0;
+      for (const p of way) drive(way.length > 1 || out ? 'transit' : kind, p);
     };
 
     let south = startSouth;
@@ -390,8 +482,8 @@ export function planSurvey(
       else col.north = leg;
     });
 
-    const last: Point = pos!;
-    drive('transit', padEdgeToward(base, last, pad));
+    returning = true;
+    reach('transit', gate);
 
     columnsOf.push(columns);
     vehicles.push({
@@ -400,11 +492,14 @@ export function planSurvey(
       passes: legs.filter((l) => l.kind === 'pass').length,
       passSpacingM: Math.max(...columns.map((c) => c.x1 - c.x0)),
       eastward,
-      home: base,
+      home: gate,
       legs,
       driveH: t,
       driveKm: km,
       surveyKm,
+      work,
+      swaps,
+      refuels,
     });
   });
 
@@ -440,6 +535,7 @@ export function planSurvey(
     area,
     base,
     pad,
+    gate,
     config,
     vehicles,
     cellCols,
@@ -451,7 +547,7 @@ export function planSurvey(
   };
 }
 
-/** Index of the leg a 4x4 drives at `tH` (clamped to the first and the last leg). */
+/** Index of the leg a UTV drives at `tH` (clamped to the first and the last leg). */
 function legIndexAt(legs: SurveyLeg[], tH: number): number {
   let lo = 0;
   let hi = legs.length - 1;
@@ -463,7 +559,7 @@ function legIndexAt(legs: SurveyLeg[], tH: number): number {
   return lo;
 }
 
-/** Position and progress of one 4x4 at `tH` hours after Send; at the base it is at `home`. */
+/** Position and progress of one UTV at `tH` hours after Send; at the base it is at `home`, the pad's gate. */
 export function vehicleAt(vehicle: VehiclePlan, tH: number): VehicleState {
   const { legs } = vehicle;
   const first = legs[0];
@@ -490,6 +586,7 @@ export function vehicleAt(vehicle: VehiclePlan, tH: number): VehicleState {
     x: lerp(leg.x0, leg.x1, f),
     y: lerp(leg.y0, leg.y1, f),
     kind: leg.kind,
+    ...(leg.stop ? { stop: leg.stop } : {}),
     heading: Math.atan2(leg.y1 - leg.y0, leg.x1 - leg.x0),
     km: leg.km0 + f * leg.lengthKm,
     stripProgress: vehicle.surveyKm > 0 ? surveyed / vehicle.surveyKm : 1,
@@ -499,16 +596,39 @@ export function vehicleAt(vehicle: VehiclePlan, tH: number): VehicleState {
 }
 
 /**
- * The drone of a 4x4 (D61): it flies with its 4x4 whenever the 4x4 is out on the site, and rides docked on
- * it at the base. Its only link is the 4x4, whose Starlink carries its data, so it is online when the 4x4 is.
+ * The drone of a UTV (D61): it flies with its UTV whenever the UTV is out on the site, and rides docked on
+ * it at the base and while the UTV stops for a battery swap or fuel (D83). Its only link is the UTV, whose
+ * Starlink carries its data, so it is online when the UTV is.
  */
 export function droneFlying(state: VehicleState): boolean {
-  return state.kind !== 'base';
+  return state.kind !== 'base' && state.kind !== 'stop';
+}
+
+/** A survey in field days (D83): the fleet's work, and the RTK base set up at the start of every day. */
+export interface SurveySchedule {
+  /** Hours on site, Send to the last UTV back: the plan's finish. */
+  workH: number;
+  days: number;
+  /** Base setup over all days. */
+  setupH: number;
+  /** Work and setup together. */
+  totalH: number;
+  /** The UTV that finishes last, whose work breakdown the readout shows. */
+  critical: VehiclePlan;
+}
+
+export function surveySchedule(plan: SurveyPlan): SurveySchedule {
+  const { shiftH, baseSetupH } = plan.config;
+  const workH = plan.finishH;
+  const days = Math.max(1, Math.ceil(workH / (shiftH - baseSetupH)));
+  const setupH = days * baseSetupH;
+  const critical = plan.vehicles.reduce((a, v) => (v.driveH > a.driveH ? v : a));
+  return { workH, days, setupH, totalH: workH + setupH, critical };
 }
 
 /**
- * The point `distM` behind a driving 4x4 along the path it has driven, where its drone follows it; never
- * further back than where the 4x4 left the base pad.
+ * The point `distM` behind a driving UTV along the path it has driven, where its drone follows it; never
+ * further back than the pad's gate, where the UTV set out.
  */
 export function trailPoint(vehicle: VehiclePlan, tH: number, distM: number): Point {
   const now = vehicleAt(vehicle, tH);
@@ -538,8 +658,8 @@ export function surveyedFraction(plan: SurveyPlan, tH: number): number {
 }
 
 /**
- * Ground one 4x4 has surveyed at `tH`, as one rectangle per pass started (the current pass is partial).
- * Each rectangle spans the pass's column, so the rectangles of all 4x4s never overlap.
+ * Ground one UTV has surveyed at `tH`, as one rectangle per pass started (the current pass is partial).
+ * Each rectangle spans the pass's column, so the rectangles of all UTVs never overlap.
  */
 export function surveyedRects(vehicle: VehiclePlan, tH: number): Rect[] {
   const rects: Rect[] = [];

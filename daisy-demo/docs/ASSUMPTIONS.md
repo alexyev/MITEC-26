@@ -93,15 +93,18 @@ This replaces the site numbers in "Site and layout" and "Build schedule" above.
 - A lane has 25 units; 5 block columns give 125 units per lane row, and 186 lane rows give 23,250 places.
 - The base has its own pad at the center, about 215 m by 365 m, where 250 places stay empty, so there are exactly 23,000 units (decision D34).
 - The lane pitch is 21.52 m everywhere; each road between block rows runs in the corridor between two lanes (decision D30).
-- The unit grid, which the 4x4s survey, is 3,983 m by 1,813 m.
+- The unit grid, which the UTVs survey, is 3,983 m by 1,813 m.
 - At 200 units per day the build takes 115 days.
 
-## 4x4 survey (spec section 8, T3.2)
+## UTV survey (spec section 8, T3.2)
 
-- 4x4s survey the unit-grid rectangle before any unit is placed, on coordinated autonomous paths.
-- Each 4x4 carries a Starlink terminal, so it is online everywhere on the site.
-- A survey pass records a 20 m swath at 8 km/h; the legs between the base and a strip run at 20 km/h.
-- The survey method, swath, speeds and the $150 hourly 4x4 cost are placeholders (spec section 14).
+- UTVs survey the unit-grid rectangle before any unit is placed, on coordinated autonomous paths.
+- Each UTV carries a Starlink terminal, so it is online everywhere on the site.
+- Each UTV scans the ground with mobile lidar and RTK GNSS, and a lidar drone follows it (D83).
+- Passes are 40 m apart at 20 km/h, U-turns are half circles at 10 km/h, and the legs between the base and a strip run at 24 km/h, the 15 mph UTV limit on a solar build (D80, D83).
+- The drone swaps batteries every 35 min of flight, a 3 min stop; a UTV refuels every 180 km, a 15 min stop; a field day is a 10-hour shift that starts with 30 min of RTK base setup (D83).
+- Every value has its source next to it in `src/config/survey.ts`; the turn speed and the swap and refuel stop times are team estimates.
+- The $150 hourly UTV cost is a placeholder (spec section 14).
 
 ## Cost (spec section 10, T3.3)
 
@@ -110,7 +113,7 @@ This replaces "Pricing (spec section 5)" above.
 - Every price and cost assumption is the team's estimate from `corner-module-cost-model.xlsx`, not a supplier quote, while `pricing.verified = false`; the demo shows costs without an estimate label (D53).
 - The default design is HaLow with integrated antennas: 50 corner modules in a 5 x 10 grid on the full site, 18 battery packs in a reused fleet, and one base, for about $80.6k ($3.51 per container, 0.05% of the P3 hardware); on the workbook's east-west layout the same design is 45 modules and $74.6k (decision D33).
 - A reused fleet of battery packs moves with the build front, so it only needs packs for the modules placed in the last 30 days, plus 20% spares and 2 packs.
-- The survey costs $150 per 4x4-hour, a placeholder that is not in the workbook yet.
+- The survey costs $150 per UTV-hour, a placeholder that is not in the workbook yet.
 
 ## Play model and radio network (spec sections 4 and 9)
 
@@ -129,15 +132,15 @@ This replaces "Pricing (spec section 5)" above.
 - Each radio sends one packet per second, and a hop takes 0.15 s of playback; both are slowed for visibility.
 - The radio swap time on the maintenance ticket, 15 minutes, is a placeholder.
 
-## 4x4 survey, round 2 (D60 to D63)
+## UTV survey, round 2 (D60 to D63)
 
-- The 4x4s never drive over the base pad: passes beside it stop at its edge, and a 4x4 leaves and enters the pad where the line to the base meets it.
+- The UTVs never drive over the base pad: passes beside it stop at its edge, and a UTV leaves and returns at the pad's gate, the middle of its south edge, and parks outside it (D81).
   The pad itself, about 215 m by 365 m, is not surveyed.
-- Each 4x4 carries a drone that flies with it on its strip while the 4x4 is out, and rides docked on it at the base.
-  The drone's only link is its 4x4, whose Starlink carries its data.
-  The 4x4 carries the drone's charger and spare batteries; battery swaps and flight time are not modeled.
-- The drone captures the same strip from the air at the 4x4's pace, so it does not change the survey time; no research file gives a drone survey rate or swath.
-- Each 4x4 has its own Starlink Mini kit ($649 with shipping) with mounting and power ($150), and service at $250 a month per terminal, billed in whole 30-day months (cost workbook, Alternatives sheet).
+- Each UTV carries a drone that flies with it on its strip while the UTV is out, and rides docked on it at the base.
+  The drone's only link is its UTV, whose Starlink carries its data.
+  The UTV carries the drone's charger and spare batteries; the battery swaps are stops in the survey time (D83).
+- The drone captures the same strip from the air at the UTV's pace, so the UTV's pace, turns and stops set the survey time (D80, D83).
+- Each UTV has its own Starlink Mini kit ($649 with shipping) with mounting and power ($150), and service at $250 a month per terminal, billed in whole 30-day months (cost workbook, Alternatives sheet).
   The kits are counted in full for the survey; their reuse later is not credited.
-- The hourly 4x4 cost ($150, the spec's placeholder) and the drone price have no source, so the demo shows no figure for them.
+- The hourly UTV cost ($150, the spec's placeholder) and the drone price have no source, so the demo shows no figure for them.
 - The survey alternatives (a GPS rover crew, drones only, an aerial contractor, the GO2 quadruped) have no sourced cost; they show a one-line trade-off only.

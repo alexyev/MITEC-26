@@ -182,9 +182,11 @@ export const UI = {
     maxFrameS: 0.1,
     /**
      * Playback speeds of the player bar, shared by both tabs: 1 is the designed pace of the walkthrough,
-     * the others multiply the clock, so step durations and every motion on the map scale together.
+     * the others multiply the clock, so step durations and every motion on the map scale together (D52, D82).
      */
-    speeds: [1, 2, 4],
+    speeds: [0.25, 0.5, 1, 2, 4],
+    /** The designed pace, where both tabs open. */
+    normalSpeed: 1,
   },
 };
 
@@ -208,6 +210,8 @@ export const MAP = {
   baseMarkerPx: 5,
   baseHaloPx: 4,
   baseCornerPx: 1.5,
-  /** Corner radius of the base pad (D34), in CSS pixels. */
+  /** Corner radius of the base pad (D34), its edge width and its hatch spacing (D81), in CSS pixels. */
   basePadCornerPx: 3,
+  basePadEdgePx: 1.25,
+  basePadHatchPx: 5,
 };

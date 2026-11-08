@@ -5,9 +5,9 @@
 :root {
   /* Story colors (spec 5.2): one meaning each, the same in both tabs. */
   --c-signal: #2fbf71; /* Radio signal: online radios, links, coverage */
-  --c-data: #3b9eff; /* Data moving: packets, routes to the base, the 4x4s' online dots */
+  --c-data: #3b9eff; /* Data moving: packets, routes to the base, the UTVs' online dots */
   --c-fail: #f04438; /* Failure: failed radio, cut-off radio, lost packets */
-  --c-work: #f5b82e; /* Work in progress: 4x4s, planned paths, units waiting for power */
+  --c-work: #f5b82e; /* Work in progress: UTVs, planned paths, units waiting for power */
   --c-unit: #5b6270; /* Site: placed P3 units */
   --c-done: #2b323c; /* Site: surveyed ground */
   --c-base: #ffffff; /* Site: the base marker */
@@ -17,12 +17,18 @@
   --c-signal-link: rgba(47, 191, 113, 0.55); /* Radio-to-radio links */
   --c-data-route: rgba(59, 158, 255, 0.85); /* A highlighted route to the base */
   --c-unit-planned: rgba(91, 98, 112, 0.45); /* Planned units, thin outlines */
-  --c-work-path: rgba(245, 184, 46, 0.7); /* Planned 4x4 paths, dashed */
+  --c-work-path: rgba(245, 184, 46, 0.7); /* Planned UTV paths, dashed */
   --c-map-bg: #0b0d11; /* The map ground */
   --c-map-outline: rgba(255, 255, 255, 0.1); /* Site boundary */
   --c-map-halo: #0b0d11; /* Dark ring that lifts markers off the map */
   --c-map-dim: rgba(11, 13, 17, 0.6); /* Dims the map under the routes while data moves (D55) */
   --c-old-route: rgba(170, 178, 191, 0.85); /* The path a reroute replaced, dashed (D55) */
+  /* The base pad (D34, D81): already built up, so a solid no-go area on the map, in neutral tones. */
+  --c-pad-fill: rgba(255, 255, 255, 0.06);
+  --c-pad-hatch: rgba(255, 255, 255, 0.14);
+  --c-pad-edge: rgba(255, 255, 255, 0.38);
+  /* The survey UTV drawing (D84): the line art's panel fill. */
+  --c-art-fill: rgba(255, 255, 255, 0.05);
   /* Legend swatches of the 'fill' and 'circle' shapes: an area tint and its edge, per token. */
   --c-signal-area: var(--c-signal-fill);
   --c-signal-edge: var(--c-signal);

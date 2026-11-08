@@ -8,6 +8,7 @@ import {
   routeAround,
   surveyedFraction,
   surveyedRects,
+  surveySchedule,
   surveyStrips,
   trailPoint,
   vehicleAt,
@@ -124,7 +125,7 @@ describe('crossesRect and routeAround', () => {
 });
 
 describe('planSurvey', () => {
-  it('never drives a 4x4 over the base pad, for every fleet size (D60)', () => {
+  it('never drives a UTV over the base pad, for every fleet size (D60)', () => {
     for (const p of plans.values()) {
       expect(p.pad).toBe(pad);
       for (const v of p.vehicles) {
@@ -196,25 +197,74 @@ describe('planSurvey', () => {
     }
   });
 
-  it('lets the time to finish fall as the 4x4 count rises', () => {
+  it('lets the time to finish fall as the UTV count rises', () => {
     for (let n = 2; n <= SURVEY.maxVehicles; n++) {
       expect(plan(n).finishH).toBeLessThan(plan(n - 1).finishH);
     }
   });
 
-  it('matches the expected times of spec 8.4 within 10%', () => {
-    for (const [n, hours] of [
-      [1, 45],
-      [3, 15],
-      [6, 8],
+  it('takes the sourced times (D80, D83): 11.1 h, 3.7 h and 2.0 h on site for 1, 3 and 6 UTVs', () => {
+    expect(SURVEY).toMatchObject({ swathM: 40, surveySpeedKmh: 20, transitSpeedKmh: 24 });
+    for (const [n, hours, days] of [
+      [1, 11.1, 2],
+      [3, 3.7, 1],
+      [6, 2.0, 1],
     ]) {
-      expect(Math.abs(plan(n).finishH - hours) / hours).toBeLessThan(0.1);
+      expect(plan(n).finishH).toBeCloseTo(hours, 1);
+      const s = surveySchedule(plan(n));
+      expect(s.days).toBe(days);
+      expect(s.totalH).toBeCloseTo(s.workH + days * SURVEY.baseSetupH, 9);
+      // The days hold the work and a base setup each: fewer would not fit, more would be idle.
+      expect(s.workH).toBeLessThanOrEqual(days * (SURVEY.shiftH - SURVEY.baseSetupH));
+      expect(s.workH).toBeGreaterThan((days - 1) * (SURVEY.shiftH - SURVEY.baseSetupH));
     }
   });
 
-  it('keeps the 4x4-hours, and so the hourly cost, within about 5% across fleet sizes', () => {
+  it('adds U-turns, drone battery swaps and refuels to the driving, and they add up (D83)', () => {
+    const minPerH = 60;
+    for (const p of plans.values()) {
+      for (const v of p.vehicles) {
+        const w = v.work;
+        expect(w.drivingH + w.turnsH + w.swapsH + w.refuelsH).toBeCloseTo(v.driveH, 9);
+        const stops = v.legs.filter((l) => l.kind === 'stop');
+        expect(stops.filter((l) => l.stop === 'swap')).toHaveLength(v.swaps);
+        expect(stops.filter((l) => l.stop === 'refuel')).toHaveLength(v.refuels);
+        expect(w.swapsH).toBeCloseTo((v.swaps * SURVEY.droneSwapMin) / minPerH, 9);
+        expect(w.refuelsH).toBeCloseTo((v.refuels * SURVEY.refuelMin) / minPerH, 9);
+        // The drone never flies longer than a battery set plus one leg before it lands for new batteries,
+        // except on the way home, where it lands at the base instead.
+        let homeH = 0;
+        for (let k = v.legs.length - 1; k >= 0 && v.legs[k].kind === 'transit'; k--)
+          homeH += v.legs[k].t1H - v.legs[k].t0H;
+        let flown = 0;
+        let longestLeg = 0;
+        for (const leg of v.legs) {
+          if (leg.kind === 'stop') {
+            flown = 0;
+            continue;
+          }
+          flown += leg.t1H - leg.t0H;
+          longestLeg = Math.max(longestLeg, leg.t1H - leg.t0H);
+          expect(flown).toBeLessThanOrEqual(
+            SURVEY.droneFlightMin / minPerH + longestLeg + homeH + 1e-9,
+          );
+        }
+        // A UTV refuels about every tank, and never on its way home.
+        const tanks = Math.floor(v.driveKm / SURVEY.fuelRangeKm);
+        expect(v.refuels).toBeLessThanOrEqual(tanks);
+        expect(v.legs[v.legs.length - 1].kind).toBe('transit');
+      }
+    }
+    // One UTV drives the whole site, about 200 km, so it refuels once; three never do.
+    expect(plan(1).vehicles[0].refuels).toBe(1);
+    expect(plan(3).vehicles.every((v) => v.refuels === 0)).toBe(true);
+    expect(plan(3).vehicles.every((v) => v.swaps >= 4)).toBe(true);
+  });
+
+  it('keeps the UTV-hours, and so the hourly cost, within about 6% across fleet sizes', () => {
+    // More UTVs add only their drives out to and back from their strips, which are a small share at most.
     const hours = [1, 3, 6].map((n) => plan(n).vehicleHours);
-    expect(Math.max(...hours) / Math.min(...hours)).toBeLessThan(1.05);
+    expect(Math.max(...hours) / Math.min(...hours)).toBeLessThan(1.06);
     const p = plan(3);
     expect(p.vehicleHours).toBeCloseTo(
       p.vehicles.reduce((s, v) => s + v.driveH, 0),
@@ -276,7 +326,7 @@ describe('planSurvey', () => {
     }
   });
 
-  it('starts each 4x4 at the strip edge nearest the base, and the base strip at its west edge', () => {
+  it('starts each UTV at the strip edge nearest the base, and the base strip at its west edge', () => {
     for (const p of plans.values()) {
       for (const v of p.vehicles) {
         const firstPass = v.legs.find((l) => l.kind === 'pass')!;
@@ -291,30 +341,33 @@ describe('planSurvey', () => {
     }
   });
 
-  it('leaves and enters the pad at its edge, on the line to the base, with continuous legs', () => {
+  it('leaves from and returns to the gate on the pad edge (D81), with continuous legs', () => {
     for (const p of plans.values()) {
+      // One gate for the fleet: the middle of the pad's south edge, below the base.
+      expect(p.gate).toEqual({ x: base.x, y: pad.y });
+      expect(onEdge(p.gate, pad)).toBe(true);
       for (const v of p.vehicles) {
         const first = v.legs[0];
         const last = v.legs[v.legs.length - 1];
         expect(first.kind).toBe('transit');
         expect(last.kind).toBe('transit');
-        expect(v.home).toBe(base);
-        for (const [gate, toward] of [
-          [start(first), end(first)],
-          [end(last), start(last)],
-        ]) {
-          expect(onEdge(gate, pad)).toBe(true);
-          // The gate is on the straight line from the base toward the leg's far end.
-          const cross =
-            (gate.x - base.x) * (toward.y - base.y) - (gate.y - base.y) * (toward.x - base.x);
-          expect(Math.abs(cross) / Math.hypot(toward.x - base.x, toward.y - base.y)).toBeLessThan(
-            1e-6,
-          );
-        }
+        expect(v.home).toEqual(p.gate);
+        expect(start(first)).toEqual(p.gate);
+        expect(end(last)).toEqual(p.gate);
         for (let k = 0; k < v.legs.length; k++) {
           const leg = v.legs[k];
-          const kmh = leg.kind === 'transit' ? SURVEY.transitSpeedKmh : SURVEY.surveySpeedKmh;
-          expect(leg.t1H - leg.t0H).toBeCloseTo(leg.lengthKm / kmh, 9);
+          if (leg.kind === 'stop') {
+            expect(leg.lengthKm).toBe(0);
+            expect([leg.x1, leg.y1]).toEqual([leg.x0, leg.y0]);
+          } else if (leg.kind === 'shift') {
+            // A U-turn: a half circle as wide as the shift, at the turn speed.
+            const straightKm = Math.hypot(leg.x1 - leg.x0, leg.y1 - leg.y0) / 1000;
+            expect(leg.lengthKm).toBeCloseTo((straightKm * Math.PI) / 2, 9);
+            expect(leg.t1H - leg.t0H).toBeCloseTo(leg.lengthKm / SURVEY.turnSpeedKmh, 9);
+          } else {
+            const kmh = leg.kind === 'transit' ? SURVEY.transitSpeedKmh : SURVEY.surveySpeedKmh;
+            expect(leg.t1H - leg.t0H).toBeCloseTo(leg.lengthKm / kmh, 9);
+          }
           if (k > 0) {
             const prev = v.legs[k - 1];
             expect([leg.x0, leg.y0, leg.t0H]).toEqual([prev.x1, prev.y1, prev.t1H]);
@@ -357,18 +410,20 @@ describe('planSurvey', () => {
 describe('vehicleAt', () => {
   const v = plan(3).vehicles[1];
 
-  it('is at the base before Send and after the return', () => {
+  it('is at the gate, off the pad, before Send and after the return', () => {
+    const gate = plan(3).gate;
     expect(vehicleAt(v, 0)).toMatchObject({
-      x: base.x,
-      y: base.y,
+      x: gate.x,
+      y: gate.y,
       kind: 'base',
       done: false,
       km: 0,
     });
     const end = vehicleAt(v, v.driveH + 1);
     expect(end).toMatchObject({ kind: 'base', done: true, stripProgress: 1, timeLeftH: 0 });
-    expect(end.x).toBeCloseTo(base.x, 6);
-    expect(end.y).toBeCloseTo(base.y, 6);
+    expect(end.x).toBeCloseTo(gate.x, 6);
+    expect(end.y).toBeCloseTo(gate.y, 6);
+    expect(strictlyInside(end, pad)).toBe(false);
     expect(end.km).toBeCloseTo(v.driveKm, 9);
   });
 
@@ -391,13 +446,18 @@ describe('vehicleAt', () => {
 describe('drones (D61)', () => {
   const v = plan(3).vehicles[1];
 
-  it('fly while their 4x4 is out and ride docked on it at the base', () => {
+  it('fly while their UTV is out, and ride docked on it at the base and while it stops (D83)', () => {
+    const pass = v.legs.filter((l) => l.kind === 'pass')[3];
+    const stop = v.legs.find((l) => l.kind === 'stop')!;
     expect(droneFlying(vehicleAt(v, 0))).toBe(false);
-    expect(droneFlying(vehicleAt(v, v.driveH / 2))).toBe(true);
+    expect(droneFlying(vehicleAt(v, (pass.t0H + pass.t1H) / 2))).toBe(true);
+    const stopped = vehicleAt(v, (stop.t0H + stop.t1H) / 2);
+    expect(stopped).toMatchObject({ kind: 'stop', stop: 'swap', x: stop.x0, y: stop.y0 });
+    expect(droneFlying(stopped)).toBe(false);
     expect(droneFlying(vehicleAt(v, v.driveH + 1))).toBe(false);
   });
 
-  it('follow their 4x4 the given distance back along the path it drove', () => {
+  it('follow their UTV the given distance back along the path it drove', () => {
     const passes = v.legs.filter((l) => l.kind === 'pass');
     const pass = passes[Math.floor(passes.length / 2)];
     const t = (pass.t0H + pass.t1H) / 2;
@@ -413,10 +473,25 @@ describe('drones (D61)', () => {
     expect(turn.x).toBeCloseTo(prevPass.x0, 6);
   });
 
-  it('never trail back past where the 4x4 left the pad, and stay with it at the base', () => {
+  it('never trail back past the gate, and stay with their UTV at the base', () => {
     const first = v.legs[0];
-    expect(trailPoint(v, first.t1H / 10, 1e6)).toEqual({ x: first.x0, y: first.y0 });
-    expect(trailPoint(v, 0, 50)).toEqual({ x: base.x, y: base.y });
+    const gate = plan(3).gate;
+    expect(trailPoint(v, first.t1H / 10, 1e6)).toEqual(gate);
+    expect(trailPoint(v, 0, 50)).toEqual(gate);
+  });
+
+  it('never put a UTV or a drone on the built-up pad, at any time, for every fleet size (D81)', () => {
+    const samples = 4000;
+    for (const p of plans.values()) {
+      for (const veh of p.vehicles) {
+        for (let k = 0; k <= samples + 1; k++) {
+          const t = (k / samples) * veh.driveH;
+          expect(strictlyInside(vehicleAt(veh, t), pad)).toBe(false);
+          for (const d of [5, 30, 120])
+            expect(strictlyInside(trailPoint(veh, t, d), pad)).toBe(false);
+        }
+      }
+    }
   });
 });
 

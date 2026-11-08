@@ -42,3 +42,14 @@ export function formatSharePct(share: number): string {
   const epsilon = 1e-9;
   return `${Math.floor(Math.min(1, Math.max(0, share)) * pct + epsilon)}`;
 }
+
+/** Work time per second of playback, from hours: "2 h", "15 min", "11 s" (at most 2 significant digits). */
+export function formatPace(hours: number): string {
+  const minutesPerHour = 60;
+  const secondsPerMinute = 60;
+  const two = (v: number) => Number(v.toPrecision(2)).toLocaleString(LOCALE);
+  if (hours >= 1) return `${two(hours)} h`;
+  const minutes = hours * minutesPerHour;
+  if (minutes >= 1) return `${two(minutes)} min`;
+  return `${two(minutes * secondsPerMinute)} s`;
+}

@@ -59,15 +59,15 @@ export interface Pricing {
  * `unverified`. `null` means there is no sourced price yet.
  */
 export interface SurveyPricing {
-  /** One 4x4-hour of survey; the spec's placeholder, listed as unverified. */
+  /** One UTV-hour of survey; the spec's placeholder, listed as unverified. */
   vehicleHourUsd: number | null;
-  /** Starlink Mini kit with shipping, and its mounting and power on a 4x4 (workbook Alternatives B59, B62). */
+  /** Starlink Mini kit with shipping, and its mounting and power on a UTV (workbook Alternatives B59, B62). */
   starlinkKitUsd: number | null;
   starlinkMountUsd: number | null;
   /** Starlink service plan per terminal and month, and the days billed as one month (Alternatives B60, B61). */
   starlinkPlanUsdPerMonth: number | null;
   starlinkBillingDays: number;
-  /** One drone that follows a 4x4 (D61). */
+  /** One drone that follows a UTV (D61). */
   droneUsd: number | null;
   /** Keys whose value is a placeholder, kept in the file but never shown as a cost. */
   unverified: SurveyPriceKey[];
@@ -231,7 +231,7 @@ export interface SurveyCost {
   vehicleHours: number;
   /** Months of Starlink service billed per terminal: the survey time in billing months, at least 1. */
   starlinkMonths: number;
-  /** One Starlink kit and its mounting per 4x4. */
+  /** One Starlink kit and its mounting per UTV. */
   starlinkHardwareUsd: number | null;
   starlinkServiceUsd: number | null;
   vehicleHoursUsd: number | null;
@@ -243,8 +243,8 @@ export interface SurveyCost {
 }
 
 /**
- * Survey cost of `vehicles` 4x4s that drive `vehicleHours` in all and finish after `finishH`: the 4x4-hours
- * times the hourly cost, and for each 4x4 a Starlink kit with its mounting, Starlink service for the survey,
+ * Survey cost of `vehicles` UTVs that drive `vehicleHours` in all and finish after `finishH`: the UTV-hours
+ * times the hourly cost, and for each UTV a Starlink kit with its mounting, Starlink service for the survey,
  * and a drone.
  */
 export function surveyCost(

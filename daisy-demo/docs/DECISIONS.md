@@ -669,6 +669,33 @@ The tour finds its targets by stable `data-tour` attributes, never by class name
 The players live inside the tabs, so the tour asks rather than reaches in: `usePlayerCommands.requestYourTurn()` (`src/ui/player/commands.ts`) is a counter, and the mounted tab's `usePlayer` jumps to "Your turn" on each increase.
 A player ignores requests made before it mounted, so switching tabs never replays an old request.
 
+## D103 - Packets stop when the visualization does (desert round, captain's report)
+
+The captain saw packets still moving after everything on the map had visually finished.
+Reproduced on main (74c06a0; ed132a2 did not touch it) in the browser at 1280 x 720, reading the map's pixels over time:
+
+- **Paused at any step** the map stands still: every view is a function of the player's time, and pausing stops the clock.
+  In "Your turn" the paused map still showed packets frozen mid-hop.
+- **At the end of the walkthrough** the cost step ran into "Your turn", whose clock never ends, and every radio kept sending one packet a second for as long as the tab stayed open (the readout's sent count kept rising, 3,445 after half a minute), at every speed, with the progress track already full.
+- **After a click and after Reset** in "Your turn" the same endless stream played on.
+- **Switching tabs and back** starts the walkthrough over, paused on its first step, with no packets; playing it into "Your turn" streamed again.
+
+The cause: the live packet simulation ran to `endS: Infinity`, every radio scheduled its next send forever (`Ev.Gen` re-armed itself), and "Your turn" shows data for all of its endless time.
+
+The fix drives traffic by the story, not by the open tab:
+
+- **Traffic windows.** The radios send their own packets only inside traffic windows (`SimInput.trafficUntilS`, `SimChange.trafficS`); hellos, detection and routing run all the time.
+  The walkthrough's window is the robot's data, from the hold to the resume, so its traffic stops as the build resumes; the packets still in flight are cleared at that step boundary together with the routes and the dim.
+  A click in "Your turn" (a failure, a repair or Reset) opens a window of `PLAY.clickTrafficS` (6 s), long enough for the missed hellos, the reroute and the queues to drain, so it plays as a bounded burst.
+  Without a window the simulation keeps its old default of a network that always sends.
+- **The settle time.** `SimResult.quietFromS` is the time of the last event once no event is left, and the scene's `settleS` adds the marks that keep playing after their event (the update ring, the fail flash, a radio's fade-in, the missed-hello label) and the maintenance ticket.
+- **The player pauses at the end.** In "Your turn" the Build & failure tab pauses once the scene has settled, so the bar never says playing over a still map: right away when the walkthrough arrives there, and after the burst of a click.
+  Play over a settled "Your turn" has nothing to play and pauses again; the next click plays.
+- **Tests.** `tests/packetTraffic.test.ts` checks the windows in the engine (no send outside them, quiet with no packet in flight, the live click equal to the replay), that the walkthrough sends nothing after the resume and "Your turn" stays still for ten minutes, that packets hold still at a fixed time, and that a click and a Reset settle to zero packets with a constant sent count.
+  `tests/buildTraffic.test.tsx` drives the running app frame by frame: paused at the failure, detection, reroute and recovered steps the readout's sent count stands still; past the cost step at ¼×, 1× and 4× the player pauses in "Your turn" and the count stays put, also after Play; a click plays a burst, then the player pauses and the count stops.
+  On main these tests fail everywhere but the paused steps, as the repro found.
+- In reality the radios report all the time; the map shows their traffic only while a story plays out, like the "Packets slowed for visibility" note (spec 0.5).
+
 ## D110 - Why UTVs, not robot dogs (survey round 4, captain's question)
 
 The captain asked why the survey uses UTVs instead of the robot dog Exowatt shows surveying in its challenge video, how that justifies the UTV's cost, and how much faster a UTV is per hour.

@@ -61,6 +61,12 @@ export interface PlayConfig {
   /** Each connected radio sends one packet per interval. */
   packetIntervalS: number;
   /**
+   * A click in "Your turn" (a failure, a repair or Reset) plays out as a burst (D103): the radios send for
+   * this long from the click, long enough for the missed hellos, the reroute and the queues to drain, then
+   * the traffic settles and the player pauses.
+   */
+  clickTrafficS: number;
+  /**
    * The walkthrough's failure mid-build (D70): the build holds `phaseShare` of the way through the `phase` of
    * the middle stage, and one of that phase's robots on the east face sends its task status and safety
    * messages, one packet every `robotPacketIntervalS` (placeholder), while a radio on its route fails.
@@ -123,6 +129,7 @@ export const PLAY: PlayConfig = {
     },
   },
   packetIntervalS: 1.0,
+  clickTrafficS: 6,
   scenario: { phase: 'foundations', phaseShare: 0.5, robotPacketIntervalS: 0.25 },
   hopS: 0.15,
   queueFlushIntervalS: 0.05,

@@ -24,6 +24,7 @@ import {
   type BuildClock,
   type PlayModel,
 } from '../../engine/playModel';
+import { PLAY_VIEW } from '../../config/play';
 import { buildTimeAt, dataShownAt, timeOfBuild, type BuildTimeline } from './walkthrough';
 
 export interface FailureView {
@@ -85,7 +86,21 @@ export interface Scene {
    *  null while it has no route. */
   watchedExtraHops: number | null;
   ticket: { radio: number; unitNumber: number; col: number; row: number } | null;
+  /**
+   * From this time on nothing on the map moves or changes (D103): no packet is in flight, no queue or route
+   * changes, the failure marks have played and the ticket is out. Infinity while traffic or events wait.
+   */
+  settleS: number;
 }
+
+/** The longest mark that keeps playing after its event: the route update ring, the fail flash, a radio's
+ *  fade-in and the missed-hello label. */
+const MARKS_TAIL_S = Math.max(
+  PLAY_VIEW.updateRingS,
+  PLAY_VIEW.failFlashS,
+  PLAY_VIEW.radioFadeInS,
+  PLAY_VIEW.helloLabelHoldS,
+);
 
 const networkCache = new Map<string, NetworkState>();
 
@@ -226,10 +241,14 @@ export function sceneAt(
       : healthyHops;
 
   let ticket: Scene['ticket'] = null;
+  // The ticket goes out when the walkthrough's "Recovered" step starts: the reroute step after detection.
+  const ticketAt = (f: FailureView) =>
+    (f.record.detectS ?? Infinity) + (timeline.ticketS - timeline.detectS);
+  let settleS = sim.quietFromS + MARKS_TAIL_S;
+  for (const f of failures) settleS = Math.max(settleS, ticketAt(f));
   for (let i = failures.length - 1; i >= 0 && !ticket; i--) {
     const f = failures[i];
-    // The ticket goes out when the walkthrough's "Recovered" step starts: the reroute step after detection.
-    const shownS = (f.record.detectS ?? Infinity) + (timeline.ticketS - timeline.detectS);
+    const shownS = ticketAt(f);
     if (t < shownS) continue;
     const radio = model.radios[f.record.radio];
     ticket = {
@@ -264,6 +283,7 @@ export function sceneAt(
     watchedRadio: timeline.watchedRadio,
     watchedExtraHops: watchedHops >= 0 ? watchedHops - healthyHops : null,
     ticket,
+    settleS,
   };
 }
 

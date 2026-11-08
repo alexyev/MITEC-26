@@ -282,6 +282,13 @@ export function BuildTab() {
   const anyFailed = scene.failed.some((f, i) => f === 1 && i < PLAY_MODEL.radios.length);
   const stepId = steps[player.stepIndex]?.id ?? '';
 
+  // "Your turn" has no end, but its traffic does (D103): once a click has played out, or right away when there
+  // is nothing to play, the player pauses, so the bar never says playing over a still map.
+  const settled = stepId === 'your-turn' && t >= scene.settleS;
+  useEffect(() => {
+    if (settled && player.playing) player.pause();
+  }, [settled, player]);
+
   return (
     <>
       <BuildMap

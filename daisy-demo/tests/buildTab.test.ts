@@ -203,10 +203,10 @@ describe('sceneAt (T4.4, D70)', () => {
       expect(hopsAt(sim, r.id, start('coverage'))).toBeGreaterThan(0);
   });
 
-  it('shows data again in "Your turn", on the watched radio\'s route', () => {
+  it('shows the watched radio\'s route in "Your turn", with no traffic until a click (D103)', () => {
     const s = scene(tl.yourTurnS + 1);
     expect(s.dataShown).toBe(true);
-    expect(s.packets.length).toBeGreaterThan(5);
+    expect(s.packets).toEqual([]);
     expect(s.routes[0].map(label)).toEqual(['C8-2', 'C7-2', 'C6-2', 'C5-2', 'base']);
     expect(s.watchedExtraHops).toBe(0);
   });

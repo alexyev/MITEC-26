@@ -1,7 +1,7 @@
 // The full-site network cost, small and off to the side (D54): a quiet chip at the right of the top row that
 // opens a card with the cost and its breakdown on demand, and from there the Alternatives comparison.
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Scale } from 'lucide-react';
+import { ChevronDown, CircleHelp, ExternalLink, Scale } from 'lucide-react';
 import { UI } from '../../config/defaults';
 import { PERCENT } from '../../config/play';
 import type { NetworkCost } from '../../engine/pricing';
@@ -12,6 +12,11 @@ import { formatUsd } from '../survey/format';
 import { AlternativesSheet } from './AlternativesSheet';
 import type { Alternatives } from './alternatives';
 import { formatCount, formatShare } from './format';
+
+const LINKS = UI.costCardLinks;
+
+/** The radio technology of a setup label ("HaLow · integrated antennas" is "HaLow"): the card shows only this. */
+const setupName = (label: string) => label.split(' · ')[0];
 
 export interface CostChipProps {
   cost: NetworkCost | null;
@@ -90,7 +95,34 @@ export function CostChip({ cost, pricingErrors, alternatives, focus }: CostChipP
             aria-label="Network cost, full site"
             data-tour="cost-card"
           >
-            <div className="label">Full site · {cost ? cost.label : 'not available'}</div>
+            <div className="cost-setup">
+              <span className="label">{cost ? setupName(cost.label) : 'Not available'}</span>
+              {cost && setupName(cost.label) === 'HaLow' ? (
+                <a
+                  className="cost-help"
+                  href={LINKS.haLowUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={LINKS.haLowHelp}
+                  title={LINKS.haLowHelp}
+                >
+                  <CircleHelp
+                    size={UI.icon.sizePx - 2}
+                    strokeWidth={UI.icon.strokeWidth}
+                    aria-hidden="true"
+                  />
+                </a>
+              ) : null}
+            </div>
+            <a
+              className="cost-proven"
+              href={LINKS.provenUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <strong>{LINKS.provenLabel}:</strong> {LINKS.provenDetail}
+              <ExternalLink size={12} strokeWidth={UI.icon.strokeWidth} aria-hidden="true" />
+            </a>
             {pricingErrors > 0 ? (
               <p className="build-warning" role="alert">
                 The pricing file has {pricingErrors} error{pricingErrors === 1 ? '' : 's'}; see the

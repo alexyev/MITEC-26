@@ -167,6 +167,14 @@ export const UI = {
   brand: 'Exowatt: Scaling Deployment',
   /** Credit at the bottom center of the map and the home screen (spec 6.2, D130): the site's bare domain, in a new tab. */
   credit: { label: 'alexanderyevchenko.com', url: 'https://alexanderyevchenko.com' },
+  /** Network cost card: where "?" explains the radio technology, and the proof that mesh runs autonomous mines. */
+  costCardLinks: {
+    haLowUrl: 'https://en.wikipedia.org/wiki/IEEE_802.11ah',
+    haLowHelp: 'What is HaLow?',
+    provenUrl: 'https://rajant.com/markets/mining/',
+    provenLabel: 'Proven technology',
+    provenDetail: 'self-healing mesh already runs autonomous mining fleets (Rajant)',
+  },
   /** Floating layout in CSS px (spec 6.2): screen margin, top row, panel width, player width. */
   layout: { marginPx: 16, gapPx: 12, topRowPx: 48, panelWidthPx: 320, playerMaxWidthPx: 560 },
   /** Map fit padding in CSS px: clears the top row, both 320 px docks and the player bar with its credit. */

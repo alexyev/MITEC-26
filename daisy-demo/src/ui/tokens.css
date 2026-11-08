@@ -1,0 +1,85 @@
+/*
+ * Design tokens (spec 5.2, 6.3, 6.4, 6.7): the only file with hex colors, rgba colors and font sizes.
+ * Map code reads the story colors with readColorTokens() in src/ui/kit/tokens.ts.
+ */
+:root {
+  /* Story colors (spec 5.2): one meaning each, the same in both tabs. */
+  --c-signal: #2fbf71; /* Radio signal: online radios, links, coverage */
+  --c-data: #3b9eff; /* Data moving: packets, routes to the base, the 4x4s' online dots */
+  --c-fail: #f04438; /* Failure: failed radio, cut-off radio, lost packets */
+  --c-work: #f5b82e; /* Work in progress: 4x4s, planned paths, units waiting for power */
+  --c-unit: #5b6270; /* Site: placed P3 units */
+  --c-done: #2b323c; /* Site: surveyed ground */
+  --c-base: #ffffff; /* Site: the base marker */
+
+  /* Map variants of the story colors (alpha only, same hue and meaning). */
+  --c-signal-fill: rgba(47, 191, 113, 0.18); /* Coverage union, one fill */
+  --c-signal-link: rgba(47, 191, 113, 0.55); /* Radio-to-radio links */
+  --c-data-route: rgba(59, 158, 255, 0.7); /* A highlighted route to the base */
+  --c-unit-planned: rgba(91, 98, 112, 0.45); /* Planned units, thin outlines */
+  --c-work-path: rgba(245, 184, 46, 0.7); /* Planned 4x4 paths, dashed */
+  --c-map-bg: #0b0d11; /* The map ground */
+  --c-map-outline: rgba(255, 255, 255, 0.1); /* Site boundary */
+  --c-map-halo: #0b0d11; /* Dark ring that lifts markers off the map */
+  /* Legend swatches of the 'fill' and 'circle' shapes: an area tint and its edge, per token. */
+  --c-signal-area: var(--c-signal-fill);
+  --c-signal-edge: var(--c-signal);
+
+  /* Surfaces (spec 6.3). */
+  --bg-0: #0b0d11;
+  --surface: rgba(18, 21, 27, 0.86);
+  --surface-strong: rgba(18, 21, 27, 0.92);
+  --surface-raised: rgba(255, 255, 255, 0.1); /* Selected segment, hovered quiet button */
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --highlight: rgba(255, 255, 255, 0.04);
+  --text-1: #f2f4f7;
+  --text-2: #aab2bf;
+  --text-3: #6f7886;
+  --on-primary: #0b0d11; /* Text and icons on the light primary button */
+  --focus-ring: #ffffff;
+
+  /* Radii, shadow, blur (spec 6.3). */
+  --r-chip: 8px;
+  --r-card: 12px;
+  --r-panel: 16px;
+  --r-pill: 999px;
+  --shadow-panel: 0 12px 40px rgba(0, 0, 0, 0.45);
+  --blur-panel: 18px;
+
+  /* Type (spec 6.4): Inter, sizes 11, 12, 13, 14, 16 and 20 px only. */
+  --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-20: 20px;
+  --label-tracking: 0.06em;
+
+  /* Spacing (spec 6.3): the 4 px grid. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --control-h: 32px;
+  --panel-w: 320px;
+  --top-row-h: 48px;
+  --player-max-w: 560px;
+  --hover-card-w: 260px;
+
+  /* Motion (spec 6.7). */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-hover: 120ms;
+  --dur-control: 200ms;
+  --dur-panel: 280ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-hover: 0ms;
+    --dur-control: 0ms;
+    --dur-panel: 0ms;
+  }
+}

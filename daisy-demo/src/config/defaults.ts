@@ -154,19 +154,37 @@ export const PERF_TARGETS_MS = {
   scenarioEvents: 300,
 };
 
-/** UI behaviour (spec 9, 10). */
+/**
+ * Shell, player and layout (spec 6.2, 6.6, 7). Px values mirror the layout tokens in src/ui/tokens.css;
+ * map fits use `mapFitPaddingPx` so targets land in the gap between the panels.
+ */
 export const UI = {
-  sliderDebounceMs: 100,
-  layoutMinWidthPx: 1280,
-  controlsWidthPx: 300,
-  metricsWidthPx: 320,
-  bottomHeightPx: 200,
-  headerHeightPx: 48,
-  /** Build day shown when the demo opens: mid-build, so both faces and their zones are visible. */
-  initialBuildDay: 120,
-  /** Link to the apex domain in the header (Part C of the T1.3 brief). */
-  apexUrl: 'https://alexanderyevchenko.com',
-  apexLabel: 'alexanderyevchenko.com',
+  /** Credit at the bottom center (spec 6.2); opens in a new tab. */
+  credit: { label: 'by Alexander Yevchenko', url: 'https://alexanderyevchenko.com' },
+  /** Floating layout in CSS px (spec 6.2): screen margin, top row, panel width, player width. */
+  layout: { marginPx: 16, gapPx: 12, topRowPx: 48, panelWidthPx: 320, playerMaxWidthPx: 560 },
+  /** Map fit padding in CSS px: clears the top row, both 320 px docks and the player bar with its credit. */
+  mapFitPaddingPx: { top: 92, right: 360, bottom: 184, left: 360 },
+  /** Lucide icons in buttons: size in CSS px and stroke width. */
+  icon: { sizePx: 16, strokeWidth: 1.75 },
+  /** Hover card (spec 6.6): offset from the pointer and the minimum distance to the map edge. */
+  hoverCard: { offsetPx: 14, edgePx: 8 },
+  player: {
+    /** Step back goes to the start of the current step when more than this far into it, else to the previous step. */
+    stepBackGraceS: 1,
+    /** Longest frame step of the clock, so a background tab does not jump ahead on return. */
+    maxFrameS: 0.1,
+  },
+  /** Stub of the Build & failure tab until T4.4: the 540-unit play-model section, drawn as planned units. */
+  buildStub: {
+    unitCols: 36,
+    laneRows: 15,
+    rowPitchM: 21,
+    coverageRadiusM: 46,
+    introS: 4,
+  },
+  /** Stub of the Survey tab until T3.4: the site before the build. */
+  surveyStub: { introS: 4 },
 };
 
 /** Map view (spec 10.3, T1.3). Colors live in src/ui/theme.css. */
@@ -183,13 +201,13 @@ export const MAP = {
   /** Zoom factor per 100 px of wheel delta, and per click on a zoom button. */
   wheelZoomPer100Px: 1.25,
   buttonZoom: 1.6,
-  /** Padding around the site when fitting, in CSS pixels (room for the overlays). */
-  fitPaddingPx: { top: 64, right: 24, bottom: 96, left: 24 },
   /** Target length of the scale bar in CSS pixels. */
   scaleBarTargetPx: 120,
   /** Hatch spacing of the zone overlays in CSS pixels, and the dash pattern of the fronts. */
   hatchSpacingPx: 7,
   frontDashPx: [6, 5],
-  /** Half size of the base marker in CSS pixels. */
-  baseMarkerPx: 9,
+  /** Half size of the base marker, its dark halo and its corner radius, in CSS pixels. */
+  baseMarkerPx: 5,
+  baseHaloPx: 4,
+  baseCornerPx: 1.5,
 };

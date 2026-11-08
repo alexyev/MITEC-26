@@ -1,3 +1,6 @@
 node_modules
 dist
 package-lock.json
+# Shared contracts, verbatim from spec 13.1
+src/ui/player/types.ts
+src/ui/kit/types.ts

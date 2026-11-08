@@ -76,7 +76,12 @@ For T1.3 the only control is the build-day slider (spec 10.2), floating at the b
 The "Simulated · Illustrative values" badge stays visible (spec 0.4).
 Later work follows the same rule: add a control only together with its function, and prefer an overlay or a collapsed panel over a new always-visible one.
 
-## D11 - Exowatt theme (T1.3)
+## D11 - Exowatt theme (T1.3) - superseded
+
+**Superseded in v3 (T2.1)** by the color story of spec section 5 and the design system of spec section 6: a dark map with five story colors, Inter, and every color and font size as a token in `src/ui/tokens.css`.
+The header link of T1.3 became the "by Alexander Yevchenko" credit at the bottom center.
+The text below is kept as the record of the T1.3 choice.
+
 
 The theme follows exowatt.com, inspected in the browser; where it conflicts with spec section 10.1, the Exowatt look wins.
 
@@ -104,3 +109,47 @@ The fronts are drawn as dashed north-south lines at the outer edge of the front 
 A front usually runs through a partly finished column pair.
 The build front is at the outer edge of the partly placed column.
 The edge zone starts at the inner edge of a partly commissioned column (`Fronts.commissionFrontPartial`), so every placed but unpowered unit is inside the edge zone.
+
+## D20 - Dock slots for the floating layout (T2.2)
+
+The shell owns the layout of spec 6.2 as a CSS grid over the map, with one slot per place: `tl` (control panel), `tr` (readout card), `tools` (map tools), `br` (legend), `player` (player bar) and `float` (hover cards).
+`Panel`, `Legend`, `PlayerBar` and `HoverCard` render into their slot through a React portal (`DockPortal` in `src/ui/kit/dock.tsx`), so a tab can return its map and panels in any nesting and they still land in the right place.
+The readout card and the legend share the right column: the legend and the map tools stay at the bottom, and the readout card shrinks and scrolls inside itself when both do not fit, so they never overlap.
+Outside a shell (tests, isolated renders) the components render in place.
+Hover-card coordinates are in map pixels, and the map fills the viewport, so they are viewport pixels too.
+
+## D21 - Player clock semantics (T2.3)
+
+The clock is a pure function of the steps and `{ t, playing }` (`src/ui/player/clock.ts`); `usePlayer` advances it on animation frames, with each frame capped at `UI.player.maxFrameS` so a background tab does not jump ahead.
+"Your turn" has no end, so while playing `t` keeps running inside it; a tab can use that running time for interactive motion, such as packets after a radio fails.
+A walkthrough whose last step has an end stops there, and Play then starts it again.
+`toYourTurn()` pauses and jumps to the start of the last step, as in the contract; inside "Your turn" it changes nothing, so every click there can call it safely, and a tab that animates its "Your turn" calls `play()` after it.
+Step forward goes to the start of the next step; step back goes to the start of the current step when more than `UI.player.stepBackGraceS` (1 s) into it, else to the previous step; from "Your turn" it always goes to the previous step.
+Seeking and stepping keep the playing state; `restart()` plays from the start and calls the optional `onRestart` of `usePlayer`, where a tab puts its inputs back to the defaults.
+The player opens paused on its first step, so the viewer presses Play.
+
+## D22 - Keyboard (T2.3)
+
+Space plays and pauses, Left and Right step, from anywhere on the page except text fields.
+A button keeps focus after a mouse click; Space then plays and pauses instead of clicking that button again, while a button focused with the keyboard keeps its native Space.
+The segmented tab switch is a radio group: Left and Right move its selection and do not step the player.
+
+## D23 - Stub tabs (T2.2)
+
+Until workers B and C replace them, the Survey tab shows the full-site map with the planned units and the base, and the Build & failure tab shows the 540-unit play-model section as planned units with the base and its coverage circle (geometry in `UI.buildStub`).
+Each stub has a two-step walkthrough ("Site" or "Section", then "Your turn"), a step list and a legend, and no readout card, because it has no numbers to show yet (D10).
+The stubs do not show the unit count, which still comes from the 80,000-unit site until T3.1 re-targets it.
+
+## D24 - Map tools and fit padding (T2.2)
+
+The scale bar, zoom and fit buttons of T1.3 moved from the top right (now the honesty badge and the readout card) into one small toolbar above the legend.
+The T1.3 legend inside the map is gone; each tab shows the kit `Legend` with only its own meanings (spec 5.1).
+Map fits use `UI.mapFitPaddingPx`, which clears the top row, both 320 px docks and the player bar, so the site lands in the gap between the panels (spec 6.2).
+`MapView` takes the build day as a prop (default 0, all units planned), because the build-day slider is hidden in v3; planned units are thin outlines in `--c-unit-planned`, and the base is a white square on a dark halo, with no text label.
+
+## D25 - Tokens beyond spec 5.2 and 6.3 (T2.1)
+
+`tokens.css` adds alpha variants of the story colors for map layers (`--c-signal-fill`, `--c-signal-link`, `--c-data-route`, `--c-unit-planned`, `--c-work-path`), the map ground and outline, type sizes `--fs-11` to `--fs-20`, spacing, durations and the layout widths; the variants keep the hue and meaning of their story color.
+Canvas code reads them once with `readColorTokens()` and builds fonts with `canvasFont()` (`src/ui/kit/tokens.ts`), so no file but `tokens.css` holds a color or a font size; `tests/tokens.test.ts` checks this.
+A legend `fill` or `circle` swatch uses the token's area tint (`--c-<token>-area`) and edge (`--c-<token>-edge`) when defined, so the coverage swatch matches the coverage on the map.
+

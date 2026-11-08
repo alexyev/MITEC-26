@@ -197,7 +197,7 @@ export function stepStarts(steps: WalkStep[]): number[] {
 /** What the survey map and readout show at a moment. */
 export interface SurveyFrame {
   step: SurveyStepId;
-  /** The planned paths (dashed amber) are on the map. */
+  /** The planned paths (dashed violet) are on the map. */
   showPaths: boolean;
   /** Survey hours since Send, 0 to the plan's finish. */
   hours: number;

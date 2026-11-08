@@ -145,8 +145,7 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     const sim = simAt(kept, t);
     const next = [...kept];
     for (let r = 0; r < PLAY_MODEL.radios.length; r++) {
-      if (intendsFailed(next, sim, r, t))
-        next.push(sim.addChange(userChange(t, r, 'repair')));
+      if (intendsFailed(next, sim, r, t)) next.push(sim.addChange(userChange(t, r, 'repair')));
     }
     runner.adopt(next);
     set({ userChanges: next });

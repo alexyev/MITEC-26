@@ -6,7 +6,19 @@ export type ColorToken = 'signal' | 'data' | 'fail' | 'work' | 'unit' | 'done' |
 export interface LegendItem {
   token: ColorToken;
   label: string;
-  shape: 'dot' | 'circle' | 'line' | 'dash' | 'cross' | 'ring' | 'square' | 'fill' | 'drone' | 'pad';
+  shape:
+    | 'dot'
+    | 'circle'
+    | 'line'
+    | 'dash'
+    | 'cross'
+    | 'ring'
+    | 'square'
+    | 'fill'
+    | 'drone'
+    | 'pad'
+    | 'outline'
+    | 'states';
   /** A map variant of the token to draw with instead, as a CSS variable (for example '--c-old-route'). */
   colorVar?: string;
 }
@@ -75,7 +87,8 @@ export interface StepperProps {
 export interface InlineBarProps {
   /** 0 to 100. */
   pct: number;
-  token: ColorToken;
+  /** The row's story color, or 'neutral' for a share that is no story color, such as a cost (D100). */
+  token: ColorToken | 'neutral';
   /** A tick at this percentage, for example the 95% coverage target. */
   targetPct?: number;
   /** Width in px; the bar fills its row when 'fill'. */

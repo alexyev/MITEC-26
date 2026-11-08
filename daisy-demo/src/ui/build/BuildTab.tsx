@@ -24,7 +24,7 @@ import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
 import { usePlayer } from '../player/usePlayer';
 import type { Machine } from '../../engine/machines';
-import { RadioBuild, unitStatusAt } from '../../engine/playModel';
+import { RadioBuild, UnitState, unitStatusAt } from '../../engine/playModel';
 import type { Viewport } from '../map/viewport';
 import { featuredRadio } from '../scene3d/featured';
 import { useCornerView } from '../scene3d/useCornerView';
@@ -36,6 +36,10 @@ import { sceneAt, type RobotView, type Scene } from './scene';
 import { SLOWED_STEPS } from './walkthrough';
 import './build.css';
 
+/**
+ * The colors this tab shows (spec 5.1), in 7 rows so the readout with its STRESS-TEST fits beside the legend at
+ * 1280 x 720 (D72): the P3 units' row replaced the base's, which the first caption and its hover card name (D100).
+ */
 const LEGEND: LegendItem[] = [
   { token: 'signal', label: 'Radio signal', shape: 'circle' },
   { token: 'data', label: 'Data and its route', shape: 'line' },
@@ -43,7 +47,7 @@ const LEGEND: LegendItem[] = [
   { token: 'fail', label: 'Failed radio', shape: 'cross' },
   { token: 'fail', label: 'Cut off or no link', shape: 'ring' },
   { token: 'work', label: 'Work in progress', shape: 'dot' },
-  { token: 'base', label: 'Base', shape: 'square' },
+  { token: 'unit', label: 'P3 unit: planned to live', shape: 'states' },
 ];
 
 const steps = PLAY_TIMELINE.steps;
@@ -171,12 +175,24 @@ function machineCard(m: Machine, robot: RobotView | null, pointer: Pointer): Hov
   return { ...pointer, title: kind.name, subtitle, rows };
 }
 
-/** The hover card of a unit: planned for a later stage, the phase its stage is in, or live (D51). */
+/** A unit's build state as its hover card names it (D102). */
+const UNIT_STATE_LABEL: Record<UnitState, string> = {
+  [UnitState.Planned]: 'Planned',
+  [UnitState.Placed]: 'Placed',
+  [UnitState.Commissioned]: 'Commissioned',
+  [UnitState.Live]: 'Live',
+};
+
+/**
+ * The hover card of a unit: its build state on an orange bar (D102), then planned for a later stage, the
+ * phase its stage is in, or live (D51).
+ */
 function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProps {
   const unit = PLAY_MODEL.units[unitId];
   const phases = PLAY_MODEL.config.frontierPhases;
   const stages = PLAY_MODEL.stages.length;
   const status = unitStatusAt(PLAY_MODEL, unitId, scene.buildS);
+  const state = scene.unitState[unitId] as UnitState;
   let subtitle: string;
   if (status.kind === 'planned') subtitle = `Planned · stage ${unit.stage + 1} of ${stages}`;
   else if (status.kind === 'live') subtitle = 'Live · powered';
@@ -184,6 +200,12 @@ function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProp
     const p = phases[status.phase];
     subtitle = `${p.label} · ${status.done ? 'done here' : `${p.equipment.toLowerCase()} on the way`}`;
   }
+  const stateRow: HoverCardProps['rows'][number] = {
+    label: 'State',
+    value: UNIT_STATE_LABEL[state],
+    pct: (state / UnitState.Live) * 100,
+    token: 'unit',
+  };
   return {
     ...pointer,
     title: `P3 #${(unitId + 1).toLocaleString('en-US')}`,
@@ -191,6 +213,7 @@ function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProp
     rows:
       status.kind === 'work'
         ? [
+            stateRow,
             { label: 'Stage', value: `${unit.stage + 1} of ${stages}` },
             {
               label: 'Phase',
@@ -199,7 +222,7 @@ function unitCard(unitId: number, scene: Scene, pointer: Pointer): HoverCardProp
               token: 'work',
             },
           ]
-        : [],
+        : [stateRow],
   };
 }
 

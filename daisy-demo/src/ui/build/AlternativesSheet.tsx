@@ -69,7 +69,7 @@ export function AlternativesSheet({ alternatives, onClose }: AlternativesSheetPr
                   </div>
                   <InlineBar
                     pct={(s.totalUsd / maxSetup) * PERCENT.scale}
-                    token={s.ours ? 'signal' : 'unit'}
+                    token={s.ours ? 'signal' : 'neutral'}
                   />
                   <span className="alts-cost num">{formatUsd(s.totalUsd)}</span>
                 </li>
@@ -91,7 +91,7 @@ export function AlternativesSheet({ alternatives, onClose }: AlternativesSheetPr
                   {s.totalUsd !== null ? (
                     <InlineBar
                       pct={(s.totalUsd / maxSolution) * PERCENT.scale}
-                      token={s.ours ? 'signal' : 'unit'}
+                      token={s.ours ? 'signal' : 'neutral'}
                     />
                   ) : (
                     <span />

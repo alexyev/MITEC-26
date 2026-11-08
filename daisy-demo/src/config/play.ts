@@ -140,6 +140,13 @@ export const PLAY: PlayConfig = {
   ticket: { swapTimeMin: 15 },
 };
 
+/**
+ * The build states of a P3 unit (D102), in order: planned, placed by the crane, commissioned once the crew has
+ * connected and tested it, and live (powered) when its stage ends and the stage's radios switch on.
+ */
+export const UnitState = { Planned: 0, Placed: 1, Commissioned: 2, Live: 3 } as const;
+export type UnitState = (typeof UnitState)[keyof typeof UnitState];
+
 /** Walkthrough of the Build & failure tab (spec 9.8): step durations in playback seconds. */
 export const PLAY_WALK = {
   sectionS: 4,

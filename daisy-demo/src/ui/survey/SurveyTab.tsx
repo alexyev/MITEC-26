@@ -68,7 +68,7 @@ const LEGEND: LegendItem[] = [
   { token: 'data', label: 'Online (Starlink)', shape: 'dot' },
   { token: 'data', label: 'Drone link', shape: 'line' },
   { token: 'done', label: 'Surveyed ground', shape: 'fill' },
-  { token: 'unit', label: 'Planned unit', shape: 'square' },
+  { token: 'unit', label: 'P3 unit · planned', shape: 'outline' },
   { token: 'base', label: 'Base · built up', shape: 'pad' },
 ];
 

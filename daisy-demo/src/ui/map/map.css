@@ -1,0 +1,16 @@
+/*
+ * The desert backdrop (D101): its own canvas under the map's canvas, so the ground is redrawn only when the
+ * view changes. Colors come from tokens.css.
+ */
+
+.map-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.map-backdrop + .map-canvas {
+  position: relative;
+}

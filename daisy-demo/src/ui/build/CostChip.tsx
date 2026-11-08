@@ -148,7 +148,7 @@ export function CostChip({ cost, pricingErrors, alternatives, focus }: CostChipP
                           <span className="build-breakdown-detail">{r.detail}</span>
                         ) : null}
                       </span>
-                      <InlineBar pct={(r.usd / cost.totalUsd) * PERCENT.scale} token="unit" />
+                      <InlineBar pct={(r.usd / cost.totalUsd) * PERCENT.scale} token="neutral" />
                       <span className="build-breakdown-value num">{formatUsd(r.usd)}</span>
                     </div>
                   ))}

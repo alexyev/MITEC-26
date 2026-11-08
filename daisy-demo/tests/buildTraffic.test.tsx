@@ -112,7 +112,9 @@ describe('packets follow the playing clock (D103)', () => {
     goTo('Your turn');
     const sent = sentText();
     // A click on a radio: the store applies it and the tab plays (as BuildTab's own click handler does).
-    act(() => useBuildStore.getState().toggleRadio(cellRadioId(PLAY_MODEL, 6, 2), PLAY_TIMELINE.yourTurnS));
+    act(() =>
+      useBuildStore.getState().toggleRadio(cellRadioId(PLAY_MODEL, 6, 2), PLAY_TIMELINE.yourTurnS),
+    );
     press('Play');
     runFrames(20);
     expect(playing()).toBe(true);

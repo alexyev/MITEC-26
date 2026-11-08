@@ -669,6 +669,82 @@ The tour finds its targets by stable `data-tour` attributes, never by class name
 The players live inside the tabs, so the tour asks rather than reaches in: `usePlayerCommands.requestYourTurn()` (`src/ui/player/commands.ts`) is a counter, and the mounted tab's `usePlayer` jumps to "Your turn" on each increase.
 A player ignores requests made before it mounted, so switching tabs never replays an old request.
 
+## D100 - The color story: P3 units in Exowatt orange, work in progress in violet (desert round, captain's request)
+
+The captain asked for the P3 containers in orange, because they are orange in the field.
+This supersedes spec 5.1's "Orange stays only in the favicon" and 5.2's grey units; the rule of one meaning per color stays.
+Amber meant work in progress and sat 18 degrees of hue from the new orange, and the failure red 20 degrees on the other side, so three meanings would have shared one warm family.
+
+| Token        | Value                                            | Meaning                                                                                                                         | Change                                                                                    |
+| ------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `--c-unit`   | `#F47320` orange                                 | P3 units, live                                                                                                                  | was grey `#5B6270`; build states in D102                                                  |
+| `--c-work`   | `#A78BFA` violet                                 | Work in progress: UTVs, drones, machines, planned paths, radios waiting for power, the stage label and work zone, progress bars | was amber `#F5B82E`                                                                       |
+| `--c-fail`   | `#F0384F` crimson                                | Failure                                                                                                                         | was `#F04438`; 11 degrees cooler, 31 degrees from the orange, so it never reads as a unit |
+| `--c-signal` | `#2FBF71` green                                  | Radio signal                                                                                                                    | unchanged                                                                                 |
+| `--c-data`   | `#3B9EFF` blue                                   | Data moving                                                                                                                     | unchanged                                                                                 |
+| `--c-done`   | `#D9CBB6`, drawn as a 14% veil (`--c-done-fill`) | Surveyed ground                                                                                                                 | was an opaque grey fill, which would hide the desert (D101)                               |
+| `--c-base`   | `#FFFFFF`                                        | The base                                                                                                                        | unchanged                                                                                 |
+
+- **Why violet.** It is the hue farthest from orange, green and red at once.
+  Yellow would sit next to the orange (for a deuteranope both read yellow), cyan sits between signal and data, and pink or magenta collides with the failure red.
+  Violet and the data blue are 45 degrees apart and differ in lightness, and every violet mark has its own shape: a UTV is a dot with a separate blue online dot, a drone has rotors, a machine is a tile with its glyph, a planned path is dashed.
+  Violet beside the orange also reads as dusk, which suits the desert (D101).
+- **Orange means a unit and nothing else.** The cost cards, the Alternatives sheet and the robot-dog comparison drew their neutral bars with the old grey unit token; they now use a neutral bar color (`--bar-neutral`, the `'neutral'` token of `InlineBar`), so an orange bar always means a unit.
+- **Contrast.** On the desert every story color stands at least 3.36:1 from the lightest 1% of the ground (WCAG relative luminance), the failure crimson lowest; `tests/terrain.test.ts` keeps it at 3:1 or more.
+- **Legend.** The Survey tab names "P3 unit · planned" with an outline swatch.
+  The Build & failure tab adds "P3 unit: planned to live" with a four-step swatch and drops "Base", so it keeps the 7 rows that let the readout with STRESS-TEST fit beside it at 1280 x 720 (D72); the first caption ("The base at the center links to Starlink") and its hover card name the base.
+- **Hover cards.** A unit's card now opens with its state on an orange bar (D102); progress bars of work (strip progress, phases, the surveyed share) are violet.
+- **Captions and copy.** No caption names a color except "Green circles show where the signal reaches", which is still true.
+  The tour's copy still names no color (D91); its "map and its colors" step gains the units' four-step swatch.
+  Comments that said amber say violet, and the survey UTV drawing (D84) follows the token, so its drone is violet like the map's.
+
+## D101 - The desert under both maps (desert round, captain's request)
+
+The captain asked to set both demos on an abstract rendering of the desert they would be built in, so the map reads as real ground without competing with the story.
+
+- **Dark, with the terrain glowing softly through, not a dusk palette.** The page stays dark and the ground is warm, desaturated umber: gravel `#1A1612` to sand `#2F271E`, wash beds `#4B3E2F`, slopes that face the light up to a third lighter.
+  The orange units need contrast in lightness: on a mid-tone sand they would differ mostly in saturation and turn muddy, and the 1 to 2 px planned units of the full site would vanish.
+  The coverage tint, the blue packets on their dark rings and the white base were tuned for dark ground (D55), and the glass panels are dark.
+  Schoolscape's map has the same craft: a quiet dark basemap where the land reads faintly under the data.
+  So the ground stays under 0.05 relative luminance and within 2:1 of itself (`tests/terrain.test.ts`), and the neutrals moved from cold slate to warm stone so the glass sits on it: the surfaces, borders, text greys, marker halo, data-step dim, the home screen's scrim and the tour's dim.
+- **Three layers, each a texture that tiles.** Seeded, periodic gradient noise (whole lattice cells per tile in every octave), so every layer repeats with no seam and the ground runs on past the site in every direction:
+  - _Macro_, 20.48 km a tile at 20 m a texel: rolling relief with ridged buttes in places, lit from the northwest at 38 degrees; patches of paler sand and darker gravel; the major dry washes, running northeast to southwest with pale beds (zero lines of a sheared, anisotropic noise, whose integer shear keeps the tile).
+  - _Detail_, 10.24 km at 5 m: the small washes, traced as streams down a meandering flow, widening downstream and joined by tributaries, each with a pale bed and a darker fringe of scrub; the fine relief; and wind ripples about 37 m apart in patches, as light and shade over the macro layer.
+  - _Scrub_, 512 m at 0.25 m: bushes in loose clusters with their shadows to the southeast, and pebbles.
+- **Generated once, off the main thread.** A module worker (`terrain.worker.ts`) builds the layers from `TERRAIN.seed` and the `--c-ground-*` tokens, macro first: about 0.35 s, 0.6 s and 0.05 s on an Apple M4 Pro; the main thread only uploads the texels.
+  Each layer comes with its mip levels (a 2 x 2 box filter that wraps, so they tile too).
+  Without workers (the tests) the map keeps a flat ground color.
+- **Drawn as part of the map.** Each map has a backdrop canvas under its own (`Backdrop`), redrawn only when the view or the canvas size changes, or while a layer fades in (700 ms; none under reduced motion).
+  The layers are repeating patterns anchored to the world, so they pan and zoom with the map, drawn from the mip level whose texels are at least 0.75 device px, so a zoomed-out view is filtered rather than sparkling.
+  The scrub comes in between 0.3 and 1.1 px per meter, where a bush covers a pixel, and the vignette is drawn once per canvas size.
+  The tabs stand on different ground of the same desert (`TERRAIN.origin`): the Build & failure section beside a dry wash.
+- **The parcel.** Inside the site boundary the ground lifts by 2.5% (`--c-site-fill`), with a warm outline, so the parcel reads on the desert (D37).
+- **Performance** (Apple M4 Pro, Chrome, 1280 x 720, the site at 80,000 units for the Survey tab; frames per second with the 95th-percentile frame time):
+
+| Run                                              | Main           | With the desert |
+| ------------------------------------------------ | -------------- | --------------- |
+| Survey, zooming in and out every frame           | 60 (16.7 ms)   | 60 (16.7 ms)    |
+| Survey step with the close-up                    | 60 (16.7 ms)   | 60 (16.7 ms)    |
+| Survey step at 4x                                | 60 (16.7 ms)   | 60 (16.7 ms)    |
+| Build & failure walkthrough, first 60 s          | 60 (16.7 ms)   | 60 (16.7 ms)    |
+| CPU slowed 6x: Survey zooming every frame        | 47.9 (33.4 ms) | 48.7 (33.4 ms)  |
+| CPU slowed 6x: Survey step with the close-up     | 59.9 (16.7 ms) | 60 (16.7 ms)    |
+| CPU slowed 6x: Build & failure walkthrough, 30 s | 58.3 (16.8 ms) | 60 (16.7 ms)    |
+
+The backdrop costs no measurable frame time: a still view draws nothing, and a moving one fills three patterns, on the GPU.
+
+## D102 - The P3 units by build state (desert round)
+
+The units are one orange in steps of lightness, so every state reads as a unit and the steps read in order.
+
+- **Planned:** a thin outline at 30% (`--c-unit-planned`), filled when a unit is under 4 px.
+- **Placed:** dark orange (`--c-unit-placed`), once the crane sets it down in its stage's placement phase.
+- **Commissioned:** brighter (`--c-unit-commissioned`), once the crew of the connection phase has connected and tested it.
+- **Live:** full orange (`--c-unit`), when its stage ends and the stage's radios switch on: powered.
+
+`unitStateAt` in `playModel.ts` gives the state (`UnitState` in `config/play.ts`), the scene holds it per unit, and `tests/buildTab.test.ts` checks that every unit goes through the four in order and that the build ends with all of them live.
+The full site's map uses the same tokens for planned, placed and commissioned; the Survey tab shows only planned units.
+
 ## D103 - Packets stop when the visualization does (desert round, captain's report)
 
 The captain saw packets still moving after everything on the map had visually finished.
@@ -694,6 +770,7 @@ The fix drives traffic by the story, not by the open tab:
 - **Tests.** `tests/packetTraffic.test.ts` checks the windows in the engine (no send outside them, quiet with no packet in flight, the live click equal to the replay), that the walkthrough sends nothing after the resume and "Your turn" stays still for ten minutes, that packets hold still at a fixed time, and that a click and a Reset settle to zero packets with a constant sent count.
   `tests/buildTraffic.test.tsx` drives the running app frame by frame: paused at the failure, detection, reroute and recovered steps the readout's sent count stands still; past the cost step at ¼×, 1× and 4× the player pauses in "Your turn" and the count stays put, also after Play; a click plays a burst, then the player pauses and the count stops.
   On main these tests fail everywhere but the paused steps, as the repro found.
+  `tests/scene3dView.test.tsx` now fails a radio before it plays "Your turn" under the 3D view (D120), since an idle "Your turn" has no traffic to play.
 - In reality the radios report all the time; the map shows their traffic only while a story plays out, like the "Packets slowed for visibility" note (spec 0.5).
 
 ## D110 - Why UTVs, not robot dogs (survey round 4, captain's question)

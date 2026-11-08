@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ROUTING } from '../src/config/defaults';
 import { PLAY, PLAY_WALK } from '../src/config/play';
 import { failedAt, hopsAt, simulate, statsAt } from '../src/engine/packetSim';
-import { cellRadioId } from '../src/engine/playModel';
+import { cellRadioId, UnitState } from '../src/engine/playModel';
 import { findSetup, PRICING } from '../src/engine/pricing';
 import { getSiteModel } from '../src/state/model';
 import {
@@ -141,13 +141,33 @@ describe('sceneAt (T4.4, D70)', () => {
 
   it('builds from the base outward, without data, up to the hold', () => {
     const first = scene(tl.buildStartS - 0.01);
-    expect(first.unitPlaced.every((p) => p === 0)).toBe(true);
+    expect(first.unitState.every((p) => p === UnitState.Planned)).toBe(true);
     expect(first.network.coverage).toBeGreaterThan(0);
     const before = scene(tl.holdS - 0.01);
     expect(before.traffic).toBe(false);
     expect(before.packets).toHaveLength(0);
     expect(before.robot).toBeNull();
     expect(before.network.connectedRadios).toBeLessThan(PLAY_MODEL.radios.length);
+  });
+
+  it('takes every unit through planned, placed, commissioned and live, in order (D102)', () => {
+    const seen = new Set<number>();
+    let prev = scene(0).unitState;
+    for (let t = 0; t <= start('coverage'); t += 0.05) {
+      const now = scene(t).unitState;
+      for (let i = 0; i < now.length; i++) {
+        expect(now[i]).toBeGreaterThanOrEqual(prev[i]);
+        seen.add(now[i]);
+      }
+      prev = now;
+    }
+    expect([...seen].sort()).toEqual([
+      UnitState.Planned,
+      UnitState.Placed,
+      UnitState.Commissioned,
+      UnitState.Live,
+    ]);
+    expect(prev.every((u) => u === UnitState.Live)).toBe(true);
   });
 
   it('shows the robot sending on its route through the partly built network', () => {

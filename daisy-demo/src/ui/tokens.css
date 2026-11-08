@@ -3,50 +3,84 @@
  * Map code reads the story colors with readColorTokens() in src/ui/kit/tokens.ts.
  */
 :root {
-  /* Story colors (spec 5.2): one meaning each, the same in both tabs. */
+  /*
+   * Story colors (spec 5.2, D100): one meaning each, the same in both tabs. The P3 units are Exowatt orange,
+   * as they are in the field; work in progress moved from amber to violet so it never reads as a unit, and
+   * failure is a cooler crimson so it never reads as orange.
+   */
   --c-signal: #2fbf71; /* Radio signal: online radios, links, coverage */
   --c-data: #3b9eff; /* Data moving: packets, routes to the base, the UTVs' online dots */
-  --c-fail: #f04438; /* Failure: failed radio, cut-off radio, lost packets */
-  --c-work: #f5b82e; /* Work in progress: UTVs, planned paths, units waiting for power */
-  --c-unit: #5b6270; /* Site: placed P3 units */
-  --c-done: #2b323c; /* Site: surveyed ground */
+  --c-fail: #f0384f; /* Failure: failed radio, cut-off radio, lost packets */
+  --c-work: #a78bfa; /* Work in progress: UTVs, drones, machines, planned paths, radios waiting for power */
+  --c-unit: #f47320; /* Site: P3 units, live (powered) */
+  --c-done: #d9cbb6; /* Site: surveyed ground, drawn as a light veil (--c-done-fill) */
   --c-base: #ffffff; /* Site: the base marker */
 
+  /* The P3 units by build state (D102): one orange, in steps of lightness, from an outline to full orange. */
+  --c-unit-planned: rgba(244, 115, 32, 0.3); /* Planned: thin outlines (filled when under 4 px) */
+  --c-unit-placed: #a04d1c; /* Placed: set down, not yet connected */
+  --c-unit-commissioned: #c55c1f; /* Commissioned: connected and tested, waiting for its stage's power */
+
   /* Map variants of the story colors (alpha only, same hue and meaning). */
-  --c-signal-fill: rgba(47, 191, 113, 0.18); /* Coverage union, one fill */
+  --c-signal-fill: rgba(47, 191, 113, 0.17); /* Coverage union, one fill */
   --c-signal-link: rgba(47, 191, 113, 0.55); /* Radio-to-radio links */
-  --c-data-route: rgba(59, 158, 255, 0.85); /* A highlighted route to the base */
-  --c-unit-planned: rgba(91, 98, 112, 0.45); /* Planned units, thin outlines */
-  --c-work-path: rgba(245, 184, 46, 0.7); /* Planned UTV paths, dashed */
-  --c-map-bg: #0b0d11; /* The map ground */
-  --c-map-outline: rgba(255, 255, 255, 0.1); /* Site boundary */
-  --c-map-halo: #0b0d11; /* Dark ring that lifts markers off the map */
-  --c-map-dim: rgba(11, 13, 17, 0.6); /* Dims the map under the routes while data moves (D55) */
-  --c-old-route: rgba(170, 178, 191, 0.85); /* The path a reroute replaced, dashed (D55) */
+  --c-data-route: rgba(59, 158, 255, 0.88); /* A highlighted route to the base */
+  --c-work-path: rgba(167, 139, 250, 0.72); /* Planned UTV paths, dashed */
+  --c-done-fill: rgba(217, 203, 182, 0.14); /* Surveyed ground: a light veil over the desert */
+  --c-map-bg: #1b1713; /* The map ground before the terrain is ready (D101) */
+  --c-map-outline: rgba(255, 236, 210, 0.2); /* Site boundary */
+  --c-site-fill: rgba(
+    255,
+    236,
+    210,
+    0.025
+  ); /* A faint lift of the parcel inside its boundary (D37) */
+  --c-map-halo: #110e0b; /* Dark ring that lifts markers off the map */
+  --c-map-dim: rgba(14, 11, 9, 0.6); /* Dims the map under the routes while data moves (D55) */
+  --c-old-route: rgba(196, 186, 172, 0.85); /* The path a reroute replaced, dashed (D55) */
   /* The base pad (D34, D81): already built up, so a solid no-go area on the map, in neutral tones. */
-  --c-pad-fill: rgba(255, 255, 255, 0.06);
-  --c-pad-hatch: rgba(255, 255, 255, 0.14);
-  --c-pad-edge: rgba(255, 255, 255, 0.38);
+  --c-pad-fill: rgba(255, 244, 230, 0.07);
+  --c-pad-hatch: rgba(255, 244, 230, 0.15);
+  --c-pad-edge: rgba(255, 244, 230, 0.42);
   /* The survey UTV drawing (D84): the line art's panel fill. */
   --c-art-fill: rgba(255, 255, 255, 0.05);
   /* Legend swatches of the 'fill' and 'circle' shapes: an area tint and its edge, per token. */
   --c-signal-area: var(--c-signal-fill);
   --c-signal-edge: var(--c-signal);
+  --c-done-area: rgba(217, 203, 182, 0.22);
+  --c-done-edge: rgba(217, 203, 182, 0.45);
 
-  /* Surfaces (spec 6.3). */
-  --bg-0: #0b0d11;
-  --surface: rgba(18, 21, 27, 0.86);
-  --surface-strong: rgba(18, 21, 27, 0.92);
-  --surface-raised: rgba(255, 255, 255, 0.1); /* Selected segment, hovered quiet button */
-  --surface-hover: rgba(255, 255, 255, 0.05);
+  /*
+   * The desert under both maps (D101): warm, muted ground that glows softly through a dark page. The
+   * terrain mixes gravel to sand by tone, pales to the wash color in dry washes, and is lit from the northwest;
+   * the detail layer adds light and shadow, and scrub and pebbles come in up close. Hex only: the terrain
+   * worker reads these as channels.
+   */
+  --c-ground-gravel: #1a1612;
+  --c-ground-sand: #2f271e;
+  --c-ground-wash: #4b3e2f;
+  --c-ground-light: #7a684f;
+  --c-ground-shadow: #060504;
+  --c-ground-scrub: #191a12;
+  --c-ground-pebble-light: #5e4f3d;
+  --c-ground-pebble-dark: #0d0b09;
+  --c-map-vignette: rgba(8, 6, 5, 0.62); /* Darkens the map toward the corners, under every layer */
+
+  /* Surfaces (spec 6.3): warm neutrals, so the glass sits on the desert (D101). */
+  --bg-0: #12100e;
+  --surface: rgba(22, 19, 16, 0.84);
+  --surface-strong: rgba(22, 19, 16, 0.93);
+  --surface-raised: rgba(255, 248, 240, 0.1); /* Selected segment, hovered quiet button */
+  --surface-hover: rgba(255, 248, 240, 0.05);
   --scrim: rgba(0, 0, 0, 0.5); /* Behind a sheet over the view (D54) */
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --highlight: rgba(255, 255, 255, 0.04);
-  --text-1: #f2f4f7;
-  --text-2: #aab2bf;
-  --text-3: #6f7886;
-  --on-primary: #0b0d11; /* Text and icons on the light primary button */
+  --border: rgba(255, 244, 230, 0.08);
+  --border-strong: rgba(255, 244, 230, 0.16);
+  --highlight: rgba(255, 244, 230, 0.04);
+  --text-1: #f5f2ee;
+  --text-2: #b4ada4;
+  --text-3: #7e776e;
+  --on-primary: #12100e; /* Text and icons on the light primary button */
+  --bar-neutral: #8a8278; /* Inline bars of shares that are no story color, such as costs (D100) */
   --focus-ring: #ffffff;
 
   /* Radii, shadow, blur (spec 6.3). */
@@ -80,13 +114,13 @@
 
   /* Home screen and guided tour (D90, D92). */
   --fs-40: 40px; /* The home screen's title: the one display size (D90) */
-  --home-scrim: rgba(11, 13, 17, 0.74); /* Over the blurred map behind the home screen */
+  --home-scrim: rgba(18, 15, 12, 0.74); /* Over the blurred map behind the home screen */
   --home-glow: rgba(255, 255, 255, 0.045); /* A soft light behind the home screen's column */
   --daisy-petal: #cbd6c6; /* The home screen's daisy (D130): sage petals, from the captain's reference */
   --daisy-petal-fill: #ffffff; /* The petals' fill, so they read as white over the page */
   --daisy-center: #f2b33d; /* Its center, and the brand chip's logo */
   --daisy-glow: rgba(242, 179, 61, 0.07); /* A warm light behind the daisy */
-  --tour-dim: rgba(5, 6, 9, 0.66); /* Everything but the tour's targets */
+  --tour-dim: rgba(8, 6, 5, 0.66); /* Everything but the tour's targets */
   --tour-ring: rgba(255, 255, 255, 0.92); /* The ring around a tour target */
   --callout-w: 320px; /* The tour callout: a panel's width, so it fits beside the map's fit area */
 

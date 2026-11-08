@@ -144,6 +144,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
       targets: ['map', 'legend'],
       tab: 'survey',
       swatches: [
+        { token: 'unit', shape: 'states', label: 'P3 units, from planned to live' },
         { token: 'work', shape: 'dot', label: `Work in progress: ${f.vehicle}s, drones, paths` },
         { token: 'data', shape: 'line', label: 'Data moving, and its route' },
         { token: 'signal', shape: 'circle', label: 'Radio signal and coverage' },

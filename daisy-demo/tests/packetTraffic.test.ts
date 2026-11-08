@@ -4,13 +4,7 @@ import { buildGraph } from '../src/engine/network';
 import { createSim, packetsAt, presetFailS, simulate, statsAt } from '../src/engine/packetSim';
 import type { SimChange } from '../src/engine/packetSim';
 import { buildPlayModel, cellRadioId } from '../src/engine/playModel';
-import {
-  PLAY_GRAPH,
-  PLAY_MODEL,
-  PLAY_TIMELINE,
-  simAt,
-  useBuildStore,
-} from '../src/state/build';
+import { PLAY_GRAPH, PLAY_MODEL, PLAY_TIMELINE, simAt, useBuildStore } from '../src/state/build';
 import { sceneAt } from '../src/ui/build/scene';
 
 // D103: the radios' traffic runs only while a story plays out (the walkthrough's robot data, or a click in

@@ -100,7 +100,10 @@ export function hitTest(
   return Math.hypot(b.sx - sx, b.sy - sy) <= r ? { kind: 'base' } : null;
 }
 
-/** Surveyed ground: one fill for every pass rectangle of every UTV (spec 5.2, `--c-done`); never the pad. */
+/**
+ * Surveyed ground: one light veil over the desert for every pass rectangle of every UTV (spec 5.2,
+ * `--c-done-fill`, D100); never the pad.
+ */
 export function drawSurveyed(
   ctx: CanvasRenderingContext2D,
   view: Viewport,
@@ -109,7 +112,7 @@ export function drawSurveyed(
   colors: MapColors,
 ): void {
   if (hours <= 0) return;
-  ctx.fillStyle = colors.done;
+  ctx.fillStyle = colors.doneFill;
   ctx.beginPath();
   for (const v of plan.vehicles) {
     for (const r of surveyedRects(v, hours)) {
@@ -169,7 +172,7 @@ function line(
 }
 
 /**
- * The planned path still ahead of each UTV, dashed amber (spec 8.1): the drive out, the passes, and the
+ * The planned path still ahead of each UTV, dashed violet (spec 8.1, D100): the drive out, the passes, and the
  * drive back once it starts. Paths never cross the base pad (D60). When the passes are closer than
  * `minPassGapPx` on screen, only every k-th pass is drawn, so the plan reads as lanes and not as a solid
  * fill; the pass the UTV is on is always drawn. Zoom in to see every pass.
@@ -208,7 +211,7 @@ export function drawPaths(
   ctx.setLineDash([]);
 }
 
-/** The UTVs: amber dots on a dark halo, each with a small blue online dot (Starlink, spec 8.3). */
+/** The UTVs: violet dots on a dark halo, each with a small blue online dot (Starlink, spec 8.3, D100). */
 export function drawVehicles(
   ctx: CanvasRenderingContext2D,
   markers: VehicleMarker[],
@@ -302,7 +305,7 @@ function drawDroneMark(
   ctx.fill();
 }
 
-/** The flying drones: amber four-rotor marks on a dark halo, like the UTVs they follow. */
+/** The flying drones: violet four-rotor marks on a dark halo, like the UTVs they follow (D100). */
 export function drawDrones(
   ctx: CanvasRenderingContext2D,
   drones: DroneMarker[],

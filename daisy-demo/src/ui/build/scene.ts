@@ -21,6 +21,7 @@ import {
   buildClockAt,
   buildStateAt,
   RadioBuild,
+  unitStateAt,
   type BuildClock,
   type PlayModel,
 } from '../../engine/playModel';
@@ -60,7 +61,8 @@ export interface Scene {
   robot: RobotView | null;
   /** World position of every machine source of the simulation, by its index. */
   sources: { x: number; y: number }[];
-  unitPlaced: Uint8Array;
+  /** UnitState per unit (D102): planned, placed, commissioned or live. */
+  unitState: Uint8Array;
   /** RadioBuild per radio. */
   radioBuild: Uint8Array;
   /** Time each radio switched on (Infinity when off), for the fade-in. */
@@ -124,7 +126,9 @@ export function sceneAt(
 ): Scene {
   const buildS = buildTimeAt(timeline, t);
   const clock = buildClockAt(model, buildS);
-  const { unitPlaced, radioState } = buildStateAt(model, buildS);
+  const { radioState } = buildStateAt(model, buildS);
+  const unitState = new Uint8Array(model.units.length);
+  for (const u of model.units) unitState[u.id] = unitStateAt(model, u.id, buildS);
   const radioOnS = new Float64Array(model.radios.length).fill(Infinity);
   for (const r of model.radios) {
     if (radioState[r.id] === RadioBuild.On) radioOnS[r.id] = timeOfBuild(timeline, r.onS);
@@ -266,7 +270,7 @@ export function sceneAt(
     machines,
     robot,
     sources: (sim.input.sources ?? []).map((s) => ({ x: s.x, y: s.y })),
-    unitPlaced,
+    unitState,
     radioBuild: radioState,
     radioOnS,
     failed,

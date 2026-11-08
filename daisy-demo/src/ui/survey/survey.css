@@ -290,6 +290,23 @@
   color: var(--text-2);
 }
 
+.utv-enough {
+  margin: var(--sp-2) 0 0;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.utv-enough strong {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.utv-open.why-open {
+  margin-top: 0;
+}
+
 .utv-sources {
   margin: 0;
   padding-left: var(--sp-4);
@@ -314,6 +331,10 @@
   cursor: pointer;
 }
 
+.utv-open + .utv-open {
+  margin-top: var(--sp-2);
+}
+
 .utv-open:hover {
   background: var(--surface-hover);
   border-color: var(--border-strong);
@@ -333,4 +354,129 @@
 
 .utv-open-value {
   font-weight: 600;
+}
+
+/* Why UTVs, not robot dogs (D110): the two reasons side by side, the comparison table, then the cost case. */
+.why-sheet .alts-body {
+  gap: var(--sp-3);
+}
+
+.why-intro {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--text-2);
+}
+
+.why-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.why-point {
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-chip);
+  background: var(--surface-hover);
+}
+
+.why-point-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.why-point:first-child .why-point-head svg {
+  color: var(--c-work);
+}
+
+.why-point:last-child .why-point-head svg {
+  color: var(--c-data);
+}
+
+.why-point-value {
+  font-size: var(--fs-16);
+}
+
+.why-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: var(--sp-2) 0;
+}
+
+.why-bar {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 64px;
+  align-items: center;
+  column-gap: var(--sp-2);
+  font-size: var(--fs-12);
+  color: var(--text-2);
+}
+
+.why-bar-value {
+  text-align: right;
+  color: var(--text-1);
+}
+
+.why-point p {
+  margin: 0;
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* The comparison: the better value of a row in full text weight, the other one quieter. */
+.why-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-13);
+}
+
+.why-table th,
+.why-table td {
+  padding: 5px var(--sp-2);
+  border-top: 1px solid var(--border);
+  text-align: right;
+  font-weight: 400;
+}
+
+.why-table thead th {
+  border-top: 0;
+  padding-bottom: var(--sp-1);
+}
+
+.why-table th:first-child {
+  text-align: left;
+}
+
+.why-table tbody th {
+  color: var(--text-2);
+}
+
+.why-table td {
+  width: 132px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.why-table td.better {
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.why-cost p {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--text-1);
+}
+
+.why-cost p.why-edge {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-12);
+  color: var(--text-2);
 }

@@ -91,6 +91,7 @@ describe('tour steps (D91)', () => {
       f.units,
       f.surveyHours,
       f.utvKitUsd,
+      f.dogSpeedUp,
       f.slowestSpeed,
       f.fastestSpeed,
       f.surveyTab,

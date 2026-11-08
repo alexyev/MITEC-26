@@ -28,6 +28,15 @@ describe('survey walkthrough', () => {
     for (const s of steps) expect(s.caption.length).toBeLessThanOrEqual(80);
   });
 
+  it("says in the Survey step how many times a robot dog's pace the UTVs survey at (D110)", () => {
+    expect(steps[2].caption).toContain('drone scans it from above');
+    const withDog = surveySteps(plan, 6.446);
+    expect(withDog[2].caption).toBe(
+      "UTVs scan with lidar at 6.4× a robot dog's pace, their drones from above.",
+    );
+    expect(withDog[2].caption.length).toBeLessThanOrEqual(80);
+  });
+
   it('puts the numbers of the run in the Done caption', () => {
     expect(steps[3].caption).toBe(
       'Done in 3.7 h with 3 UTVs, in a day. More UTVs: less time, same UTV-hours.',

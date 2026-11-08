@@ -144,3 +144,13 @@ This replaces "Pricing (spec section 5)" above.
   The kits are counted in full for the survey; their reuse later is not credited.
 - The hourly UTV cost ($150, the spec's placeholder) and the drone price have no source, so the demo shows no figure for them.
 - The survey alternatives (a GPS rover crew, drones only, an aerial contractor, the GO2 quadruped) have no sourced cost; they show a one-line trade-off only.
+
+## UTV against robot dog (D110)
+
+- The robot dog is a Unitree GO2 EDU, the variant with the SDK for planned routes, priced at $11,190, with a spare 15,000 mAh pack ($800) and the UTV's RTK receiver ($1,023): $13.0k a dog.
+- It surveys at a sustained 1.5 m/s (5.4 km/h), a team estimate under its 2.5 m/s top walking speed, turns at that speed and transits at 2.5 m/s.
+- Its L1 lidar sees bare ground to 10 m on each side (the L1 PM's range on 10% reflective targets), so its passes are 20 m apart.
+- It walks 2 h on a pack and swaps it where it stands in 5 min (a team estimate in the dog's favor); it has no drone.
+- It keeps the UTV's field day: a 10-hour shift that starts with 30 min of RTK base setup.
+- Every value has its source next to it in `src/config/go2.ts`.
+- Crew time is not priced for either surveyor, since no hourly rate is sourced.

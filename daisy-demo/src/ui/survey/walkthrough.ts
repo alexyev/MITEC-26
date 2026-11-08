@@ -5,7 +5,7 @@ import { UNITS } from '../../config/units';
 import { surveySchedule, vehicleAt } from '../../engine/survey';
 import type { Point, SurveyLeg, SurveyPlan } from '../../engine/survey';
 import type { WalkStep } from '../player/types';
-import { formatHours, formatInt } from './format';
+import { formatHours, formatInt, formatTimes } from './format';
 
 export type SurveyStepId = 'site' | 'paths' | 'survey' | 'done' | 'yourTurn';
 
@@ -123,8 +123,11 @@ function buildSurveyClock(plan: SurveyPlan): SurveyClock {
   };
 }
 
-/** The five steps of the Survey tab; the Survey step lasts the survey time at the playback rate. */
-export function surveySteps(plan: SurveyPlan): WalkStep[] {
+/**
+ * The five steps of the Survey tab; the Survey step lasts the survey time at the playback rate. With
+ * `speedUp`, how many times a robot dog's acres an hour one UTV surveys (D110), the Survey step says so.
+ */
+export function surveySteps(plan: SurveyPlan, speedUp?: number): WalkStep[] {
   const count = plan.vehicles.length;
   const fleet = `${count} UTV${count === 1 ? '' : 's'}`;
   const { days: n } = surveySchedule(plan);
@@ -146,7 +149,10 @@ export function surveySteps(plan: SurveyPlan): WalkStep[] {
     {
       id: 'survey',
       label: 'Survey',
-      caption: 'Each UTV scans the ground with lidar, and its drone scans it from above.',
+      caption:
+        speedUp === undefined
+          ? 'Each UTV scans the ground with lidar, and its drone scans it from above.'
+          : `UTVs scan with lidar at ${formatTimes(speedUp)} a robot dog's pace, their drones from above.`,
       durationS: surveyClock(plan).durationS,
     },
     {

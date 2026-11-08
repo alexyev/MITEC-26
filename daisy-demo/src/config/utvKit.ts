@@ -64,6 +64,34 @@ export const LIDAR_GRADES: LidarGrade[] = [
   },
 ];
 
+/**
+ * Why robotics-grade lidar is enough for the site survey (D111), each point with its source and the date it
+ * was read: the positions come from RTK GNSS, the lidar only models flat ground and finds obstacles.
+ */
+export const ROBOTICS_GRADE_ENOUGH: { point: string; source: string }[] = [
+  {
+    point: 'RTK GNSS places every pile and unit, to 7 mm + 1 ppm on the move',
+    source:
+      'Emlid store, Reach M2 specs: kinematic 7 mm + 1 ppm horizontal, 14 mm + 1 ppm vertical, read Nov 2026',
+  },
+  {
+    point:
+      "the lidar only models the ground and finds obstacles, where the drone's L2, rated to 4 cm vertical and 5 cm horizontal, covers a flat desert site",
+    source:
+      'DJI Enterprise, Zenmuse L2 specs: 5 cm horizontal and 4 cm vertical at 150 m, read Nov 2026',
+  },
+  {
+    point: "Exowatt's own GO2 surveys with a navigation-class lidar",
+    source:
+      "Exowatt's challenge video (a GO2-class quadruped); Unitree, GO2 with its 4D LiDAR L1 (unitree.com/go2), read Nov 2026",
+  },
+  {
+    point: 'survey-grade rigs are built for design-grade highway mapping',
+    source:
+      'TxDOT, "Mobile Lidar Specifications and Project Workflow for Design-Grade Mapping" (txdot.gov), read Nov 2026',
+  },
+];
+
 /** The lidar grade the kit is priced with. */
 export const KIT_LIDAR: LidarGrade['id'] = 'robotics';
 

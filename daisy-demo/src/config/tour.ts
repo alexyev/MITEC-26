@@ -107,6 +107,8 @@ export interface TourFacts {
   surveyHours: string;
   /** One survey UTV with its kit and drone, all in, as the cost card formats it. */
   utvKitUsd: string;
+  /** How many times a robot dog's acres an hour one survey UTV covers (D110), as "6.4×". */
+  dogSpeedUp: string;
   slowestSpeed: string;
   fastestSpeed: string;
   normalSpeed: string;
@@ -171,7 +173,7 @@ export function tourSteps(f: TourFacts): TourStep[] {
     {
       id: 'cost',
       title: 'What it costs',
-      body: `The chip shows the cost from sourced prices only. Open it for the breakdown, for one survey ${f.vehicle} kitted out (${f.utvKitUsd} all in, drawn part by part), and to compare the other ways to do the job.`,
+      body: `The chip shows the cost from sourced prices only. Open it for the breakdown, one survey ${f.vehicle} kitted out (${f.utvKitUsd} all in, drawn part by part), why ${f.vehicle}s beat robot dogs (${f.dogSpeedUp} the acres an hour), and the other ways to do the job.`,
       targets: ['cost', 'cost-card'],
       tab: 'survey',
     },

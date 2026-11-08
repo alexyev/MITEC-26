@@ -668,3 +668,35 @@ The tour finds its targets by stable `data-tour` attributes, never by class name
 
 The players live inside the tabs, so the tour asks rather than reaches in: `usePlayerCommands.requestYourTurn()` (`src/ui/player/commands.ts`) is a counter, and the mounted tab's `usePlayer` jumps to "Your turn" on each increase.
 A player ignores requests made before it mounted, so switching tabs never replays an old request.
+
+## D110 - Why UTVs, not robot dogs (survey round 4, captain's question)
+
+The captain asked why the survey uses UTVs instead of the robot dog Exowatt shows surveying in its challenge video, how that justifies the UTV's cost, and how much faster a UTV is per hour.
+
+- **The dog, sourced.** `src/config/go2.ts` holds the Unitree GO2's facts with their sources and dates: 0 to 2.5 m/s walking and about 5 m/s running in the lab; a 15,000 mAh, 432 Wh pack rated about 2 to 4 h (reviews measure about 2 to 2.5 h of continuous walking with a payload) and a 0.8 to 1.5 h fast charge; the built-in L1 lidar, 360 x 90 degrees, 20 m on bright and 10 m on dark targets; Wi-Fi 6, Bluetooth and 4G with an eSIM, and no satellite link.
+  The variant priced is the GO2 EDU ($11,190), the one with the SDK that planned survey routes need; the Air and Pro run from the phone app.
+- **The dog in the survey engine.** `GO2_SURVEY` is a `SurveyConfig`: passes 20 m apart (its lidar sees bare ground, a dark target at a grazing angle, to 10 m each side), 5.4 km/h on passes and turns (a sustained 1.5 m/s, a team estimate under Spot's 1.6 m/s top speed), 2.5 m/s in transit, no drone (`droneFlightMin` is Infinity), and a pack swap every 2 h of walking in the place of the UTV's refuel, 5 min where it stands.
+  The swap in the field favors the dog: walking back to the base to charge would cost more.
+- **Numbers from code.** `compareSurveyors` (`src/engine/surveyCompare.ts`) plans the site for each config with `planSurvey` and `surveySchedule`: one unit alone on the whole site gives the acres an hour with every overhead; the default fleet gives the field days; the smallest fleet that finishes in the UTV fleet's field days gives the matching fleet and its kit.
+- **Results on the generated site** (1,765 acres of unit grid off the pad):
+  - One UTV surveys 159 acres an hour, one GO2 24.7: the UTV is **6.4 times faster**. Even at its 2.5 m/s top walking speed the whole time, a GO2 surveys 40.9 acres an hour, and a UTV is still 3.9 times faster.
+  - With 3 of each, the UTVs take 3.7 h on site, 1 field day; the GO2s take 24.2 h, 3 field days.
+  - To finish in 1 field day: 2 UTVs ($123k with their drones) or 8 GO2s ($104k), which make 32 battery swaps out on the site.
+  - Kit per acre, if the fleet is bought for this one site: $69.9 for the UTVs, $59.0 for the GO2s.
+  - Kit per acre an hour of capacity: $387 for a UTV ($61.7k / 159), $527 for a GO2 ($13.0k / 24.7). A UTV costs 4.7 times a GO2 but surveys 6.4 times as fast.
+- **Honest about the dog's edge.** On hardware alone the dog wins: a GO2 kit is $13.0k, and the one-day dog fleet is $19k cheaper than the one-day UTV fleet, but it carries no drone and no link; the sheet says so, and its table marks the better side of every row, the dog's included.
+  Crew time is not priced (no sourced rate); it would favor the UTVs: 2 drivers for a day against 8 dogs to watch and keep in batteries.
+- **In the app.** The survey cost card has a second row, "Why UTVs, not robot dogs" with "6.4× faster", under the survey UTV's row; the survey UTV sheet links to it too.
+  The sheet leads with the two reasons side by side: "6.4× faster" with a bar per surveyor of acres an hour and the field days of 3 of each, and "Online from day one": each UTV carries its own Starlink Mini and is its drone's link, so the survey is connected before any site network exists, while the GO2 has no satellite link and nothing to join on a new desert site.
+  Then the table of both on this site, the cost case in two lines, the dog's assumptions, and the sources.
+- **Walkthrough and tour.** The Survey step's caption reads "UTVs scan with lidar at 6.4× a robot dog's pace, their drones from above.", one line at 1280 x 720; the tour's "What it costs" step names the sheet with the speed-up from `TourFacts.dogSpeedUp`.
+- **Tests** (`tests/surveyCompare.test.ts`, `tests/surveyCostChip.test.tsx`, `tests/surveyWalkthrough.test.ts`): the GO2 config follows its facts; the dog never stops for a drone and swaps its pack about every 2 h; the acres off the pad; the 6.4 times; 1 and 3 field days; each matching fleet is the fewest that finish in time; the dog wins the kit and the one-day fleet and the UTV the capacity; the sheet opens from the card and from the UTV sheet, leads with the two reasons and marks the better side of each row.
+
+## D111 - Why robotics-grade lidar is enough (survey round 4)
+
+The survey UTV sheet says, under the lidar grades, why the kit is priced with robotics-grade lidar and not survey grade, each point with its source in `ROBOTICS_GRADE_ENOUGH` (`src/config/utvKit.ts`):
+
+- RTK GNSS places every pile and unit, to 7 mm + 1 ppm on the move (Emlid Reach M2 specs).
+- The lidar only models the ground and finds obstacles, where the drone's Zenmuse L2, rated to 4 cm vertical and 5 cm horizontal (DJI specs), covers a flat desert site.
+- Exowatt's own GO2 surveys with a navigation-class lidar (the Unitree L1).
+- Survey-grade rigs are built for design-grade highway mapping (TxDOT's mobile lidar specification).

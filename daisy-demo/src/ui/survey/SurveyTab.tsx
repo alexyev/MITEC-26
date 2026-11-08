@@ -41,6 +41,7 @@ import {
 import type { SurveyHit } from './surveyLayers';
 import { SurveyCostChip } from './SurveyCostChip';
 import { utvKitCost } from './utvKit';
+import { whyUtv } from './whyUtv';
 import { surveySteps, walkthroughFrame, yourTurnFrame } from './walkthrough';
 import './survey.css';
 
@@ -65,7 +66,11 @@ export function SurveyTab() {
   const { setVehicles, send, finish, reset } = useSurveyStore.getState();
 
   const walkPlan = getSurveyPlan(SURVEY.defaultVehicles);
-  const steps = useMemo(() => surveySteps(walkPlan), [walkPlan]);
+  const why = whyUtv(PRICING.pricing);
+  const steps = useMemo(
+    () => surveySteps(walkPlan, why.comparison.speedUp),
+    [walkPlan, why.comparison.speedUp],
+  );
   const player = usePlayer(steps, { onRestart: reset });
   const last = steps.length - 1;
   const inYourTurn = player.stepIndex === last;
@@ -259,6 +264,7 @@ export function SurveyTab() {
       <SurveyCostChip
         cost={cost}
         kit={kit}
+        why={why}
         pricingErrors={errors.length}
         focus={frame.step === 'done'}
       />

@@ -9,16 +9,20 @@ import { DockPortal } from '../kit/dock';
 import { InlineBar } from '../kit/InlineBar';
 import { Kpi } from '../kit/Kpi';
 import '../build/build.css';
-import { formatHours, formatInt, formatUsd } from './format';
+import { formatHours, formatInt, formatTimes, formatUsd } from './format';
 import { SurveyAlternativesSheet } from './SurveyAlternativesSheet';
 import { surveyAlternatives } from './surveyAlternatives';
 import { UtvKitSheet } from './UtvKitSheet';
 import type { UtvKitCost } from './utvKit';
+import type { WhyUtv } from './whyUtv';
+import { WhyUtvSheet } from './WhyUtvSheet';
 
 export interface SurveyCostChipProps {
   cost: SurveyCost;
   /** One survey UTV, all in (D84), behind its own sheet. */
   kit: UtvKitCost;
+  /** Survey UTV against robot dog (D110), behind its own sheet. */
+  why: WhyUtv;
   pricingErrors: number;
   /** The walkthrough's Done step: the card opens by itself while it plays. */
   focus: boolean;
@@ -68,10 +72,10 @@ export function unpricedText(cost: SurveyCost): string | null {
   return `Without ${parts.join(' and ')}: no sourced hourly rate yet. To buy, each UTV with its drone:`;
 }
 
-export function SurveyCostChip({ cost, kit, pricingErrors, focus }: SurveyCostChipProps) {
+export function SurveyCostChip({ cost, kit, why, pricingErrors, focus }: SurveyCostChipProps) {
   // null follows the walkthrough; a click decides until the walkthrough's default changes again.
   const [choice, setChoice] = useState<{ open: boolean; forFocus: boolean } | null>(null);
-  const [sheet, setSheet] = useState<'alternatives' | 'utv' | null>(null);
+  const [sheet, setSheet] = useState<'alternatives' | 'utv' | 'why' | null>(null);
   const open = choice && choice.forFocus === focus ? choice.open : focus;
   const rootRef = useRef<HTMLDivElement>(null);
   const toggle = (next: boolean) => setChoice({ open: next, forFocus: focus });
@@ -164,6 +168,20 @@ export function SurveyCostChip({ cost, kit, pricingErrors, focus }: SurveyCostCh
                 aria-hidden="true"
               />
             </button>
+            <button type="button" className="utv-open" onClick={() => setSheet('why')}>
+              <span className="utv-open-main">
+                Why UTVs, not robot dogs
+                <span className="utv-open-detail">Faster, with their own Starlink</span>
+              </span>
+              <span className="utv-open-value num">
+                {formatTimes(why.comparison.speedUp)} faster
+              </span>
+              <ChevronRight
+                size={UI.icon.sizePx}
+                strokeWidth={UI.icon.strokeWidth}
+                aria-hidden="true"
+              />
+            </button>
             <button
               type="button"
               className="build-btn cost-compare"
@@ -177,7 +195,10 @@ export function SurveyCostChip({ cost, kit, pricingErrors, focus }: SurveyCostCh
         {sheet === 'alternatives' ? (
           <SurveyAlternativesSheet rows={surveyAlternatives(cost)} onClose={() => setSheet(null)} />
         ) : null}
-        {sheet === 'utv' ? <UtvKitSheet kit={kit} onClose={() => setSheet(null)} /> : null}
+        {sheet === 'utv' ? (
+          <UtvKitSheet kit={kit} onClose={() => setSheet(null)} onWhy={() => setSheet('why')} />
+        ) : null}
+        {sheet === 'why' ? <WhyUtvSheet why={why} onClose={() => setSheet(null)} /> : null}
       </div>
     </DockPortal>
   );

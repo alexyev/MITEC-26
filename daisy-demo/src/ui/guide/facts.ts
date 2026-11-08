@@ -8,8 +8,9 @@ import { getSiteModel } from '../../state/model';
 import { PLAY_MODEL, PLAY_TIMELINE } from '../../state/build';
 import { TABS, type TabId } from '../../state/store';
 import { speedLabel } from '../player/speed';
-import { formatHours, formatInt, formatUsd } from '../survey/format';
+import { formatHours, formatInt, formatTimes, formatUsd } from '../survey/format';
 import { utvKitCost } from '../survey/utvKit';
+import { whyUtv } from '../survey/whyUtv';
 import { PRICING } from '../../engine/pricing';
 import { getSurveyPlan } from '../../state/survey';
 
@@ -31,6 +32,7 @@ export function tourFacts(): TourFacts {
     maxVehicles: SURVEY.maxVehicles,
     surveyHours: formatHours(getSurveyPlan(SURVEY.defaultVehicles).finishH),
     utvKitUsd: formatUsd(utvKitCost(PRICING.pricing).totalUsd),
+    dogSpeedUp: formatTimes(whyUtv(PRICING.pricing).comparison.speedUp),
     slowestSpeed: speedLabel(Math.min(...UI.player.speeds)),
     fastestSpeed: speedLabel(Math.max(...UI.player.speeds)),
     normalSpeed: speedLabel(UI.player.normalSpeed),

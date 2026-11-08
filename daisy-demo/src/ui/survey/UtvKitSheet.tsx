@@ -2,8 +2,9 @@
 // costs all in from sourced prices, and the lidar grades it could carry. Opened from the cost card.
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
-import { LIDAR_GRADES } from '../../config/utvKit';
+import { ChevronRight, X } from 'lucide-react';
+import { UI } from '../../config/defaults';
+import { LIDAR_GRADES, ROBOTICS_GRADE_ENOUGH } from '../../config/utvKit';
 import { IconButton } from '../kit/IconButton';
 import { formatUsd } from './format';
 import { UtvIllustration } from './UtvIllustration';
@@ -13,13 +14,15 @@ import type { UtvKitCost } from './utvKit';
 export interface UtvKitSheetProps {
   kit: UtvKitCost;
   onClose: () => void;
+  /** Opens "Why UTVs, not robot dogs" (D110). */
+  onWhy: () => void;
 }
 
 function range(lowUsd: number, highUsd: number): string {
   return lowUsd === highUsd ? formatUsd(lowUsd) : `${formatUsd(lowUsd)} to ${formatUsd(highUsd)}`;
 }
 
-export function UtvKitSheet({ kit, onClose }: UtvKitSheetProps) {
+export function UtvKitSheet({ kit, onClose, onWhy }: UtvKitSheetProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,9 +36,9 @@ export function UtvKitSheet({ kit, onClose }: UtvKitSheetProps) {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  const sources = [...new Set([...kit.rows, ...LIDAR_GRADES].map((r) => r.source))].filter(
-    (s) => !kit.unpriced.some((r) => r.source === s),
-  );
+  const sources = [
+    ...new Set([...kit.rows, ...LIDAR_GRADES, ...ROBOTICS_GRADE_ENOUGH].map((r) => r.source)),
+  ].filter((s) => !kit.unpriced.some((r) => r.source === s));
   const host = document.querySelector('.shell') ?? document.body;
   return createPortal(
     <div className="alts-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -132,7 +135,25 @@ export function UtvKitSheet({ kit, onClose }: UtvKitSheetProps) {
                 );
               })}
             </ul>
+            <p className="utv-enough">
+              <strong>Why robotics grade is enough:</strong>{' '}
+              {ROBOTICS_GRADE_ENOUGH.map((r) => r.point).join('; ')}.
+            </p>
           </section>
+
+          <button type="button" className="utv-open why-open" onClick={onWhy}>
+            <span className="utv-open-main">
+              Why UTVs, not robot dogs
+              <span className="utv-open-detail">
+                Acres an hour, the link and the cost, against a Unitree GO2
+              </span>
+            </span>
+            <ChevronRight
+              size={UI.icon.sizePx}
+              strokeWidth={UI.icon.strokeWidth}
+              aria-hidden="true"
+            />
+          </button>
 
           <ul className="utv-sources" aria-label="Sources">
             {sources.map((s) => (

@@ -30,6 +30,11 @@ export function formatKm(km: number): string {
   return km < decimalsBelow ? km.toFixed(1) : Math.round(km).toLocaleString(LOCALE);
 }
 
+/** A ratio as "6.4×": two significant digits. */
+export function formatTimes(ratio: number): string {
+  return `${Number(ratio.toPrecision(2)).toLocaleString(LOCALE)}×`;
+}
+
 /** A whole number with thousands separators: 23,000. */
 export function formatInt(value: number): string {
   return Math.round(value).toLocaleString(LOCALE);

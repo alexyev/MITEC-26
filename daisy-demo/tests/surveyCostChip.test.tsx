@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SURVEY_ALTERNATIVES } from '../src/config/survey';
 import { PRICING, surveyCost } from '../src/engine/pricing';
@@ -8,7 +8,13 @@ import { getSurveyPlan } from '../src/state/survey';
 import { SurveyCostChip, surveyCostRows, unpricedText } from '../src/ui/survey/SurveyCostChip';
 import { surveyAlternatives } from '../src/ui/survey/surveyAlternatives';
 import { utvKitCost } from '../src/ui/survey/utvKit';
-import { CAPTAIN_ESTIMATE_USD, LIDAR_GRADES, UTV_KIT } from '../src/config/utvKit';
+import { whyUtv } from '../src/ui/survey/whyUtv';
+import {
+  CAPTAIN_ESTIMATE_USD,
+  LIDAR_GRADES,
+  ROBOTICS_GRADE_ENOUGH,
+  UTV_KIT,
+} from '../src/config/utvKit';
 
 // D63: the survey cost is a quiet chip in the Build tab's pattern (D54), with the alternatives behind it.
 afterEach(cleanup);
@@ -16,11 +22,12 @@ afterEach(cleanup);
 const plan = getSurveyPlan(3);
 const cost = surveyCost(PRICING.pricing, 3, plan.vehicleHours, plan.finishH);
 const kit = utvKitCost(PRICING.pricing);
+const why = whyUtv(PRICING.pricing);
 
 function renderChip(focus = false) {
   return render(
     <div className="shell">
-      <SurveyCostChip cost={cost} kit={kit} pricingErrors={0} focus={focus} />
+      <SurveyCostChip cost={cost} kit={kit} why={why} pricingErrors={0} focus={focus} />
     </div>,
   );
 }
@@ -159,5 +166,59 @@ describe('the survey UTV, all in (D84)', () => {
     expect(sheet.textContent).toContain('Mobile mapping system');
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'The survey UTV' })).toBeNull();
+  });
+});
+
+describe('why UTVs, not robot dogs (D110, D111)', () => {
+  it('opens from the cost card with the speed-up, leading with faster and connected', () => {
+    renderChip(true);
+    const open = screen.getByRole('button', { name: /Why UTVs, not robot dogs/ });
+    expect(open.textContent).toContain('6.4× faster');
+    fireEvent.click(open);
+    const sheet = screen.getByRole('dialog', { name: 'Why UTVs, not robot dogs' });
+    const points = sheet.querySelectorAll('.why-point');
+    expect(points).toHaveLength(2);
+    expect(points[0].textContent).toContain('6.4× faster');
+    expect(points[0].textContent).toContain('159 ac/h');
+    expect(points[0].textContent).toContain('24.7 ac/h');
+    expect(points[1].textContent).toContain('Online from day one');
+    expect(points[1].textContent).toContain('Starlink Mini');
+    expect(points[1].textContent).toContain('link for its lidar drone');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('marks the better side of every row, the dog included where it wins', () => {
+    renderChip(true);
+    fireEvent.click(screen.getByRole('button', { name: /Why UTVs, not robot dogs/ }));
+    const sheet = screen.getByRole('dialog', { name: 'Why UTVs, not robot dogs' });
+    const row = (label: string) =>
+      [...sheet.querySelectorAll('tbody tr')].find(
+        (r) => r.querySelector('th')?.textContent === label,
+      )!;
+    const better = (label: string) =>
+      [...row(label).querySelectorAll('td')].map((td) => td.classList.contains('better'));
+    expect(better('Acres an hour, one unit')).toEqual([true, false]);
+    expect(better('Kit per acre an hour of capacity')).toEqual([true, false]);
+    expect(better('Kit, one unit')).toEqual([false, true]);
+    expect(better('Kit, fleet for 1 field day')).toEqual([false, true]);
+    expect(row('Fleet for 1 field day').textContent).toContain('8 GO2s');
+    expect(sheet.textContent).toContain("The dog's edge");
+    expect(sheet.textContent).toContain('$387 instead of $527');
+  });
+
+  it('opens from the survey UTV sheet, which says why robotics grade is enough', () => {
+    renderChip(true);
+    fireEvent.click(screen.getByRole('button', { name: /One survey UTV, all in/ }));
+    const utv = screen.getByRole('dialog', { name: 'The survey UTV' });
+    const text = utv.textContent ?? '';
+    expect(text).toContain('Why robotics grade is enough');
+    for (const r of ROBOTICS_GRADE_ENOUGH) {
+      expect(text).toContain(r.point);
+      expect(text).toContain(r.source);
+    }
+    fireEvent.click(within(utv).getByRole('button', { name: /Why UTVs, not robot dogs/ }));
+    expect(screen.queryByRole('dialog', { name: 'The survey UTV' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Why UTVs, not robot dogs' })).toBeTruthy();
   });
 });

@@ -19,14 +19,13 @@ describe('buildSchedule', () => {
     describe(order, () => {
       const schedule = buildSchedule(site, { ...BUILD, order });
 
-      it('places unitsPerDay units per day and takes about 400 days', () => {
+      it('places unitsPerDay units per day and takes 115 days', () => {
         const perDay = new Map<number, number>();
         for (let i = 0; i < site.count; i++) {
           perDay.set(schedule.placedDay[i], (perDay.get(schedule.placedDay[i]) ?? 0) + 1);
         }
         expect(schedule.buildDays).toBe(Math.ceil(site.count / BUILD.unitsPerDay));
-        expect(schedule.buildDays).toBeGreaterThanOrEqual(395);
-        expect(schedule.buildDays).toBeLessThanOrEqual(405);
+        expect(schedule.buildDays).toBe(115);
         for (let d = 1; d < schedule.buildDays; d++) expect(perDay.get(d)).toBe(BUILD.unitsPerDay);
         expect(schedule.lastDay).toBe(schedule.buildDays + BUILD.placeToCommissionDays);
       });
@@ -64,7 +63,7 @@ describe('buildSchedule', () => {
       });
 
       it('classifies zones consistently with the fronts', () => {
-        const day = 150;
+        const day = 60;
         const zones = zonesAt(schedule, day);
         const f = frontsAt(schedule, day);
         const counts = { planned: 0, work: 0, edge: 0, done: 0 };
@@ -95,12 +94,15 @@ describe('buildSchedule', () => {
       expect(s.frontKind).toBe('centerX');
       // The block grid is centered in the site (D3); its trailing 2 m gap puts the unit centers 1 m west.
       expect(Math.abs(s.centerX - site.widthM / 2)).toBeLessThanOrEqual(1.01);
-      // Day 1 builds only units next to the center line: the two innermost unit columns.
+      // The first units built are the two innermost unit columns, one on each side of the center line.
+      for (let rank = 0; rank < 2 * site.rows; rank++) {
+        expect(Math.abs(ux(s.buildOrderIds[rank]) - s.centerX)).toBeLessThan(site.unitPitchM);
+      }
+      // Day 1 splits evenly between the west and the east face.
       let west = 0;
       let east = 0;
       for (let i = 0; i < site.count; i++) {
         if (s.placedDay[i] !== 1) continue;
-        expect(Math.abs(ux(i) - s.centerX)).toBeLessThan(site.unitPitchM);
         if (ux(i) < s.centerX) west++;
         else east++;
       }
@@ -130,7 +132,7 @@ describe('buildSchedule', () => {
     });
 
     it('places exactly the units within the build front on both faces', () => {
-      const day = 120;
+      const day = 60;
       const z = faceZonesAt(s, day);
       for (let i = 0; i < site.count; i += 37) {
         const x = ux(i);
@@ -142,23 +144,18 @@ describe('buildSchedule', () => {
     });
 
     it('advances every lane row evenly: each face is a straight north-south front', () => {
-      // At the end of a full column pair every lane row has the same number of placed units per face.
-      const pairDays = (2 * site.rows) / BUILD.unitsPerDay;
+      // After every full column pair, each lane row has the same number of placed units per face.
       for (const pairs of [3, 10, 40]) {
-        const placed = pairs * 2 * site.rows;
-        if (placed % BUILD.unitsPerDay !== 0) continue;
-        const day = placed / BUILD.unitsPerDay;
         const perRowWest = new Int32Array(site.rows);
         const perRowEast = new Int32Array(site.rows);
-        for (let i = 0; i < site.count; i++) {
-          if (s.placedDay[i] > day) continue;
+        for (let rank = 0; rank < pairs * 2 * site.rows; rank++) {
+          const i = s.buildOrderIds[rank];
           if (ux(i) < s.centerX) perRowWest[site.unitRow[i]]++;
           else perRowEast[site.unitRow[i]]++;
         }
         expect(new Set(perRowWest)).toEqual(new Set([pairs]));
         expect(new Set(perRowEast)).toEqual(new Set([pairs]));
       }
-      expect(pairDays).toBeGreaterThan(1);
       // Within a day the build alternates west and east, so the faces never differ by more than one unit.
       for (let day = 1; day <= s.buildDays; day += 11) {
         let west = 0;
@@ -174,7 +171,7 @@ describe('buildSchedule', () => {
 
     it('has an edge zone on each face of about half of placeToCommissionDays x unitsPerDay', () => {
       const half = (BUILD.placeToCommissionDays * BUILD.unitsPerDay) / 2;
-      for (const day of [20, 150, 300]) {
+      for (const day of [20, 60, 100]) {
         const zones = zonesAt(s, day);
         let west = 0;
         let east = 0;
@@ -216,7 +213,7 @@ describe('buildSchedule', () => {
 
   it('westToEast fronts are x coordinates that sweep the width of the site', () => {
     const s = buildSchedule(site, { ...BUILD, order: 'westToEast' });
-    const early = frontsAt(s, 10);
+    const early = frontsAt(s, 5);
     const late = frontsAt(s, s.buildDays);
     expect(s.frontKind).toBe('x');
     expect(early.buildFront).toBeLessThan(site.widthM / 10);
@@ -231,7 +228,7 @@ describe('buildSchedule', () => {
   it('southToNorth fronts are y coordinates', () => {
     const s = buildSchedule(site, { ...BUILD, order: 'southToNorth' });
     expect(s.frontKind).toBe('y');
-    expect(frontsAt(s, 10).buildFront).toBeLessThan(site.heightM / 10);
+    expect(frontsAt(s, 5).buildFront).toBeLessThan(site.heightM / 10);
     expect(frontsAt(s, s.buildDays).buildFront).toBeGreaterThan(site.heightM * 0.9);
   });
 
@@ -251,9 +248,12 @@ describe('buildSchedule', () => {
     const s = buildSchedule(site, { ...BUILD, order: 'blockSerpentine' });
     expect(s.frontKind).toBe('path');
     const blockOf = (rank: number) => site.unitBlock[s.buildOrderIds[rank]];
-    // The first block (400 units = 2 days) is completed before any other block starts.
+    // The first block is completed before any other block starts.
     const first = blockOf(0);
-    for (let r = 0; r < site.unitsPerLane * 20; r++) expect(blockOf(r)).toBe(first);
+    let firstBlockSize = 0;
+    for (let i = 0; i < site.count; i++) if (site.unitBlock[i] === first) firstBlockSize++;
+    expect(firstBlockSize).toBeGreaterThan(site.unitsPerLane);
+    for (let r = 0; r < firstBlockSize; r++) expect(blockOf(r)).toBe(first);
     // On the first block row the build moves toward +x; on the second block row toward -x.
     const lastOfRow0 = site.blockCols - 1;
     const rankOfBlock = (b: number) => {

@@ -6,11 +6,11 @@ import type { BuildConfig, SiteConfig } from '../engine/types';
 export const SITE: SiteConfig = {
   areaAcres: 2000,
   aspect: 2.0,
-  targetUnits: 80_000,
+  targetUnits: 23_000,
   unitWidthM: 12.2,
   unitDepthM: 2.44,
   unitGapM: 2.0,
-  unitsPerLane: 20,
+  unitsPerLane: 25,
   lanesPerBlock: 20,
   roadWidthM: 10,
   edgeMarginM: 20,

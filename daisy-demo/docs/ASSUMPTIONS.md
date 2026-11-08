@@ -83,3 +83,13 @@ The main view says "Simulated · Illustrative values".
 - All prices are placeholders while `pricing.verified = false`.
   The cost panel shows "Placeholder prices - verify before pitch" until then.
 - See `PRICING_FORMAT.md` for the file format.
+
+## Site and layout, v3 (spec section 3.1, T3.1)
+
+This replaces the site numbers in "Site and layout" and "Build schedule" above.
+
+- The site is 2,000 acres with exactly 23,000 P3 units, the team's number from Exowatt, in a 2:1 rectangle of about 4,023 m by 2,012 m.
+- A lane has 25 units, so 10 block columns give 250 units per lane row, and 92 lane rows give 23,000 units.
+- The lane pitch is 21.64 m everywhere; each road between block rows runs in the corridor between two lanes (decision D30).
+- The unit grid, which the 4x4s survey, is 3,638 m by 1,972 m.
+- At 200 units per day the build takes 115 days.

@@ -5,20 +5,47 @@ import { generateSite } from '../src/engine/site';
 describe('generateSite (default 2,000 acre site)', () => {
   const site = generateSite();
 
-  it('count is within 2% of the target', () => {
-    expect(Math.abs(site.count - SITE.targetUnits) / SITE.targetUnits).toBeLessThan(0.02);
+  it('has exactly 23,000 units', () => {
+    expect(SITE.targetUnits).toBe(23_000);
+    expect(site.count).toBe(23_000);
     expect(site.centers.length).toBe(2 * site.count);
     expect(site.warnings).toEqual([]);
   });
 
   it('has the expected block, lane and pitch structure', () => {
-    expect(site.blockCols).toBe(13);
-    expect(site.cols).toBe(260);
-    expect(site.rows).toBe(308);
-    expect(site.rowPitchM).toBeGreaterThan(5.5);
-    expect(site.rowPitchM).toBeLessThan(6.5);
+    expect(site.blockCols).toBe(10);
+    expect(site.cols).toBe(250);
+    expect(site.rows).toBe(92);
+    expect(site.blockRows).toBe(5);
+    expect(site.rowPitchM).toBeGreaterThan(20);
+    expect(site.rowPitchM).toBeLessThan(22);
     expect(site.widthM).toBeCloseTo(4023, -1);
     expect(site.heightM).toBeCloseTo(2012, -1);
+  });
+
+  it('spreads the lanes evenly over the block rows (18 or 19 lanes each)', () => {
+    const lanesPerBlockRow = new Map<number, number>();
+    for (let r = 0; r < site.rows; r++) {
+      const blockRow = Math.floor(site.unitBlock[r * site.cols] / site.blockCols);
+      lanesPerBlockRow.set(blockRow, (lanesPerBlockRow.get(blockRow) ?? 0) + 1);
+    }
+    expect([...lanesPerBlockRow.values()].sort()).toEqual([18, 18, 18, 19, 19]);
+  });
+
+  it('keeps one lane pitch everywhere and puts each block-row road inside a lane corridor', () => {
+    const y = (r: number) => site.centers[2 * (r * site.cols) + 1];
+    for (let r = 1; r < site.rows; r++) expect(y(r) - y(r - 1)).toBeCloseTo(site.rowPitchM, 3);
+    const blockRowRoads = site.roads.filter((road) => road.w > road.h);
+    expect(blockRowRoads.length).toBe(site.blockRows - 1);
+    for (const road of blockRowRoads) {
+      expect(road.h).toBe(SITE.roadWidthM);
+      // No lane's unit footprint reaches into the road.
+      for (let r = 0; r < site.rows; r++) {
+        const below = y(r) + SITE.unitDepthM / 2 <= road.y + 1e-3;
+        const above = y(r) - SITE.unitDepthM / 2 >= road.y + road.h - 1e-3;
+        expect(below || above).toBe(true);
+      }
+    }
   });
 
   it('gives every unit a valid lane id and position', () => {
@@ -85,7 +112,7 @@ describe('generateSite (default 2,000 acre site)', () => {
     expect(site.roads.length).toBe(site.blockCols - 1 + site.blockRows - 1);
   });
 
-  it('generates 80,000 units in under the section 9 target', () => {
+  it('generates 23,000 units in under the section 9 target', () => {
     const start = performance.now();
     generateSite();
     const elapsed = performance.now() - start;

@@ -30,19 +30,23 @@ export function generateSite(config: SiteConfig = SITE): Site {
   // Lane rows: as near as possible to the target; solve the row pitch so the lanes fill the height.
   const rowStep = config.unitDepthM + config.roadWidthM; // center distance across a road
   const spanV = usableV - config.unitDepthM;
-  const pitchFor = (rows: number): { pitch: number; blockRows: number } => {
+  // A road between block rows needs a center distance of `rowStep`. When the even lane pitch is at
+  // least that, the road fits inside a lane corridor and every lane row has the same pitch (D30).
+  const pitchFor = (rows: number): { pitch: number; blockRows: number; roadStep: number } => {
     const blockRows = Math.ceil(rows / config.lanesPerBlock);
+    const evenPitch = rows > 1 ? spanV / (rows - 1) : Infinity;
+    if (evenPitch >= rowStep) return { pitch: evenPitch, blockRows, roadStep: evenPitch };
     const gaps = rows - blockRows;
     const pitch = gaps > 0 ? (spanV - (blockRows - 1) * rowStep) / gaps : Infinity;
-    return { pitch, blockRows };
+    return { pitch, blockRows, roadStep: rowStep };
   };
   let rows = Math.max(1, Math.round(config.targetUnits / cols));
-  let { pitch: rowPitch, blockRows } = pitchFor(rows);
+  let { pitch: rowPitch, blockRows, roadStep } = pitchFor(rows);
   const minPitch = config.unitDepthM + config.minRowClearanceM;
   if (rowPitch < minPitch) {
     while (rows > 1 && rowPitch < minPitch) {
       rows--;
-      ({ pitch: rowPitch, blockRows } = pitchFor(rows));
+      ({ pitch: rowPitch, blockRows, roadStep } = pitchFor(rows));
     }
     warnings.push(
       `Row pitch is below depth + ${config.minRowClearanceM} m; reduced to ${rows * cols} units (target ${config.targetUnits}).`,
@@ -63,7 +67,7 @@ export function generateSite(config: SiteConfig = SITE): Site {
   let row = 0;
   for (let b = 0; b < blockRows; b++) {
     for (let l = 0; l < lanesInBlockRow[b]; l++) {
-      if (row > 0) v += l === 0 ? rowStep : rowPitch;
+      if (row > 0) v += l === 0 ? roadStep : rowPitch;
       rowV[row] = v;
       rowBlock[row] = b;
       row++;
@@ -142,7 +146,8 @@ export function generateSite(config: SiteConfig = SITE): Site {
   let rowCursor = 0;
   for (let b = 0; b + 1 < blockRows; b++) {
     rowCursor += lanesInBlockRow[b];
-    const roadV = rowV[rowCursor - 1] + config.unitDepthM / 2;
+    // Centered in the corridor between the last lane of this block row and the first of the next.
+    const roadV = (rowV[rowCursor - 1] + rowV[rowCursor] - config.roadWidthM) / 2;
     roads.push(toRect(startU, roadV, totalBlocksU, config.roadWidthM));
   }
 

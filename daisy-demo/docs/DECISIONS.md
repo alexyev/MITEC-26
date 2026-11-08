@@ -153,3 +153,12 @@ Map fits use `UI.mapFitPaddingPx`, which clears the top row, both 320 px docks a
 Canvas code reads them once with `readColorTokens()` and builds fonts with `canvasFont()` (`src/ui/kit/tokens.ts`), so no file but `tokens.css` holds a color or a font size; `tests/tokens.test.ts` checks this.
 A legend `fill` or `circle` swatch uses the token's area tint (`--c-<token>-area`) and edge (`--c-<token>-edge`) when defined, so the coverage swatch matches the coverage on the map.
 
+## D30 - The v3 site: 23,000 units and one lane pitch (T3.1)
+
+The site is 2,000 acres with exactly 23,000 units: 25 units per lane, 10 block columns (250 units per lane row) and 92 lane rows.
+This replaces the 80,000-unit numbers of D2 and D3; the 92 lane rows spread over 5 block rows of 18 or 19 lanes, as D2 describes.
+With so few lane rows the lane pitch is about 21.6 m, so the corridor between two lanes (about 19.2 m clear) is wider than a 10 m road.
+The old pitch solver still used a 12.4 m center distance (unit depth plus road) across each block-row road, which made the lanes either side of a road closer together than the lanes inside a block, and pushed the pitch to 22.1 m.
+When the even pitch over all lane rows is at least the unit depth plus the road width, the generator now uses that even pitch everywhere and centers each block-row road in the lane corridor where the block rows meet.
+The lane pitch is then 21.64 m everywhere, and the unit grid is 3,638 m by 1,972 m.
+On denser sites, where the even pitch is smaller than a road, the generator keeps the old rule; the road rectangle formula gives the same position there.

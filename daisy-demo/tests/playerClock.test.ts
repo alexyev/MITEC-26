@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as clock from '../src/ui/player/clock';
+import { UI } from '../src/config/defaults';
 import type { WalkStep } from '../src/ui/player/types';
 
 // T2.3 acceptance: the clock's step boundaries, pause, seek, step back and forward, restart and toYourTurn.
@@ -68,11 +69,13 @@ describe('playback speed', () => {
     expect(clock.tick(STEPS, playing(1), 0.5, 1)).toEqual(playing(1.5));
     expect(clock.tick(STEPS, playing(1), 0.5, 2)).toEqual(playing(2));
     expect(clock.tick(STEPS, playing(1), 0.5, 4)).toEqual(playing(3));
+    expect(clock.tick(STEPS, playing(1), 0.5, 0.5)).toEqual(playing(1.25));
+    expect(clock.tick(STEPS, playing(1), 0.5, 0.25)).toEqual(playing(1.125));
     expect(clock.tick(STEPS, paused(1), 0.5, 4)).toEqual(paused(1));
   });
 
   it('scales every step duration by the same factor in wall time', () => {
-    for (const speed of [1, 2, 4]) {
+    for (const speed of UI.player.speeds) {
       // Play the walkthrough in 50 ms frames and record the wall time each step starts.
       const starts: number[] = [0];
       let s = playing(0);

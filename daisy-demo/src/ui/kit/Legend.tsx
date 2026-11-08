@@ -58,6 +58,29 @@ export function LegendSwatch({
         </g>
       );
       break;
+    case 'pad':
+      // The built-up base pad (D81): a hatched, outlined area with the base marker at its center.
+      mark = (
+        <g>
+          <rect
+            x="1.5"
+            y="1.5"
+            width="13"
+            height="9"
+            rx="2"
+            fill="var(--c-pad-fill)"
+            stroke="var(--c-pad-edge)"
+            strokeWidth="1"
+          />
+          <path
+            d="M2 6 L6.5 1.5 M2 10.5 L11 1.5 M5.5 10.5 L14.5 1.5 M10 10.5 L14.5 6"
+            stroke="var(--c-pad-hatch)"
+            strokeWidth="1"
+          />
+          <rect x="6" y="4" width="4" height="4" rx="0.75" fill={c} />
+        </g>
+      );
+      break;
     case 'fill':
       mark = (
         <rect

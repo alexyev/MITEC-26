@@ -1,5 +1,6 @@
-// Survey tab (spec 8, T3.4, D60, D61): 4x4s survey the full site on their own strips around the base pad, each
-// online over its own Starlink, and each with a drone that follows it and links through it.
+// Survey tab (spec 8, T3.4, D60, D61, D81, D82): 4x4s survey the full site on their own strips around the
+// built-up base pad, each online over its own Starlink, and each with a drone that follows it and links through
+// it; the walkthrough zooms in on one 4x4 so its drone reads at a glance.
 // The view is a pure function of the fleet size and the player time (spec rule 6); Send runs on the player clock.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SITE } from '../../config/defaults';
@@ -9,6 +10,7 @@ import { droneFlying, surveyedFraction } from '../../engine/survey';
 import { getSiteModel } from '../../state/model';
 import { getSurveyPlan, useSurveyStore } from '../../state/survey';
 import { HoverCard } from '../kit/HoverCard';
+import { prefersReducedMotion } from '../kit/tokens';
 import { Kpi } from '../kit/Kpi';
 import { Legend } from '../kit/Legend';
 import { Panel } from '../kit/Panel';
@@ -17,14 +19,15 @@ import { Stepper } from '../kit/Stepper';
 import type { HoverCardProps, LegendItem } from '../kit/types';
 import { MapView } from '../map/MapView';
 import type { MapLayer, MapPointer } from '../map/MapView';
-import type { Viewport } from '../map/viewport';
+import type { Camera, Viewport } from '../map/viewport';
 import { PlayerBar } from '../player/PlayerBar';
 import { StepList } from '../player/StepList';
 import { stepStarts } from '../player/clock';
 import { usePlayer } from '../player/usePlayer';
-import { formatHours, formatInt, formatKm, formatSharePct } from './format';
+import { formatHours, formatInt, formatKm, formatPace, formatSharePct } from './format';
 import {
   droneMarkers,
+  drawCloseUpLabels,
   drawDroneLinks,
   drawDrones,
   drawPaths,
@@ -48,7 +51,7 @@ const LEGEND: LegendItem[] = [
   { token: 'data', label: 'Drone link', shape: 'line' },
   { token: 'done', label: 'Surveyed ground', shape: 'fill' },
   { token: 'unit', label: 'Planned unit', shape: 'square' },
-  { token: 'base', label: 'Base', shape: 'square' },
+  { token: 'base', label: 'Base · built up', shape: 'pad' },
 ];
 
 const PCT = 100;
@@ -96,6 +99,16 @@ export function SurveyTab() {
     player.play();
   };
 
+  // The close-up (D82) zooms the map; with reduced motion it cuts in and out instead of zooming.
+  const close = frame.closeUp;
+  const camera: Camera | null = close
+    ? {
+        target: close.target,
+        pxPerM: close.pxPerM,
+        blend: prefersReducedMotion() ? Math.round(close.blend) : close.blend,
+      }
+    : null;
+
   // Hover (spec 6.6): the pointer comes from the map, the view from its last draw.
   const [pointer, setPointer] = useState<MapPointer | null>(null);
   const viewRef = useRef<Viewport | null>(null);
@@ -118,6 +131,9 @@ export function SurveyTab() {
     drawDroneLinks(ctx, vm, dm, colors);
     drawVehicles(ctx, vm, colors, hoveredId);
     drawDrones(ctx, dm, colors, hoveredDrone);
+    // The labels fade in only as the zoom lands, once the 4x4 has slowed down near the center.
+    if (camera)
+      drawCloseUpLabels(ctx, vm, dm, frame.closeUp!.vehicle, labelAlpha(camera.blend), colors);
   };
 
   const count = plan.vehicles.length;
@@ -169,7 +185,7 @@ export function SurveyTab() {
       x: pointer.sx,
       y: pointer.sy,
       title: 'Base',
-      subtitle: 'Online · Starlink backhaul · Not surveyed',
+      subtitle: 'Online · Starlink backhaul · Built up',
       rows: [
         { label: '4x4s online', value: `${count}/${count}` },
         { label: 'Drones online', value: `${count}/${count}` },
@@ -177,7 +193,12 @@ export function SurveyTab() {
     };
   }
 
-  const sped = frame.step === 'survey' || running;
+  const moving = frame.step === 'survey' || running;
+  const note = !moving
+    ? undefined
+    : close
+      ? `Up close: 1 s plays ${formatPace(frame.rateHPerS * player.speed)} of work`
+      : `Sped up: ${formatPace(frame.rateHPerS * player.speed)} of work plays in 1 s`;
   return (
     <>
       <MapView
@@ -185,6 +206,7 @@ export function SurveyTab() {
         overlay={overlay}
         onHover={setPointer}
         onView={(v) => (viewRef.current = v)}
+        camera={camera}
       />
 
       <Panel corner="tl" title="Survey">
@@ -231,18 +253,16 @@ export function SurveyTab() {
 
       <SurveyCostChip cost={cost} pricingErrors={errors.length} focus={frame.step === 'done'} />
       <Legend items={LEGEND} />
-      <PlayerBar
-        player={player}
-        steps={steps}
-        note={
-          sped
-            ? `Sped up: ${plan.config.playbackHoursPerS * player.speed} h of work plays in 1 s`
-            : undefined
-        }
-      />
+      <PlayerBar player={player} steps={steps} note={note} />
       {card ? <HoverCard {...card} /> : null}
     </>
   );
+}
+
+/** Opacity of the close-up labels: 0 until the zoom is 70% in, then up to 1 when it is all the way in. */
+function labelAlpha(blend: number): number {
+  const from = 0.7;
+  return Math.max(0, (blend - from) / (1 - from));
 }
 
 function activity(kind: string, done: boolean, hours: number): string {

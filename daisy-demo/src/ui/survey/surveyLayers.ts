@@ -18,18 +18,22 @@ export interface VehicleMarker {
 
 /**
  * Screen positions of the 4x4s at `hours`. A 4x4 at the base (before Send and after its return) parks in a
- * row under the base marker, so the fleet reads as a fleet instead of one stacked dot.
+ * row just outside the pad's gate (D81), never on the built-up pad, so the fleet reads as a fleet instead of
+ * one stacked dot.
  */
 export function vehicleMarkers(plan: SurveyPlan, hours: number, view: Viewport): VehicleMarker[] {
-  const base = worldToScreen(view, plan.base.x, plan.base.y);
+  const gate = worldToScreen(view, plan.gate.x, plan.gate.y);
+  // Outside the pad: below a gate on its south edge, above one on its north edge.
+  const north = plan.pad !== null && plan.gate.y >= plan.pad.y + plan.pad.h;
+  const rowSy = gate.sy + (north ? -1 : 1) * SURVEY_VIEW.parkedBelowPx;
   const n = plan.vehicles.length;
   return plan.vehicles.map((v) => {
     const state = vehicleAt(v, hours);
     if (state.kind === 'base') {
       return {
         id: v.id,
-        sx: base.sx + (v.id - (n - 1) / 2) * SURVEY_VIEW.parkedGapPx,
-        sy: base.sy + SURVEY_VIEW.parkedBelowPx,
+        sx: gate.sx + (v.id - (n - 1) / 2) * SURVEY_VIEW.parkedGapPx,
+        sy: rowSy,
         state,
       };
     }
@@ -38,7 +42,10 @@ export function vehicleMarkers(plan: SurveyPlan, hours: number, view: Viewport):
   });
 }
 
-/** Where a flying drone is drawn: behind its 4x4 along the path, at a fixed distance on screen (D61). */
+/**
+ * Where a flying drone is drawn: behind its 4x4 along the path, a fixed distance on screen (D61), or a fixed
+ * distance on the ground when the map is zoomed in far enough for that to be longer (D82).
+ */
 export interface DroneMarker {
   /** The id of its 4x4. */
   id: number;
@@ -53,7 +60,7 @@ export function droneMarkers(
   hours: number,
   view: Viewport,
 ): DroneMarker[] {
-  const trailM = SURVEY_VIEW.droneTrailPx / view.scale;
+  const trailM = Math.max(SURVEY_VIEW.droneTrailPx / view.scale, SURVEY_VIEW.droneTrailM);
   return vehicles
     .filter((m) => droneFlying(m.state))
     .map((m) => {
@@ -112,15 +119,26 @@ export function drawSurveyed(
   ctx.fill();
 }
 
-/** Strip boundaries in the neutral border color, and a "4x4 #n" label over each strip. */
+/**
+ * Strip boundaries in the neutral border color, broken around the built-up base pad (D81), and a "4x4 #n"
+ * label over each strip.
+ */
 export function drawStrips(ctx: CanvasRenderingContext2D, view: Viewport, plan: SurveyPlan): void {
   const top = worldToScreen(view, 0, plan.area.y + plan.area.h).sy;
   const bottom = worldToScreen(view, 0, plan.area.y).sy;
+  const pad = plan.pad;
   ctx.strokeStyle = cssVar('--border-strong');
   ctx.lineWidth = SURVEY_VIEW.stripLineWidthPx;
   ctx.beginPath();
   for (const v of plan.vehicles.slice(1)) {
     const sx = Math.round(worldToScreen(view, v.strip.x, 0).sx) + 1 / 2;
+    if (pad && v.strip.x > pad.x && v.strip.x < pad.x + pad.w) {
+      ctx.moveTo(sx, top);
+      ctx.lineTo(sx, worldToScreen(view, 0, pad.y + pad.h).sy);
+      ctx.moveTo(sx, worldToScreen(view, 0, pad.y).sy);
+      ctx.lineTo(sx, bottom);
+      continue;
+    }
     ctx.moveTo(sx, top);
     ctx.lineTo(sx, bottom);
   }
@@ -179,8 +197,8 @@ export function drawPaths(
       if (leg.kind === 'transit' && leg.t0H > 0 && !current) continue;
       // Thinned by column, so the two half-passes of a column beside the pad are kept or left out together.
       if (leg.kind === 'pass' && !current && (leg.column ?? 0) % stride !== 0) continue;
-      // The current leg starts at the 4x4; before Send the 4x4 is parked at the base, inside the pad, so the
-      // leg starts where it leaves the pad and no dash crosses the pad (D60).
+      // The current leg starts at the 4x4; before Send the 4x4 is parked by the gate, so the leg starts at
+      // the gate, on the pad's edge, and no dash crosses the pad (D60, D81).
       if (current && now.kind !== 'base') line(ctx, view, now.x, now.y, leg);
       else line(ctx, view, leg.x0, leg.y0, leg);
     }
@@ -302,4 +320,41 @@ export function drawDrones(
       ctx.stroke();
     }
   }
+}
+
+/**
+ * The close-up's labels (D82): the name of the 4x4 the map zoomed in on and of its drone, beside each mark,
+ * faded in with the zoom (`alpha`).
+ */
+export function drawCloseUpLabels(
+  ctx: CanvasRenderingContext2D,
+  vehicles: VehicleMarker[],
+  drones: DroneMarker[],
+  id: number,
+  alpha: number,
+  colors: MapColors,
+): void {
+  const v = vehicles.find((m) => m.id === id);
+  const d = drones.find((m) => m.id === id);
+  if (!v || alpha <= 0) return;
+  const gap = SURVEY_VIEW.closeUpLabelGapPx;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, alpha);
+  ctx.font = canvasFont(12, 500);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = SURVEY_VIEW.vehicleHaloPx * 2;
+  ctx.strokeStyle = colors.halo;
+  ctx.fillStyle = cssVar('--text-1');
+  const label = (text: string, x: number, y: number) => {
+    ctx.strokeText(text, x, y);
+    ctx.fillText(text, x, y);
+  };
+  label(`4x4 #${id + 1} · Starlink`, v.sx + gap, v.sy);
+  if (d) {
+    ctx.fillStyle = cssVar('--text-2');
+    label(`Drone #${id + 1} · via 4x4`, d.sx + gap, d.sy);
+  }
+  ctx.restore();
 }

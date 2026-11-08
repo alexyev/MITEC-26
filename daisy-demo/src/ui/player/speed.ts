@@ -9,11 +9,25 @@ interface SpeedState {
 }
 
 export const usePlaybackSpeed = create<SpeedState>((set) => ({
-  speed: UI.player.speeds[0],
+  speed: UI.player.normalSpeed,
   setSpeed: (speed) => set({ speed }),
 }));
 
-/** The speed as the player bar labels it: "1×", "2×", "4×". */
+/** Labels of the slower speeds: vulgar fractions keep the control as compact as "2×". */
+const FRACTIONS: Record<number, string> = { 0.25: '¼', 0.5: '½' };
+
+/** The speed as the player bar labels it: "¼×", "½×", "1×", "2×", "4×". */
 export function speedLabel(speed: number): string {
-  return `${speed}×`;
+  return `${FRACTIONS[speed] ?? speed}×`;
+}
+
+/** The speed's tooltip: "1× · normal speed", "½× · slower", "2× · faster". */
+export function speedTitle(speed: number): string {
+  const pace =
+    speed === UI.player.normalSpeed
+      ? 'normal speed'
+      : speed < UI.player.normalSpeed
+        ? 'slower'
+        : 'faster';
+  return `${speed}× · ${pace}`;
 }

@@ -1,5 +1,6 @@
-// 4x4 survey (spec section 8.4). All values are placeholders until the team confirms the survey method,
-// the swath and the speeds (spec section 14). The hourly 4x4 cost lives in pricing.json (`survey`).
+// 4x4 survey (spec 8.4). The swath and the speeds are sourced (D80); the hourly 4x4 cost lives in pricing.json
+// (`survey`). Each 4x4 drives RTK GNSS ground passes with a mapping drone following it, so the passes are as
+// far apart as the drone's mapping lines, and the 4x4's ground pace sets the survey time.
 import type { SurveyConfig } from '../engine/survey';
 
 export const SURVEY: SurveyConfig = {
@@ -7,16 +8,36 @@ export const SURVEY: SurveyConfig = {
   maxVehicles: 8,
   /** 4x4s when the tab opens and after Restart. */
   defaultVehicles: 3,
-  /** Width of ground one survey pass records, in meters; passes are at most this far apart. */
-  swathM: 20,
-  /** Speed on a survey pass and on the short shift to the next pass. */
-  surveySpeedKmh: 8,
-  /** Speed on the legs between the base and a strip. */
-  transitSpeedKmh: 20,
+  /**
+   * Distance between survey passes, in meters (D80); passes are at most this far apart.
+   * Ground only: OptiSurface's RTK field-survey guide (optisurface.uservoice.com, article 235495, read Nov 2026)
+   * asks for 15 m on fields with relief, 15-30 m on flat ground, and "do not exceed 50 m".
+   * With the drone: Propeller's Zenmuse L2 lidar planning guide (help.propelleraero.com, article
+   * 19384915723031, read Nov 2026) flies at most 60 m above ground with 50% side overlap; the L2's 70 degree
+   * swath (DJI Zenmuse L2 FAQ) is then 84 m wide, so its mapping lines are 42 m apart.
+   * 40 m keeps under both: the drone maps the ground between the 4x4's RTK passes.
+   */
+  swathM: 40,
+  /**
+   * Speed on a survey pass and on the short shift to the next pass (D80). Sources range from 7 to 15 km/h:
+   * an 80-acre ATV grid at 50 ft spacing in about 3 h, so about 7 km/h with turns (RPLS.com forum, "Topographic
+   * survey with ATV", read Nov 2026), and 15 km/h, one RTK point every 5 m at 1 s (OptiSurface, above).
+   * A mapping drone flies faster than either (DJI tests the L2 at 15 m/s), so the 4x4 sets the pace.
+   */
+  surveySpeedKmh: 12,
+  /**
+   * Speed between the base and a strip, and around the base pad (D80): 15 mph, the UTV limit on a
+   * utility-scale solar build ("Rules of the Road", Cobra-Barrett Solar Project, form.jotform.com
+   * 242763923454058, read Nov 2026; 10 mph near active work, which a pre-construction site has none of).
+   */
+  transitSpeedKmh: 24,
   /** Side of a ground cell for the surveyed-ground model, in meters. */
   cellM: 10,
-  /** Hours of survey work shown per second of playback (1 hour of work plays in 1 s). */
-  playbackHoursPerS: 1,
+  /**
+   * Hours of survey work shown per second of playback at 1x: half an hour of work plays in 1 s, so the
+   * default fleet's survey plays in about 11 s (D82).
+   */
+  playbackHoursPerS: 0.5,
   /** A strip section narrower than this joins its neighbor; a base this close to a strip edge is on it (D60). */
   minSectionM: 1,
 };
@@ -26,6 +47,24 @@ export const SURVEY_WALK = {
   siteS: 4,
   pathsS: 3,
   doneS: 4,
+};
+
+/**
+ * The close-up of the Survey step (D82): the map zooms in on one 4x4 halfway down a pass, slows the clock so
+ * its drone and the link between them read at a glance, and zooms back out to where the view was.
+ */
+export const SURVEY_CLOSE_UP = {
+  /** The 4x4 the camera follows (0-based: 4x4 #1). */
+  vehicle: 0,
+  /** The close-up shows the pass this 4x4 drives at this share of its drive time. */
+  atShare: 0.3,
+  /** Zoom of the close-up, in CSS pixels per meter: passes 40 m apart are 72 px apart. */
+  pxPerM: 1.8,
+  /** How fast the 4x4 crosses the screen in the close-up at 1x, in CSS pixels per second. */
+  screenSpeedPxS: 48,
+  /** Seconds to zoom in (and the clock to slow down), to hold the close-up, and to zoom back out. */
+  rampS: 1.6,
+  holdS: 5,
 };
 
 /** Survey map (spec 5, 6.6): sizes in CSS pixels. Colors come from tokens.css; zoom and fit from MAP and UI. */
@@ -47,6 +86,10 @@ export const SURVEY_VIEW = {
    * on a short blue link to the 4x4, whose Starlink carries its data.
    */
   droneTrailPx: 20,
+  /** ...and at least this far behind on the ground, so its link reads when the map is zoomed in (D82). */
+  droneTrailM: 18,
+  /** Labels of the 4x4 and its drone in the close-up (D82): this far right of each mark. */
+  closeUpLabelGapPx: 12,
   droneArmPx: 3.5,
   droneRotorRadiusPx: 2.25,
   droneRotorWidthPx: 1.25,
@@ -56,7 +99,7 @@ export const SURVEY_VIEW = {
   /** Ring around the hovered 4x4 or drone. */
   hoverRingGapPx: 3.5,
   hoverRingWidthPx: 1.5,
-  /** 4x4s at the base park in a row this far below the base marker, this far apart. */
+  /** 4x4s at the base park in a row this far outside the pad's gate (D81), this far apart. */
   parkedBelowPx: 16,
   parkedGapPx: 13,
   /** Pointer distance within which a 4x4 or the base shows its hover card (spec 6.8). */

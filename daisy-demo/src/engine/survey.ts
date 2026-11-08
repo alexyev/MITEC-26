@@ -1,5 +1,5 @@
-// 4x4 survey planning (spec 8.2, D31, D60): one strip per 4x4, back-and-forth north-south passes that stop
-// at the base pad, a time model per leg, and the hour each ground cell is surveyed, as pure functions.
+// 4x4 survey planning (spec 8.2, D31, D60, D81): one strip per 4x4, north-south passes around the built-up base
+// pad, which no leg crosses, from and back to its gate; a time model per leg and the hour each cell is surveyed.
 import { SURVEY } from '../config/survey';
 import { UNITS } from '../config/units';
 import type { Rect } from './types';
@@ -56,7 +56,7 @@ export interface VehiclePlan {
   passSpacingM: number;
   /** True when the 4x4 starts at the strip's west edge and works toward the east. */
   eastward: boolean;
-  /** The base: where the 4x4 parks before Send and after its return. */
+  /** The gate of the base pad (D81): where the 4x4 parks before Send and after its return. */
   home: Point;
   legs: SurveyLeg[];
   /** Hours from Send until this 4x4 is back at the base. */
@@ -71,6 +71,11 @@ export interface SurveyPlan {
   base: Point;
   /** The base pad, which no 4x4 drives over and which is not surveyed (D60); null when the site has none. */
   pad: Rect | null;
+  /**
+   * Where the 4x4s leave and re-enter the base (D81): the middle of the pad's edge on the side the survey
+   * starts, so a 4x4 at the gate is never on the pad; the base itself when there is no pad.
+   */
+  gate: Point;
   config: SurveyConfig;
   vehicles: VehiclePlan[];
   /** Ground cells of `cellM`, row-major from the south-west corner: id = row * cellCols + col. */
@@ -209,18 +214,16 @@ export function routeAround(a: Point, b: Point, rect: Rect | null): Point[] {
   return path;
 }
 
-/** Where the line from `from` (on the pad) toward `to` leaves the pad; `from` when there is no pad. */
-function padEdgeToward(from: Point, to: Point, pad: Rect | null): Point {
-  if (!pad) return from;
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  let t = Infinity;
-  if (dx > 0) t = Math.min(t, (pad.x + pad.w - from.x) / dx);
-  if (dx < 0) t = Math.min(t, (pad.x - from.x) / dx);
-  if (dy > 0) t = Math.min(t, (pad.y + pad.h - from.y) / dy);
-  if (dy < 0) t = Math.min(t, (pad.y - from.y) / dy);
-  if (!(t < 1)) return from;
-  return { x: from.x + dx * t, y: from.y + dy * t };
+/**
+ * The gate of the base pad (D81): the middle of its south edge when the survey starts at the south edge of
+ * the area, else of its north edge, below or above the base; the base itself when there is no pad.
+ */
+export function padGate(base: Point, pad: Rect | null, south: boolean): Point {
+  if (!pad) return base;
+  return {
+    x: Math.min(pad.x + pad.w, Math.max(pad.x, base.x)),
+    y: south ? pad.y : pad.y + pad.h,
+  };
 }
 
 /** The sections of a strip, west to east: one, or the parts beside, and west and east of, the pad. */
@@ -241,11 +244,11 @@ function stripSections(strip: Rect, pad: Rect | null, minM: number): Section[] {
 }
 
 /**
- * Plans the survey of `area` by `count` 4x4s that start and end at `base` on its `pad` (spec 8.2, D31, D60).
+ * Plans the survey of `area` by `count` 4x4s from `base` on its `pad` (spec 8.2, D31, D60, D81).
  * Each section of a strip gets `ceil(width / swathM)` evenly spaced columns, so the spacing is at most
  * `swathM`; columns beside the pad are split at its edges, so a pass stops at the pad instead of crossing it.
  * A 4x4 sweeps its strip from the edge nearest the base, surveying the side of the pad it reaches first, and
- * sweeps the other side on its way back. It leaves and enters the pad where the line to the base meets it.
+ * sweeps the other side on its way back. It starts and ends at the pad's gate, and drives around the pad.
  */
 export function planSurvey(
   area: Rect,
@@ -262,6 +265,7 @@ export function planSurvey(
   const yA = area.y;
   const yB = area.y + area.h;
   const startSouth = Math.abs(base.y - yA) <= Math.abs(base.y - yB);
+  const gate = padGate(base, pad, startSouth);
   const columnsFor = (width: number, parity: number | null): number => {
     const n = Math.max(1, Math.ceil(width / config.swathM));
     return parity === null || n % 2 === parity ? n : n + 1;
@@ -314,9 +318,9 @@ export function planSurvey(
     let t = 0;
     let km = 0;
     let surveyKm = 0;
-    let pos: Point | null = null;
+    let pos: Point = gate;
     const drive = (kind: LegKind, to: Point, pass?: Column): number => {
-      const from: Point = pos ?? padEdgeToward(base, to, pad);
+      const from = pos;
       const lengthM = Math.hypot(to.x - from.x, to.y - from.y);
       const lengthKm = lengthM / UNITS.mPerKm;
       const t1 = t + lengthM / (kind === 'transit' ? transitMPerH : passMPerH);
@@ -343,14 +347,14 @@ export function planSurvey(
       pos = to;
       return legs.length - 1;
     };
-    /** Drives to `to` around the pad: a shift when the way is clear, transit legs when it is not. */
+    /**
+     * Drives to `to` around the pad: a shift when the way is clear, transit legs when it is not, and always
+     * transit on the way out of the gate.
+     */
     const reach = (kind: LegKind, to: Point): void => {
-      if (pos === null) {
-        drive('transit', to);
-        return;
-      }
       const way = routeAround(pos, to, pad);
-      for (const p of way) drive(way.length > 1 ? 'transit' : kind, p);
+      const out = legs.length === 0;
+      for (const p of way) drive(way.length > 1 || out ? 'transit' : kind, p);
     };
 
     let south = startSouth;
@@ -390,8 +394,7 @@ export function planSurvey(
       else col.north = leg;
     });
 
-    const last: Point = pos!;
-    drive('transit', padEdgeToward(base, last, pad));
+    reach('transit', gate);
 
     columnsOf.push(columns);
     vehicles.push({
@@ -400,7 +403,7 @@ export function planSurvey(
       passes: legs.filter((l) => l.kind === 'pass').length,
       passSpacingM: Math.max(...columns.map((c) => c.x1 - c.x0)),
       eastward,
-      home: base,
+      home: gate,
       legs,
       driveH: t,
       driveKm: km,
@@ -440,6 +443,7 @@ export function planSurvey(
     area,
     base,
     pad,
+    gate,
     config,
     vehicles,
     cellCols,
@@ -463,7 +467,7 @@ function legIndexAt(legs: SurveyLeg[], tH: number): number {
   return lo;
 }
 
-/** Position and progress of one 4x4 at `tH` hours after Send; at the base it is at `home`. */
+/** Position and progress of one 4x4 at `tH` hours after Send; at the base it is at `home`, the pad's gate. */
 export function vehicleAt(vehicle: VehiclePlan, tH: number): VehicleState {
   const { legs } = vehicle;
   const first = legs[0];
@@ -508,7 +512,7 @@ export function droneFlying(state: VehicleState): boolean {
 
 /**
  * The point `distM` behind a driving 4x4 along the path it has driven, where its drone follows it; never
- * further back than where the 4x4 left the base pad.
+ * further back than the pad's gate, where the 4x4 set out.
  */
 export function trailPoint(vehicle: VehiclePlan, tH: number, distM: number): Point {
   const now = vehicleAt(vehicle, tH);

@@ -23,6 +23,10 @@
   --c-map-halo: #0b0d11; /* Dark ring that lifts markers off the map */
   --c-map-dim: rgba(11, 13, 17, 0.6); /* Dims the map under the routes while data moves (D55) */
   --c-old-route: rgba(170, 178, 191, 0.85); /* The path a reroute replaced, dashed (D55) */
+  /* The base pad (D34, D81): already built up, so a solid no-go area on the map, in neutral tones. */
+  --c-pad-fill: rgba(255, 255, 255, 0.06);
+  --c-pad-hatch: rgba(255, 255, 255, 0.14);
+  --c-pad-edge: rgba(255, 255, 255, 0.38);
   /* Legend swatches of the 'fill' and 'circle' shapes: an area tint and its edge, per token. */
   --c-signal-area: var(--c-signal-fill);
   --c-signal-edge: var(--c-signal);

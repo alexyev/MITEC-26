@@ -1,6 +1,6 @@
 // Player bar (spec 6.2, 7): bottom center, at most 560 px wide. The step and its caption, then play and pause,
 // a progress track with one tick per step (click or drag to seek), step back and forward, restart, and the
-// playback speed shared by both tabs (1× is the designed pace).
+// playback speed shared by both tabs (1× is the designed pace; ¼× and ½× slow it down).
 import { useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
@@ -10,13 +10,13 @@ import { IconButton } from '../kit/IconButton';
 import { Segmented } from '../kit/Segmented';
 import type { SegmentedOption } from '../kit/types';
 import { stepStarts, walkDuration } from './clock';
-import { speedLabel } from './speed';
+import { speedLabel, speedTitle } from './speed';
 import type { Player, WalkStep } from './types';
 
-const SPEED_OPTIONS: SegmentedOption[] = UI.player.speeds.map((speed, i) => ({
+const SPEED_OPTIONS: SegmentedOption[] = UI.player.speeds.map((speed) => ({
   value: String(speed),
   label: speedLabel(speed),
-  title: i === 0 ? `${speedLabel(speed)} · normal speed` : `${speedLabel(speed)} · faster`,
+  title: speedTitle(speed),
 }));
 
 export interface PlayerBarProps {

@@ -13,8 +13,16 @@ import { cssVar, readColorTokens } from '../kit/tokens';
 import type { MapColors } from '../kit/tokens';
 import { drawUnits } from './units';
 import type { UnitColors } from './units';
-import { fitViewport, panBy, scaleBar, screenToWorld, worldToScreen, zoomAt } from './viewport';
-import type { Viewport } from './viewport';
+import {
+  cameraViewport,
+  fitViewport,
+  panBy,
+  scaleBar,
+  screenToWorld,
+  worldToScreen,
+  zoomAt,
+} from './viewport';
+import type { Camera, Viewport } from './viewport';
 
 interface Palette extends UnitColors {
   edge: string;
@@ -25,6 +33,7 @@ interface Palette extends UnitColors {
   halo: string;
   siteOutline: string;
   padFill: string;
+  padHatch: string;
   padEdge: string;
   siteGround: string;
 }
@@ -43,8 +52,9 @@ function readPalette(el: HTMLElement): Palette {
     base: c.base,
     halo: c.halo,
     siteOutline: c.outline,
-    padFill: cssVar('--surface-hover', el),
-    padEdge: cssVar('--border-strong', el),
+    padFill: cssVar('--c-pad-fill', el),
+    padHatch: cssVar('--c-pad-hatch', el),
+    padEdge: cssVar('--c-pad-edge', el),
     siteGround: cssVar('--highlight', el),
   };
 }
@@ -92,9 +102,22 @@ export interface MapViewProps {
   onHover?: (pointer: MapPointer | null) => void;
   /** Called with the view after every draw, so a tab can hit-test its own layers. */
   onView?: (view: Viewport) => void;
+  /**
+   * A walkthrough camera (D82): while set, the view moves from where it was toward `camera.target` by
+   * `camera.blend`, and back as the blend returns to 0. Panning or zooming hands the view back to the viewer
+   * until the camera is cleared.
+   */
+  camera?: Camera | null;
 }
 
-export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView }: MapViewProps) {
+export function MapView({
+  day: buildDay = 0,
+  underlay,
+  overlay,
+  onHover,
+  onView,
+  camera = null,
+}: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scaleBarRef = useRef<HTMLDivElement>(null);
@@ -108,11 +131,16 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
   const statesRef = useRef<Uint8Array | null>(null);
   const paletteRef = useRef<Palette | null>(null);
   const colorsRef = useRef<MapColors | null>(null);
-  const layersRef = useRef({ underlay, overlay, onHover, onView });
-  layersRef.current = { underlay, overlay, onHover, onView };
-  const patternsRef = useRef<{ edge: CanvasPattern | null; work: CanvasPattern | null } | null>(
-    null,
-  );
+  const layersRef = useRef({ underlay, overlay, onHover, onView, camera });
+  layersRef.current = { underlay, overlay, onHover, onView, camera };
+  /** The view the camera started from, and whether the viewer took the view back from it. */
+  const cameraFromRef = useRef<Viewport | null>(null);
+  const cameraReleasedRef = useRef(false);
+  const patternsRef = useRef<{
+    edge: CanvasPattern | null;
+    work: CanvasPattern | null;
+    pad: CanvasPattern | null;
+  } | null>(null);
 
   const model = getSiteModel();
 
@@ -133,9 +161,15 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
     return { min: fit.scale * MAP.minZoomOfFit, max: MAP.maxPxPerM };
   }, [model]);
 
+  /** The viewer moved the map: the walkthrough camera lets go of the view until it is cleared. */
+  const release = useCallback(() => {
+    if (cameraFromRef.current) cameraReleasedRef.current = true;
+  }, []);
+
   const fit = useCallback(() => {
     const v = viewRef.current;
     if (!v) return;
+    release();
     viewRef.current = fitViewport(
       model.site.widthM,
       model.site.heightM,
@@ -144,17 +178,18 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
       UI.mapFitPaddingPx,
     );
     requestDraw();
-  }, [model, requestDraw]);
+  }, [model, requestDraw, release]);
 
   const zoomButton = useCallback(
     (factor: number) => {
       const v = viewRef.current;
       if (!v) return;
+      release();
       const { min, max } = minMaxScale();
       viewRef.current = zoomAt(v, v.width / 2, v.height / 2, factor, min, max);
       requestDraw();
     },
-    [minMaxScale, requestDraw],
+    [minMaxScale, requestDraw, release],
   );
 
   useEffect(() => {
@@ -203,11 +238,37 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
     if (!canvas || !ctx) return;
 
     const draw = () => {
+      const layers = layersRef.current;
+      // The walkthrough camera (D82) sets the view from the view it started from, unless the viewer took over.
+      if (!layers.camera) {
+        // A cleared camera gives the view back as it was, also when a seek skipped the zoom out.
+        const from = cameraFromRef.current;
+        if (from && !cameraReleasedRef.current && viewRef.current) {
+          viewRef.current = {
+            ...from,
+            width: viewRef.current.width,
+            height: viewRef.current.height,
+          };
+        }
+        cameraFromRef.current = null;
+        cameraReleasedRef.current = false;
+      } else if (viewRef.current && !cameraReleasedRef.current) {
+        const from = (cameraFromRef.current ??= viewRef.current);
+        const pad = UI.mapFitPaddingPx;
+        const focus = {
+          sx: (pad.left + from.width - pad.right) / 2,
+          sy: (pad.top + from.height - pad.bottom) / 2,
+        };
+        viewRef.current = cameraViewport(
+          { ...from, width: viewRef.current.width, height: viewRef.current.height },
+          layers.camera,
+          focus,
+        );
+      }
       const v = viewRef.current;
       const palette = paletteRef.current;
       const colors = colorsRef.current;
       if (!v || !palette || !colors) return;
-      const layers = layersRef.current;
       const dpr = canvas.width / v.width;
       const day = dayRef.current;
 
@@ -248,6 +309,7 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
         patternsRef.current = {
           edge: hatchPattern(ctx, palette.edge, MAP.hatchSpacingPx * dpr),
           work: hatchPattern(ctx, palette.work, MAP.hatchSpacingPx * dpr),
+          pad: hatchPattern(ctx, palette.padHatch, MAP.basePadHatchPx * dpr),
         };
       }
 
@@ -329,16 +391,28 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
         face(zones.east, 1);
       }
 
-      // The base compound (D34): its own pad at the center with no units, in the neutral site tones.
+      // The base compound (D34, D81): its own pad at the center with no units, already built up, so it is
+      // filled, hatched and outlined like a no-go area; no survey path crosses it.
       const pad = model.site.basePad;
       if (pad) {
         const p = worldToScreen(v, pad.x, pad.y + pad.h);
-        ctx.fillStyle = palette.padFill;
-        ctx.strokeStyle = palette.padEdge;
-        ctx.lineWidth = 1;
+        const w = pad.w * v.scale;
+        const h = pad.h * v.scale;
         ctx.beginPath();
-        ctx.roundRect(p.sx, p.sy, pad.w * v.scale, pad.h * v.scale, MAP.basePadCornerPx);
+        ctx.roundRect(p.sx, p.sy, w, h, MAP.basePadCornerPx);
+        ctx.fillStyle = palette.padFill;
         ctx.fill();
+        if (patterns?.pad) {
+          patterns.pad.setTransform(new DOMMatrix().translate(o.sx * dpr, o.sy * dpr));
+          ctx.save();
+          ctx.clip();
+          ctx.fillStyle = patterns.pad;
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.fillRect(p.sx * dpr, p.sy * dpr, w * dpr, h * dpr);
+          ctx.restore();
+        }
+        ctx.strokeStyle = palette.padEdge;
+        ctx.lineWidth = MAP.basePadEdgePx;
         ctx.stroke();
       }
 
@@ -399,6 +473,7 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
     const move = (e: PointerEvent) => {
       if (!last && e.pointerType !== 'touch') hover(e);
       if (!last || !viewRef.current) return;
+      release();
       viewRef.current = panBy(viewRef.current, e.clientX - last.x, e.clientY - last.y);
       last = { x: e.clientX, y: e.clientY };
       requestDraw();
@@ -416,6 +491,7 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
       const lineScale = e.deltaMode === 1 ? 16 : 1;
       const factor = Math.pow(MAP.wheelZoomPer100Px, (-e.deltaY * lineScale) / 100);
       const { min, max } = minMaxScale();
+      release();
       viewRef.current = zoomAt(v, e.clientX - rect.left, e.clientY - rect.top, factor, min, max);
       requestDraw();
     };
@@ -433,7 +509,7 @@ export function MapView({ day: buildDay = 0, underlay, overlay, onHover, onView 
       canvas.removeEventListener('pointerleave', leave);
       canvas.removeEventListener('wheel', wheel);
     };
-  }, [minMaxScale, requestDraw]);
+  }, [minMaxScale, requestDraw, release]);
 
   return (
     <div className="map" ref={containerRef}>

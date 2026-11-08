@@ -22,4 +22,4 @@ npm test
 
 Stack: React 18, TypeScript, Vite, Zustand and canvas 2D, tested with Vitest.
 
-Built for MITEC Hack '26, by [Alexander Yevchenko](https://alexanderyevchenko.com).
+Built for MITEC Hack '26: [alexanderyevchenko.com](https://alexanderyevchenko.com).

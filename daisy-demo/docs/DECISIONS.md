@@ -700,3 +700,21 @@ The survey UTV sheet says, under the lidar grades, why the kit is priced with ro
 - The lidar only models the ground and finds obstacles, where the drone's Zenmuse L2, rated to 4 cm vertical and 5 cm horizontal (DJI specs), covers a flat desert site.
 - Exowatt's own GO2 surveys with a navigation-class lidar (the Unitree L1).
 - Survey-grade rigs are built for design-grade highway mapping (TxDOT's mobile lidar specification).
+
+## D130 - The home screen's daisy, "Daisy Does It!" and the bare-domain credit (home polish, captain's request)
+
+The captain asked for a shorter home screen with more character, and for the credit to read as the site's address.
+
+- **Copy.** The "Interactive demo" eyebrow, the "Two tabs ..." note, the "A short tour shows you around first." hint and the footer's "Reopen this page from the name at the top left." are gone.
+  The page reads: the title, "Daisy Does It!", the lede, then "Open the demo" with "Skip the tour" (or "Take the tour" for a returning viewer).
+  The brand chip still reopens the page, and the tour's last step still says so.
+- **The daisy.** `src/ui/guide/Daisy.tsx` redraws the captain's reference as an inline SVG with nothing behind it: five outlined elliptical petals 72 degrees apart, one pointing straight down, around a filled center, in the reference's proportions (petal 40 units long and 15 wide, center radius 10, stroke 2.7).
+  Its colors are sampled from the reference and live in `tokens.css`: `--daisy-petal` (#cbd6c6, sage) and `--daisy-center` (#f2b33d, orange-yellow), with a faint warm light behind it (`--daisy-glow`).
+- **Layout.** The home screen is a two-column grid: the 560 px text column on the left and the daisy centered in the rest, as large as `min(30vw, 50vh)` within 240 to 420 px (360 px at 1280 x 720, 420 px at 1440 x 900), its center level with the text's middle.
+  Under 860 px wide the daisy shrinks to 96 px above the title.
+- **Entry.** The title fades in sliding 48 px from the left; "Daisy Does It!", in the daisy's center color at 20 px semibold, follows a word at a time; the lede and the actions rise into place; the daisy pops in from 40% with a little turn, overshoots to 107% and settles, its center popping first and the petals unfurling from it clockwise.
+  The whole entry takes about 1.4 s and replays when the page is reopened.
+  Under reduced motion every part only fades in, in the same order: nothing slides, scales, turns or blooms.
+- **Credit.** `UI.credit.label` is "alexanderyevchenko.com", linking to https://alexanderyevchenko.com in a new tab, at the bottom center of the map and of the home screen; the home screen's credit sits exactly where the map's lands, so it stays put as the page gives way to the map.
+  No "by Alexander Yevchenko" wording is left in the app or the README.
+- **Tests** (`tests/guide.test.tsx`): the column reads title, subheader, lede and actions and none of the removed copy; the daisy is decorative with five petals, a center and no background shape; both credits read the bare domain and open the site in a new tab.

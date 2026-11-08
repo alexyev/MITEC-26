@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { UI } from '../src/config/defaults';
 import { HOME, TOUR, TOUR_OPTIONAL_TARGETS, tourSteps } from '../src/config/tour';
 import { useBuildStore } from '../src/state/build';
 import { readTourSeen, useGuideStore, writeTourSeen } from '../src/state/guide';
@@ -281,6 +282,54 @@ describe('home screen (D90)', () => {
     expect(useGuideStore.getState().home).toBe('closed');
     expect(useGuideStore.getState().tourStep).toBe(0);
     expect(screen.getByRole('dialog', { name: STEPS[0].title })).toBeTruthy();
+  });
+
+  it('reads title, "Daisy Does It!", the lede and the actions, with the daisy beside them (D130)', () => {
+    render(<App />);
+    const home = screen.getByRole('dialog', { name: 'Exowatt: Scaling Deployment' });
+    const column = home.querySelector('.home-column')!;
+    expect([...column.children].map((el) => el.className)).toEqual([
+      'home-title',
+      'home-sub',
+      'home-lede',
+      'home-actions',
+    ]);
+    expect(home.querySelector('.home-sub')!.textContent).toBe('Daisy Does It!');
+    // The copy the captain asked to drop stays gone.
+    for (const gone of [
+      'Interactive demo',
+      'Two tabs',
+      'A short tour shows you around first.',
+      'Reopen this page',
+    ]) {
+      expect(home.textContent).not.toContain(gone);
+    }
+    // The daisy: decorative, five outlined petals and a center, nothing behind them.
+    const daisy = home.querySelector('.home-art svg.daisy')!;
+    expect(daisy.getAttribute('aria-hidden')).toBe('true');
+    expect(daisy.querySelectorAll('ellipse.daisy-petal')).toHaveLength(5);
+    expect(daisy.querySelectorAll('circle.daisy-center')).toHaveLength(1);
+    expect(daisy.querySelectorAll('rect, image')).toHaveLength(0);
+  });
+
+  it('credits the site by its bare domain on the home screen and the map, in a new tab (D130)', () => {
+    expect(UI.credit).toEqual({
+      label: 'alexanderyevchenko.com',
+      url: 'https://alexanderyevchenko.com',
+    });
+    render(<App />);
+    const links = screen.getAllByRole('link', { name: 'alexanderyevchenko.com', hidden: true });
+    expect(links.map((a) => a.closest('.home-foot, .dock-bottom')?.className)).toEqual([
+      'dock dock-bottom',
+      'home-foot',
+    ]);
+    for (const a of links) {
+      expect(a.textContent).toBe('alexanderyevchenko.com');
+      expect(a.getAttribute('href')).toBe('https://alexanderyevchenko.com');
+      expect(a.getAttribute('target')).toBe('_blank');
+      expect(a.getAttribute('rel')).toBe('noopener noreferrer');
+    }
+    expect(document.body.textContent).not.toMatch(/by Alexander/i);
   });
 
   it('Skip the tour goes straight to the map and is remembered', () => {
